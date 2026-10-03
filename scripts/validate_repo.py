@@ -49,17 +49,21 @@ def validate_app(template):
 def main():
     assert CONFIG["account_id"] == "394270749442"
     assert CONFIG["repository"] == "codelinq-ung-team/codehawks"
+    assert CONFIG["repository_owner_id"] == "337436199"
+    assert CONFIG["repository_id"] == "1403496059"
     assert CONFIG["app_stack"] == "codelinq-hackathon-app"
     assert CONFIG["bootstrap_stack"] == "codelinq-hackathon-bootstrap"
     app = json.loads((ROOT / "infra/app.json").read_text())
     validate_app(app)
     bootstrap = json.loads((ROOT / "infra/bootstrap.json").read_text())
     assert not any(r["Type"] == "AWS::IAM::OIDCProvider" for r in bootstrap["Resources"].values()), "The shared OIDC provider must remain outside this stack"
-    for role, environment in [("DeployRole", "hackathon"), ("TeardownRole", "hackathon-teardown")]:
+    trust_subjects = [("DeployRole", "hackathon"), ("TeardownRole", "hackathon-teardown"), ("BootstrapRole", "hackathon-admin")]
+    for role, environment in trust_subjects:
         trust = bootstrap["Resources"][role]["Properties"]["AssumeRolePolicyDocument"]["Statement"][0]
         claims = trust["Condition"]["StringEquals"]
         assert claims["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com"
-        assert claims["token.actions.githubusercontent.com:sub"] == {"Fn::Sub": f"repo:${{GitHubRepository}}:environment:{environment}"}
+        expected = f"repo:${{GitHubOrganization}}@${{GitHubOrganizationId}}/${{GitHubRepositoryName}}@${{GitHubRepositoryId}}:environment:{environment}"
+        assert claims["token.actions.githubusercontent.com:sub"] == {"Fn::Sub": expected}
     print("Repository ownership and teardown checks passed.")
 
 
