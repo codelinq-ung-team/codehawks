@@ -1143,6 +1143,11 @@
                   "Effect": "Allow",
                   "Action": "cloudfront:CreateOriginAccessControl",
                   "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:GetOriginAccessControl",
+                  "Resource": "*"
                 }
               ]
             }
