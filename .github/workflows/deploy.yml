@@ -5,7 +5,9 @@ on:
     paths:
       - 'infra/app.json'
       - 'infra/config.json'
-      - 'scripts/**'
+      - 'scripts/aws_actions.py'
+      - 'scripts/build-app.sh'
+      - 'scripts/publish-app.sh'
       - 'app/**'
   workflow_dispatch:
     inputs:

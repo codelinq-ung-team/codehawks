@@ -10,5 +10,8 @@
   "teardown_role": "codelinq-hackathon-github-teardown",
   "cloudformation_role": "codelinq-hackathon-cloudformation",
   "runtime_boundary": "arn:aws:iam::394270749442:policy/codelinq-hackathon-runtime-boundary",
-  "bootstrap_cloudformation_role": "codelinq-hackathon-cloudformation-bootstrap"
+  "bootstrap_cloudformation_role": "codelinq-hackathon-cloudformation-bootstrap",
+  "repository_owner": "codelinq-ung-team",
+  "repository_owner_id": "337436199",
+  "repository_id": "1403496059"
 }

@@ -2,13 +2,6 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Description": "Disposable codelinq hackathon GitHub OIDC access. Independent of Codehawks production.",
   "Parameters": {
-    "GitHubRepository": {
-      "Type": "String",
-      "Default": "codelinq-ung-team/codehawks",
-      "AllowedValues": [
-        "codelinq-ung-team/codehawks"
-      ]
-    },
     "GitHubOidcProviderArn": {
       "Type": "String",
       "Default": "arn:aws:iam::394270749442:oidc-provider/token.actions.githubusercontent.com",
@@ -21,6 +14,38 @@
       "Default": "1",
       "Description": "Updated by each Israel-reviewed bootstrap Actions deployment.",
       "AllowedPattern": "^[0-9]{1,12}$"
+    },
+    "GitHubOrganization": {
+      "Type": "String",
+      "Default": "codelinq-ung-team",
+      "Description": "GitHub organization slug.",
+      "AllowedValues": [
+        "codelinq-ung-team"
+      ]
+    },
+    "GitHubOrganizationId": {
+      "Type": "String",
+      "Default": "337436199",
+      "Description": "Immutable GitHub organization ID.",
+      "AllowedValues": [
+        "337436199"
+      ]
+    },
+    "GitHubRepositoryName": {
+      "Type": "String",
+      "Default": "codehawks",
+      "Description": "GitHub repository name.",
+      "AllowedValues": [
+        "codehawks"
+      ]
+    },
+    "GitHubRepositoryId": {
+      "Type": "String",
+      "Default": "1403496059",
+      "Description": "Immutable GitHub repository ID.",
+      "AllowedValues": [
+        "1403496059"
+      ]
     }
   },
   "Resources": {
@@ -475,7 +500,7 @@
                 "StringEquals": {
                   "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                   "token.actions.githubusercontent.com:sub": {
-                    "Fn::Sub": "repo:${GitHubRepository}:environment:hackathon"
+                    "Fn::Sub": "repo:${GitHubOrganization}@${GitHubOrganizationId}/${GitHubRepositoryName}@${GitHubRepositoryId}:environment:hackathon"
                   }
                 }
               }
@@ -633,7 +658,7 @@
                 "StringEquals": {
                   "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                   "token.actions.githubusercontent.com:sub": {
-                    "Fn::Sub": "repo:${GitHubRepository}:environment:hackathon-teardown"
+                    "Fn::Sub": "repo:${GitHubOrganization}@${GitHubOrganizationId}/${GitHubRepositoryName}@${GitHubRepositoryId}:environment:hackathon-teardown"
                   }
                 }
               }
@@ -758,7 +783,7 @@
                 "StringEquals": {
                   "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                   "token.actions.githubusercontent.com:sub": {
-                    "Fn::Sub": "repo:${GitHubRepository}:environment:hackathon-admin"
+                    "Fn::Sub": "repo:${GitHubOrganization}@${GitHubOrganizationId}/${GitHubRepositoryName}@${GitHubRepositoryId}:environment:hackathon-admin"
                   }
                 }
               }
