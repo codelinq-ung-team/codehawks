@@ -2,6 +2,8 @@
   "account_id": "394270749442",
   "region": "us-east-1",
   "repository": "codelinq-ung-team/codehawks",
+  "site_domain": "codelinq.codehawks.org",
+  "cloudflare_zone": "codehawks.org",
   "prefix": "codelinq-hackathon",
   "bootstrap_stack": "codelinq-hackathon-bootstrap",
   "app_stack": "codelinq-hackathon-app",

@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 
+from cloudflare_dns import delete_acm_validation, delete_owned_cname, ensure_acm_validation
 from validate_repo import CONFIG, ROOT, validate_app
 
 
@@ -44,8 +46,69 @@ def describe_app():
         raise
 
 
+def hackathon_certificate():
+    """Find only the tagged public certificate for this exact subdomain."""
+    certificates = aws("acm", "list-certificates").get("CertificateSummaryList", [])
+    matches = []
+    for item in certificates:
+        if item.get("DomainName") != CONFIG["site_domain"]:
+            continue
+        tags = aws("acm", "list-tags-for-certificate", "--certificate-arn", item["CertificateArn"]).get("Tags", [])
+        values = {tag["Key"]: tag["Value"] for tag in tags}
+        if values.get("Project") == CONFIG["prefix"] and values.get("Lifecycle") == "ephemeral":
+            matches.append(item["CertificateArn"])
+    if len(matches) > 1:
+        raise RuntimeError("Multiple hackathon ACM certificates exist for the site domain; resolve manually")
+    return matches[0] if matches else None
+
+
+def ensure_site_certificate():
+    """Request, DNS-validate, and wait for the single hackathon site certificate."""
+    certificate = hackathon_certificate()
+    if certificate is None:
+        certificate_tags = [
+            {"Key": "Project", "Value": CONFIG["prefix"]},
+            {"Key": "Owner", "Value": "Israel Jauregui"},
+            {"Key": "Lifecycle", "Value": "ephemeral"},
+            {"Key": "ManagedBy", "Value": "GitHubActions"},
+        ]
+        result = aws(
+            "acm", "request-certificate", "--domain-name", CONFIG["site_domain"],
+            "--validation-method", "DNS", "--idempotency-token", "codelinqhackathon",
+            "--tags", json.dumps(certificate_tags),
+        )
+        certificate = result["CertificateArn"]
+
+    deadline = time.monotonic() + 1500
+    while time.monotonic() < deadline:
+        details = aws("acm", "describe-certificate", "--certificate-arn", certificate)["Certificate"]
+        status = details["Status"]
+        if status == "ISSUED":
+            return certificate
+        if status in ("FAILED", "REVOKED", "EXPIRED"):
+            raise RuntimeError(f"Hackathon ACM certificate entered terminal status {status}: {details.get('FailureReason', '')}")
+        options = details.get("DomainValidationOptions", [])
+        for option in options:
+            record = option.get("ResourceRecord")
+            if record:
+                ensure_acm_validation(record)
+        time.sleep(15)
+    raise TimeoutError("ACM certificate did not validate within 25 minutes; check Cloudflare DNS and rerun deploy")
+
+
+def bootstrap_oac_id():
+    stacks = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])["Stacks"]
+    outputs = {item["OutputKey"]: item["OutputValue"] for item in stacks[0].get("Outputs", [])}
+    value = outputs.get("CloudFrontOriginAccessControlId")
+    if not value:
+        raise RuntimeError("Bootstrap stack has no CloudFront OAC yet; run the approved bootstrap update first")
+    return value
+
+
 def deploy():
     validate_app(json.loads((ROOT / "infra/app.json").read_text()))
+    oac = bootstrap_oac_id()
+    certificate = ensure_site_certificate()
     revision = os.environ["GITHUB_SHA"]
     with tempfile.TemporaryDirectory() as directory:
         packaged = Path(directory) / "packaged.json"
@@ -58,6 +121,7 @@ def deploy():
             f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['cloudformation_role']}",
             "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides",
             f"RuntimePermissionsBoundaryArn={CONFIG['runtime_boundary']}",
+            f"SiteCertificateArn={certificate}", f"CloudFrontOriginAccessControlId={oac}",
             "--tags", f"Project={CONFIG['prefix']}", "Owner=Israel Jauregui", "Lifecycle=ephemeral", "ManagedBy=CloudFormation",
             "--no-fail-on-empty-changeset", json_output=False)
     stack = describe_app()
@@ -123,6 +187,18 @@ def teardown(confirmation):
     resources = owned_resources(stack)
     assert not any(r["ResourceType"] == "AWS::CloudFormation::Stack" for r in resources), "Nested stack cleanup must be implemented first"
     print("Stack-owned cleanup inventory:", json.dumps(resources, indent=2))
+    certificate = hackathon_certificate()
+    if stack:
+        outputs = {item["OutputKey"]: item["OutputValue"] for item in stack.get("Outputs", [])}
+        distribution_domain = outputs.get("SiteDistributionDomainName")
+        if distribution_domain:
+            delete_owned_cname(CONFIG["site_domain"], distribution_domain)
+    if certificate:
+        details = aws("acm", "describe-certificate", "--certificate-arn", certificate)["Certificate"]
+        for option in details.get("DomainValidationOptions", []):
+            record = option.get("ResourceRecord")
+            if record:
+                delete_acm_validation(record)
     for resource in resources:
         if resource["ResourceStatus"] in ("DELETE_COMPLETE", "DELETE_SKIPPED"):
             continue
@@ -133,12 +209,22 @@ def teardown(confirmation):
             empty_bucket(physical_id)
         elif resource["ResourceType"] == "AWS::ECR::Repository":
             empty_repository(physical_id)
+        elif resource["ResourceType"] == "AWS::CloudFront::Distribution":
+            distribution = aws("cloudfront", "get-distribution-config", "--id", physical_id)
+            config = distribution["DistributionConfig"]
+            if config.get("Enabled"):
+                config["Enabled"] = False
+                aws("cloudfront", "update-distribution", "--id", physical_id,
+                    "--if-match", distribution["ETag"], "--distribution-config", json.dumps(config))
+                aws("cloudfront", "wait", "distribution-deployed", "--id", physical_id, json_output=False)
     if stack:
         aws("cloudformation", "delete-stack", "--stack-name", CONFIG["app_stack"],
             "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['cloudformation_role']}")
         aws("cloudformation", "wait", "stack-delete-complete", "--stack-name", CONFIG["app_stack"])
+    if certificate:
+        aws("acm", "delete-certificate", "--certificate-arn", certificate, json_output=False)
     empty_bucket(CONFIG["artifacts_bucket"])
-    message = ("Workload deleted and artifacts emptied. Israel: delete codelinq-hackathon-bootstrap "
+    message = ("Workload, CloudFront distribution, certificate and DNS record deleted; artifacts emptied. Israel: delete codelinq-hackathon-bootstrap "
                "in the us-east-1 CloudFormation console to remove the artifact bucket and IAM access. "
                "The shared GitHub OIDC provider and Codehawks production resources remain outside this stack.")
     print(message)
