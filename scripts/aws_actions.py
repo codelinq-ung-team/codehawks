@@ -138,13 +138,38 @@ def update_bootstrap():
     assert revision.isdecimal() and len(revision) <= 12, "Unexpected GitHub Actions run number"
     template = ROOT / "infra/bootstrap.json"
     assert template.stat().st_size <= 51200, "Bootstrap template exceeds CloudFormation's inline template limit"
-    aws("cloudformation", "update-stack", "--template-body", f"file://{template}",
-        "--stack-name", CONFIG["bootstrap_stack"], "--role-arn",
-        f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
-        "--capabilities", "CAPABILITY_NAMED_IAM", "--parameters",
-        f"ParameterKey=BootstrapRevision,ParameterValue={revision}", json_output=False)
-    aws("cloudformation", "wait", "stack-update-complete", "--stack-name", CONFIG["bootstrap_stack"],
-        json_output=False)
+    change_set = f"codelinq-hackathon-bootstrap-{revision}"
+    aws("cloudformation", "create-change-set", "--stack-name", CONFIG["bootstrap_stack"],
+        "--change-set-name", change_set, "--change-set-type", "UPDATE",
+        "--template-body", f"file://{template}", "--capabilities", "CAPABILITY_NAMED_IAM",
+        "--parameters", f"ParameterKey=BootstrapRevision,ParameterValue={revision}",
+        "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
+        "--import-existing-resources", "--description", "Update isolated codelinq hackathon bootstrap")
+
+    deadline = time.monotonic() + 600
+    while time.monotonic() < deadline:
+        details = aws("cloudformation", "describe-change-set", "--stack-name", CONFIG["bootstrap_stack"],
+                      "--change-set-name", change_set)
+        if details["Status"] == "CREATE_COMPLETE":
+            break
+        if details["Status"] == "FAILED":
+            raise RuntimeError(f"Bootstrap change set failed: {details.get('StatusReason', 'unknown reason')}")
+        time.sleep(5)
+    else:
+        raise TimeoutError("Bootstrap change set did not finish within 10 minutes")
+
+    aws("cloudformation", "execute-change-set", "--stack-name", CONFIG["bootstrap_stack"],
+        "--change-set-name", change_set, json_output=False)
+    deadline = time.monotonic() + 1800
+    while time.monotonic() < deadline:
+        status = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])["Stacks"][0]["StackStatus"]
+        if status in ("UPDATE_COMPLETE", "IMPORT_COMPLETE"):
+            break
+        if status in ("UPDATE_ROLLBACK_COMPLETE", "UPDATE_ROLLBACK_FAILED", "IMPORT_ROLLBACK_COMPLETE", "IMPORT_ROLLBACK_FAILED"):
+            raise RuntimeError(f"Bootstrap stack update ended in {status}")
+        time.sleep(10)
+    else:
+        raise TimeoutError("Bootstrap stack update did not complete within 30 minutes")
     result = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])
     print(json.dumps(result["Stacks"][0].get("Outputs", []), indent=2))
 
