@@ -8,13 +8,21 @@ backend does not log message bodies or raw provider errors.
 
 ## Configuration and deployment
 
-Set the same **environment variables** in GitHub's `hackathon-admin` and
-`hackathon` environments (these values are not secrets):
+Israel approved the following model for this deployment. He owns arranging the
+same **GitHub environment variables** in `hackathon-admin` and `hackathon`
+(these values are not secrets):
 
 | GitHub variable | Value |
 | --- | --- |
-| `BEDROCK_MODEL_ID` | The exact authorized Bedrock model/profile ID or ARN, callable from `us-east-1` |
-| `BEDROCK_MODEL_ARNS` | A JSON array of exact model/profile ARNs; no wildcards |
+| `BEDROCK_MODEL_ID` | `amazon.nova-lite-v1:0` |
+| `BEDROCK_MODEL_ARNS` | `["arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0"]` |
+
+In his [PR #7 review reply](https://github.com/codelinq-ung-team/codehawks/pull/7#issuecomment-5974178108),
+Israel reported this model as `AUTHORIZED` and `AVAILABLE` in account
+`394270749442`, region `us-east-1`. This Amazon model requires no third-party
+provider agreement or application inference profile. Both environments were
+missing these variables at review time. No billable inference was run, so the
+deployed Lambda role's inference path remains unverified.
 
 For a direct regional model, supply only its ARN, such as
 `arn:aws:bedrock:us-east-1::foundation-model/<model-id>`. For an inference profile,
@@ -25,9 +33,12 @@ is selected automatically. A syntactically valid allowlist cannot prove account
 access or profile destination completeness; the deployed smoke check verifies
 actual inference.
 
-After review and merge, run **Update hackathon AWS bootstrap** on `main`, followed
-by **Deploy hackathon**. Actions uses the existing OIDC roles. The bootstrap
-updates the runtime boundary and creates the Lambda-origin OAC. App deployment
+After review and merge, wait for Israel to confirm configuration in both
+environments and explicitly give the deployment go-ahead. Keep deployment and
+its two billable smoke calls on hold until that confirmation. Then run
+**Update hackathon AWS bootstrap** on `main` and wait for it to succeed before
+running **Deploy hackathon** on `main`. Actions uses the existing OIDC roles.
+The bootstrap updates the runtime boundary and creates the Lambda-origin OAC. App deployment
 rejects model settings that differ from the deployed bootstrap, packages pinned
 dependencies, and sets Lambda's `MODEL_ID` through CloudFormation. Lambda uses its
 own role to call Bedrock. Do not add a Bedrock key or long-lived AWS credentials.

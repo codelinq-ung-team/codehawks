@@ -20,6 +20,10 @@ Never put credentials in the repo, console logs, pull requests, or workflow file
 
 ## Infrastructure and deployment
 
+For deployments that include the Bedrock backend, follow the configuration and
+Israel's explicit go-ahead requirement in [Bedrock backend deployment](#bedrock-backend-deployment)
+before running the bootstrap and deployment workflows described below.
+
 CloudFormation is the current IaC format. The current site uses a private S3 bucket behind CloudFront with a DNS-validated ACM certificate for `codelinq.codehawks.org`. Cloudflare publishes a DNS-only CNAME; the apex domain and existing Codehawks records are outside this repo. The bootstrap stack owns the CloudFront origin access control (OAC), while the app stack owns its distribution and private bucket policy. Add infrastructure to [`infra/app.json`](../infra/app.json); include `RuntimePermissionsBoundaryArn` as its `AllowedPattern` already does. The app can add Lambda, DynamoDB, SQS, and other resources already covered by the scoped service role. Keep framework builds in `scripts/build-app.sh` and static output in `app/public/`; the checked-in publish script syncs that directory, invalidates this distribution, and updates only the one CNAME. Keep workflow scripts safe to run from `main`; do not put secrets, credentials, or untrusted user input in shell commands. The Actions workflow packages and applies the template to the one named app stack with the dedicated CloudFormation service role and reports outputs in the run summary.
 
 Make each deployed name start with `codelinq-hackathon-app-` and keep all SSM parameters under `/codelinq-hackathon/app/`. For log groups, use `/aws/lambda/codelinq-hackathon-app-*` or `/codelinq-hackathon/app/*`. Apply the four standard tags to each taggable resource, especially buckets and the distribution; the CloudFront OAC API does not support tags. The deploy role writes to the hackathon artifact bucket, app assets, app ECR repositories, creates only the tagged ACM certificate for `codelinq.codehawks.org`, and invalidates only hackathon-tagged distributions. CloudFormation itself has permissions for the site distribution and common S3, Lambda, DynamoDB, logs, SQS, ECR, SSM, and Secrets Manager resources within the namespace. Attach the exported runtime boundary to each runtime role declared by the app template; it permits data access within the same app namespace. The initial boundary supports Lambda runtime roles and the listed app data services; extend it before using another runtime. The boundary limits runtime IAM privileges even if a template's inline role policy asks for more.
@@ -45,8 +49,22 @@ For initial setup, merge the IaC change and add the Cloudflare environment secre
 ## Bedrock backend deployment
 
 The backend uses Lambda's IAM role for Bedrock inference; there is no Bedrock API
-key. Set matching `BEDROCK_MODEL_ID` and `BEDROCK_MODEL_ARNS` variables in the
-`hackathon-admin` and `hackathon` GitHub environments. The latter is a JSON array
+key. Israel owns arranging the following matching nonsecret variables in the
+`hackathon-admin` and `hackathon` GitHub environments:
+
+| GitHub variable | Approved value |
+| --- | --- |
+| `BEDROCK_MODEL_ID` | `amazon.nova-lite-v1:0` |
+| `BEDROCK_MODEL_ARNS` | `["arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0"]` |
+
+In his [PR #7 review reply](https://github.com/codelinq-ung-team/codehawks/pull/7#issuecomment-5974178108),
+Israel reported the model as `AUTHORIZED` and `AVAILABLE` in account
+`394270749442`, region `us-east-1`. No third-party provider agreement or
+application inference profile is required. Both environments were missing these
+variables at review time. He did not run a billable inference call; the deployed
+Lambda role's inference path remains unverified.
+
+`BEDROCK_MODEL_ARNS` is a JSON array
 of exact model/profile ARNs, including every destination foundation-model ARN for
 cross-region profiles. Israel confirms access and destinations before deployment.
 No wildcard model resources or account-wide Bedrock policies are allowed. The
@@ -64,7 +82,11 @@ Pull-request tests remain fully offline and receive no AWS credentials.
 Production runs the Flask API in Gunicorn through Lambda Web Adapter. The
 standard-library HTTP server is a local harness and is excluded from the ZIP.
 
-After merging, run **Update hackathon AWS bootstrap**, then **Deploy hackathon**.
+After merging, wait for Israel to confirm configuration in both environments
+and explicitly give the deployment go-ahead. Keep deployment and its two
+billable smoke calls on hold until that confirmation. Then run
+**Update hackathon AWS bootstrap** on `main` and wait for it to succeed before
+running **Deploy hackathon** on `main`.
 The deploy workflow runs the backend smoke check through CloudFront, including
 two small billable model requests. It does not log prompt or reply bodies.
 The `/api/*` behavior has caching disabled and forwards the required request
