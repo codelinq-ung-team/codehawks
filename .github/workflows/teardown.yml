@@ -1,0 +1,36 @@
+name: Tear down hackathon
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DELETE codelinq-hackathon 394270749442 (permanently deletes hackathon app data)
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: hackathon-aws
+  cancel-in-progress: false
+jobs:
+  teardown:
+    if: github.ref == 'refs/heads/main'
+    environment: hackathon-teardown
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: hackathon-teardown-${{ github.run_id }}
+      - name: Delete app resources and empty build artifacts
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: python3 scripts/aws_actions.py teardown --confirm "$CONFIRMATION"

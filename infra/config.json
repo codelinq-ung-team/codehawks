@@ -1,0 +1,17 @@
+{
+  "account_id": "394270749442",
+  "region": "us-east-1",
+  "repository": "codelinq-ung-team/codehawks",
+  "prefix": "codelinq-hackathon",
+  "bootstrap_stack": "codelinq-hackathon-bootstrap",
+  "app_stack": "codelinq-hackathon-app",
+  "artifacts_bucket": "codelinq-hackathon-artifacts-394270749442-us-east-1",
+  "deploy_role": "codelinq-hackathon-github-deploy",
+  "teardown_role": "codelinq-hackathon-github-teardown",
+  "cloudformation_role": "codelinq-hackathon-cloudformation",
+  "runtime_boundary": "arn:aws:iam::394270749442:policy/codelinq-hackathon-runtime-boundary",
+  "bootstrap_cloudformation_role": "codelinq-hackathon-cloudformation-bootstrap",
+  "repository_owner": "codelinq-ung-team",
+  "repository_owner_id": "337436199",
+  "repository_id": "1403496059"
+}
