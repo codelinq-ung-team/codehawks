@@ -12,15 +12,16 @@ export type AssessmentOption = {
 type QuestionBase = {
   id: string
   prompt: string
+  /** Context for the model; not displayed in the questionnaire. */
+  description: string
   helperText?: string
   required?: boolean
 }
 
 export type AssessmentQuestion = QuestionBase & (
-  | { type: 'single-select'; options: AssessmentOption[] }
-  | { type: 'multi-select'; options: AssessmentOption[] }
+  | { type: 'options'; options: AssessmentOption[]; allowMultiple?: boolean }
+  | { type: 'number-input'; placeholder?: string; min?: number; max?: number }
   | { type: 'text'; placeholder?: string }
-  | { type: 'number'; placeholder?: string; min?: number; max?: number }
 )
 
 export type AssessmentAnswersJSON = {
@@ -29,6 +30,7 @@ export type AssessmentAnswersJSON = {
   startedAt: string
   updatedAt: string
   answers: Record<string, AssessmentAnswer>
+  questionDescriptions: Record<string, string>
 }
 
 type AssessmentPageProps = {
@@ -39,20 +41,35 @@ type AssessmentPageProps = {
   onComplete?: (result: AssessmentAnswersJSON) => void
 }
 
-const createAssessment = (): AssessmentAnswersJSON => ({
+const getQuestionDescriptions = (questions: AssessmentQuestion[]) =>
+  Object.fromEntries(questions.map(({ id, description }) => [id, description]))
+
+const createAssessment = (questions: AssessmentQuestion[]): AssessmentAnswersJSON => ({
   version: 1,
   assessmentId: crypto.randomUUID(),
   startedAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   answers: {},
+  questionDescriptions: getQuestionDescriptions(questions),
 })
 
-const loadAssessment = (storageKey: string) => {
+const loadAssessment = (storageKey: string, questions: AssessmentQuestion[]) => {
   try {
     const saved = window.localStorage.getItem(storageKey)
-    return saved ? JSON.parse(saved) as AssessmentAnswersJSON : createAssessment()
+    if (!saved) return createAssessment(questions)
+
+    const assessment = JSON.parse(saved) as AssessmentAnswersJSON
+    return {
+      ...assessment,
+      // Refresh context from the question definitions, including for older drafts.
+      questionDescriptions: getQuestionDescriptions(questions),
+      // Older drafts may still contain answers to the removed demo questions.
+      answers: Object.fromEntries(
+        Object.entries(assessment.answers).filter(([id]) => !id.startsWith('placeholder-')),
+      ),
+    }
   } catch {
-    return createAssessment()
+    return createAssessment(questions)
   }
 }
 
@@ -68,7 +85,7 @@ export default function AssessmentPage({
   onComplete,
 }: AssessmentPageProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [result, setResult] = useState<AssessmentAnswersJSON>(() => loadAssessment(storageKey))
+  const [result, setResult] = useState<AssessmentAnswersJSON>(() => loadAssessment(storageKey, questions))
   const [isComplete, setIsComplete] = useState(false)
 
   const question = questions[currentIndex]
@@ -82,6 +99,7 @@ export default function AssessmentPage({
         ...current,
         updatedAt: new Date().toISOString(),
         answers: { ...current.answers, [questionId]: value },
+        questionDescriptions: getQuestionDescriptions(questions),
       }
       window.localStorage.setItem(storageKey, JSON.stringify(next))
       return next
@@ -100,7 +118,11 @@ export default function AssessmentPage({
       return
     }
 
-    const completedResult = { ...result, updatedAt: new Date().toISOString() }
+    const completedResult = {
+      ...result,
+      updatedAt: new Date().toISOString(),
+      questionDescriptions: getQuestionDescriptions(questions),
+    }
     window.localStorage.setItem(storageKey, JSON.stringify(completedResult))
     setResult(completedResult)
     setIsComplete(true)
@@ -125,7 +147,7 @@ export default function AssessmentPage({
         <h1>Your response is stored.</h1>
         <p>The component has saved the answers as JSON in local storage and passed the same object to the completion callback.</p>
         <details>
-          <summary>View saved response JSON</summary>
+          <summary>View complete assessment JSON</summary>
           <pre>{JSON.stringify(result, null, 2)}</pre>
         </details>
         <button className="assessment-primary" onClick={onExit}>Return home</button>
@@ -162,17 +184,17 @@ export default function AssessmentPage({
             <h2 id="question-heading">{question.prompt}</h2>
             {question.helperText && <p>{question.helperText}</p>}
 
-            {(question.type === 'single-select' || question.type === 'multi-select') && (
+            {question.type === 'options' && (
               <div className="assessment-options">
                 {question.options.map((option) => {
-                  const isSelected = question.type === 'multi-select'
+                  const isSelected = question.allowMultiple
                     ? Array.isArray(answer) && answer.includes(option.value)
                     : answer === option.value
                   return (
                     <button
                       className={isSelected ? 'selected' : ''}
                       key={option.value}
-                      onClick={() => question.type === 'multi-select' ? toggleMultiSelect(question.id, option.value) : saveAnswer(question.id, option.value)}
+                      onClick={() => question.allowMultiple ? toggleMultiSelect(question.id, option.value) : saveAnswer(question.id, option.value)}
                       aria-pressed={isSelected}
                     >
                       <span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>
@@ -187,8 +209,20 @@ export default function AssessmentPage({
               <textarea value={typeof answer === 'string' ? answer : ''} placeholder={question.placeholder} onChange={(event) => saveAnswer(question.id, event.target.value)} />
             )}
 
-            {question.type === 'number' && (
-              <input type="number" value={typeof answer === 'number' ? answer : ''} placeholder={question.placeholder} min={question.min} max={question.max} onChange={(event) => saveAnswer(question.id, event.target.value === '' ? '' : event.target.valueAsNumber)} />
+            {question.type === 'number-input' && (
+              <input
+                className="assessment-number-input"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                aria-labelledby="question-heading"
+                value={typeof answer === 'number' ? String(answer) : ''}
+                placeholder={question.placeholder}
+                onChange={(event) => {
+                  const digitsOnly = event.target.value.replace(/\D/g, '')
+                  saveAnswer(question.id, digitsOnly === '' ? '' : Number(digitsOnly))
+                }}
+              />
             )}
           </div>
 
