@@ -1,87 +1,71 @@
-# Local life insurance chatbot
+# Life insurance chatbot backend
 
-## File layout
+The chatbot uses Amazon Bedrock's Converse APIs with IAM authentication. The
+deployed Python backend runs behind Lambda Web Adapter, an IAM-protected Function
+URL, and the existing CloudFront distribution. Model credentials never enter the
+repository, GitHub secrets, or frontend. Conversations are not stored, and the
+backend does not log message bodies or raw provider errors.
 
-```text
-backend/
-  server.py                 HTTP routes, local UI serving, streaming transport
-  llm.py                    Provider requests, validation, text stream parsing
-  config.py                 Private .env loading and environment precedence
-  prompts.py                Assistant instructions and calculator reference loading
-  check_provider.py         Safe live provider/streaming diagnostics
-  references/
-    lincoln_calculator.md   Reviewed calculator guidance
-  tests/
-    test_chat.py            Offline HTTP and streaming integration tests
-  .env.example              Placeholder settings for local setup
-  .env                      Private settings (ignored by Git)
-frontend/local-demo/         Minimal demo UI; separate from backend logic
-```
+## Configuration and deployment
 
-Run all commands below from the repository root. Module and direct script startup
-are supported: `python -m backend.server` or `python backend/server.py`.
-From inside `backend/`, `python server.py` also works.
-Frontend teams can connect to `POST /api/chat`
-using the streaming contract below; Markdown rendering belongs to the frontend.
+Set the same **environment variables** in GitHub's `hackathon-admin` and
+`hackathon` environments (these values are not secrets):
 
-## Local setup
+| GitHub variable | Value |
+| --- | --- |
+| `BEDROCK_MODEL_ID` | The exact authorized Bedrock model/profile ID or ARN, callable from `us-east-1` |
+| `BEDROCK_MODEL_ARNS` | A JSON array of exact model/profile ARNs; no wildcards |
 
-Requires Python 3.12+; no additional packages. Run from the repository root.
-The default provider is Groq at `https://api.groq.com/openai/v1` using
-`openai/gpt-oss-20b`, available on Groq's Free plan within its rate limits.
-On a paid Developer plan, normal usage charges apply; this app does not change
-your account plan. The model is configurable with `LLM_MODEL`.
-Replies stream into the chat as they are generated, with earlier messages included
-for context. Markdown parsing remains the frontend team's responsibility.
+For a direct regional model, supply only its ARN, such as
+`arn:aws:bedrock:us-east-1::foundation-model/<model-id>`. For an inference profile,
+include its `us-east-1` ARN in account `394270749442` **and every underlying
+foundation-model ARN in its destination regions**. Israel must confirm model
+availability, any required provider access, and the ARN list. No default model
+is selected automatically. A syntactically valid allowlist cannot prove account
+access or profile destination completeness; the deployed smoke check verifies
+actual inference.
 
-PowerShell setup:
+After review and merge, run **Update hackathon AWS bootstrap** on `main`, followed
+by **Deploy hackathon**. Actions uses the existing OIDC roles. The bootstrap
+updates the runtime boundary and creates the Lambda-origin OAC. App deployment
+rejects model settings that differ from the deployed bootstrap, packages pinned
+dependencies, and sets Lambda's `MODEL_ID` through CloudFormation. Lambda uses its
+own role to call Bedrock. Do not add a Bedrock key or long-lived AWS credentials.
 
-```powershell
-# Read the key privately without writing it in shell history:
-$groqCredential = Read-Host 'Groq API key' -AsSecureString
-$env:GROQ_API_KEY = [System.Net.NetworkCredential]::new('', $groqCredential).Password
-python -m backend.server
-```
+The function has 512 MB memory, a 120-second timeout, reserved concurrency of two,
+and seven-day logs. Concurrency limits simultaneous inference; it is not a daily
+budget or per-user rate limit. User authentication, WAF, guardrails, and frontend
+integration are outside this change.
 
-Open **http://127.0.0.1:8000** to use the chat page. It includes starter questions,
-streaming replies, retryable errors, and a new-conversation button. History is kept only
-in browser memory and cleared on refresh; messages are sent to Groq for inference.
-Do not provide personal identifiers or sensitive records. The server has no chat
-database and does not log message bodies. Remove the key from the shell after use:
-`Remove-Item Env:GROQ_API_KEY`.
+The deployment smoke check verifies health, JSON input errors, one buffered model
+reply, one streaming reply, and anonymous denial at the direct Function URL. It
+makes two small, billable Bedrock requests and prints no conversation content.
+`verify_only` skips backend packaging, deployment, and inference. Live smoke checks
+run only through the main-branch deployment workflow. See
+[the AWS guide](../docs/agent-aws.md) for account boundaries and teardown.
 
-`LLM_API_KEY` is an optional alternative and takes precedence over `GROQ_API_KEY`.
-For another OpenAI-compatible provider, also set `LLM_BASE_URL` and `LLM_MODEL`.
-The base URL must include `/v1` if required; the backend appends `/chat/completions`.
-Alternatively, copy `backend/.env.example` to `backend/.env` and set the key there.
-The server loads `backend/.env` on startup; environment variables take precedence.
-The private `.env` file is ignored by Git. Never put a real key in `.env.example`.
+## HTTP contract
 
-The server adds life insurance instructions to every request. It asks for missing
-policy and situation details, explains redacted excerpts, identifies assumptions,
-and avoids inventing coverage or recommending irreversible policy changes. It is an
-educational assistant, not a licensed advisor or an insurer coverage determination.
-No policy uploads, live insurer records, or web retrieval are implemented.
-
-The assistant uses the reviewed input framework from
-[Lincoln Financial's CalcXML calculator](https://calcxml.com/calculators/life-insurance-calculator?skn=458&r=1)
-when discussing coverage needs. `backend/references/lincoln_calculator.md` is included in every
-model request. It guides intake, links to the calculator, and explains results
-users paste, including the distinction between total and additional coverage.
-This is a reviewed reference, not a live calculator API integration. Its formula
-and exact numerical outputs have not been replicated; independent estimates
-must be labeled. User financial information is not automatically sent to CalcXML.
-
-The server listens on localhost only. `GET /health` reports server availability;
-it does not test provider credentials. Send `POST /api/chat` with JSON:
+Send `POST /api/chat` with `Content-Type: application/json`:
 
 ```json
 {"messages":[{"role":"user","content":"Hello!"}],"stream":true}
 ```
 
-Streaming is the default. The response is `application/x-ndjson`: each line is a
-separate JSON event, flushed as it arrives. Network reads may split or combine
-events; buffer until a newline before parsing. Only assistant text is forwarded.
+Requests must fit within 65536 bytes. Include 1-40 user/assistant messages, each
+with nonempty content of at most 12000 characters; the final role must be `user`.
+The server sends the system prompt and reviewed calculator reference separately
+to Bedrock. Earlier conversation messages provide context; clients own history.
+
+**Deployed POST requests must also include `x-amz-content-sha256`: the lowercase
+hex SHA-256 digest of the exact UTF-8 request body bytes.** CloudFront signs origin
+requests using its OAC, but Lambda requires a signed payload hash. This header is
+not an API key. Hash and send the same serialized bytes. The backend deployment
+client in `scripts/smoke_backend.py` demonstrates this; frontend files are unchanged.
+[AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html)
+
+Streaming is the default. The response is `application/x-ndjson`, with each event
+flushed as it arrives:
 
 ```json
 {"delta":"Hello!"}
@@ -89,49 +73,52 @@ events; buffer until a newline before parsing. Only assistant text is forwarded.
 {"done":true}
 ```
 
-Before any text is sent, failures return JSON errors with an HTTP error status.
-After streaming starts, failures return an `{"error":"..."}` event without a
-`done` event. Treat a connection closing without `done` as an incomplete reply;
-only commit completed replies to conversation history. Include earlier user and
-assistant messages in subsequent requests. The backend does not store history.
-The working stream consumer is in `frontend/local-demo/chat.js`.
+Network reads can split or combine lines. Buffer until a newline before parsing.
+Only assistant text is forwarded; reasoning blocks are omitted. Before streaming
+starts, failures return JSON `{ "error": "..." }` with an HTTP error status. After
+streaming starts, failures emit an error event without `done`. A connection closing
+without `done` means the reply is incomplete. Only retain completed replies in
+conversation history. Explicit `stream:false` returns a single JSON `{ "reply":
+"..." }` response instead.
 
-For clients that require a single JSON response, explicitly send `stream:false`:
+Invalid input returns 400/413/415; disallowed Origin returns 403; missing
+configuration or credentials returns 503; throttling returns 429; provider
+failures return 502; provider timeouts return 504. Error details are sanitized.
+Production accepts `https://codelinq.codehawks.org` and requests with no Origin;
+this is not end-user authentication. Direct Function URL access requires AWS IAM
+authorization and grants CloudFront access only for this distribution.
 
-```javascript
-const response = await fetch('/api/chat', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ messages, stream: false }),
-});
-const data = await response.json();
-if (!response.ok) throw new Error(data.error);
-messages.push({ role: 'assistant', content: data.reply });
+`GET /health` is the adapter readiness endpoint. `GET /api/health` exposes the
+same lightweight status through CloudFront. Neither calls Bedrock. Production
+serves API routes only; the ZIP contains no frontend assets. CloudFront no longer
+rewrites 403/404 errors into a successful HTML response.
+
+## Local development and offline checks
+
+Requires Python 3.12+. From the repository root:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s backend/tests -v
+python -m unittest discover -s scripts/tests -v
+cfn-lint infra/bootstrap.json infra/app.json
+python scripts/validate_repo.py
+python scripts/build_backend.py
 ```
 
-Errors return `{ "error": "..." }` with HTTP status 400/413/415 for invalid
-requests, 503 for missing configuration, 429 for provider rate limits, 502 for
-provider failures, or 504 for provider timeouts. Raw provider errors and keys are
-never returned. HTTPS is required for remote providers; localhost HTTP is allowed
-for development. Redirects are refused to protect the API key.
+Tests stub Bedrock and do not use credentials or spend model tokens. The build
+downloads pinned Linux-compatible wheels and produces ignored `build/backend.zip`
+with an executable LF-terminated launcher and the reviewed reference files.
 
-Run offline integration checks with `python -m unittest discover -s backend/tests -v`.
-Tests use a local fake provider and do not spend API credits.
+The optional local harness remains `python -m backend.server` on localhost.
+Copy `.env.example` to `backend/.env` for nonsecret `MODEL_ID`,
+`AWS_DEFAULT_REGION`, optional `AWS_PROFILE`, and `PORT`; shell variables win.
+Production ignores `.env`. Local mode can serve the existing demo assets, but no
+frontend files are packaged or modified. Consult Israel before making live model
+calls in the shared account; otherwise use the offline tests. Local AWS use
+remains read-only, and deployments run through Actions.
 
-To diagnose provider access without printing your key, run
-`python -m backend.check_provider`. This checks Groq's model list and sends one tiny
-test completion, which may use API credits. It reports authentication, model
-availability, and a safe error code. If a model is unavailable, choose one listed
-for your account, set `LLM_MODEL` in `backend/.env`, and restart the server. Existing
-shell environment variables override `.env`; clear a stale `LLM_MODEL` override
-with `Remove-Item Env:LLM_MODEL -ErrorAction SilentlyContinue` before restarting.
-
-This UI lives in `frontend/local-demo/` to keep it separate from the team's public frontend.
-This is a local backend; AWS runtime/HTTP hosting has not been provisioned. Before
-public deployment, connect application authentication and rate limiting and deploy
-through the repository's reviewed CloudFormation/GitHub Actions process.
-
-References: [Groq models](https://console.groq.com/docs/models),
-[Groq model deprecations](https://console.groq.com/docs/deprecations),
-[Groq API](https://console.groq.com/docs/api-reference),
-[NAIC life insurance guide](https://content.naic.org/consumer/life-insurance.htm).
+The prompt and `references/lincoln_calculator.md` retain the life insurance
+education rules and reviewed CalcXML guidance. There are no policy uploads, live
+insurer records, chat database, web retrieval, or calculator API integration.
+Coverage discussions append the calculator link once if the model omitted it.

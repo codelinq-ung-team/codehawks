@@ -8,7 +8,7 @@ def load_local_env():
     path = Path(__file__).resolve().parent / ".env"
     if not path.exists():
         return
-    allowed = {"GROQ_API_KEY", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "PORT"}
+    allowed = {"MODEL_ID", "AWS_DEFAULT_REGION", "AWS_PROFILE", "PORT"}
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
             continue
