@@ -136,11 +136,15 @@ def deploy():
 def update_bootstrap():
     revision = os.environ["GITHUB_RUN_NUMBER"]
     assert revision.isdecimal() and len(revision) <= 12, "Unexpected GitHub Actions run number"
-    aws("cloudformation", "deploy", "--template-file", str(ROOT / "infra/bootstrap.json"),
+    template = ROOT / "infra/bootstrap.json"
+    assert template.stat().st_size <= 51200, "Bootstrap template exceeds CloudFormation's inline template limit"
+    aws("cloudformation", "update-stack", "--template-body", f"file://{template}",
         "--stack-name", CONFIG["bootstrap_stack"], "--role-arn",
         f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
-        "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides", f"BootstrapRevision={revision}",
-        "--no-fail-on-empty-changeset", json_output=False)
+        "--capabilities", "CAPABILITY_NAMED_IAM", "--parameters",
+        f"ParameterKey=BootstrapRevision,ParameterValue={revision}", json_output=False)
+    aws("cloudformation", "wait", "stack-update-complete", "--stack-name", CONFIG["bootstrap_stack"],
+        json_output=False)
     result = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])
     print(json.dumps(result["Stacks"][0].get("Outputs", []), indent=2))
 
