@@ -32,7 +32,7 @@ export type Reply = {
 const has = (p: Profile, id: FieldId) => p[id].status !== 'empty'
 const val = (p: Profile, id: FieldId) => (p[id].status === 'proposed' || p[id].status === 'confirmed') ? p[id].value : null
 const hasKids = (s: AppState) => ['kids', 'both'].includes(String(val(s.profile, 'household')))
-// Total debt from the form, when it's above zero. Pip then asks how much of it is the mortgage.
+// Total debt from the form, when it's above zero. Abe then asks how much of it is the mortgage.
 const debtTotal = (s: AppState) => (s.form.debt ?? 0) > 0 ? s.form.debt as number : null
 const money = (v: number | Household) => formatMoney(Number(v))
 
@@ -221,7 +221,7 @@ const STEP = Object.fromEntries(STEPS.map((s) => [s.id, s])) as Record<FieldId, 
 export const WHY = 'Why do you ask?'
 export const CLOSING = 'That’s everything I need. Let’s look over your answers together, and then I’ll show you the math.'
 
-// Apply the form's answers before the chat so Pip skips what's already known.
+// Apply the form's answers before the chat so Abe skips what's already known.
 // Re-running it (after going back to the form) updates its own unconfirmed answers only.
 export function applyForm(state: AppState): Partial<AppState> {
   const p = { ...state.profile }
@@ -233,7 +233,7 @@ export function applyForm(state: AppState): Partial<AppState> {
     }
   }
   set('income', f.income)
-  // With no dependents we know the answer; otherwise Pip asks who they are.
+  // With no dependents we know the answer; otherwise Abe asks who they are.
   if (f.dependents === 0 && f.marital) set('household', f.marital === 'married' ? 'partner' : 'none')
   if (f.debt === 0) { set('mortgage', 0); set('otherDebts', 0) }
   if (f.coverage === false) set('existing', 0)

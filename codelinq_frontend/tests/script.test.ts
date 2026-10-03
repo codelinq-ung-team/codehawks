@@ -31,7 +31,7 @@ test('skipped form answers stay empty, never zero', () => {
   assert.equal(nextStep(s), 'household')
 })
 
-test('with dependents, Pip still asks who they are', () => {
+test('with dependents, Abe still asks who they are', () => {
   const s = state({ marital: 'single', dependents: 2 })
   assert.equal(s.profile.household.status, 'empty')
 })
@@ -54,7 +54,7 @@ test('a mortgage above the total asks again', () => {
   assert.equal(r.updates, undefined)
 })
 
-test('"not sure" about the mortgage leaves other debts for Pip to ask', () => {
+test('"not sure" about the mortgage leaves other debts for Abe to ask', () => {
   const r = respond('mortgage', 'not sure', state({ debt: 180000 }))
   assert.equal(r.updates?.mortgage?.status, 'unknown')
   assert.equal(r.updates?.otherDebts, undefined)

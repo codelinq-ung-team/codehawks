@@ -71,6 +71,7 @@ h1, h2, h3, p { margin: 0; }
 .qform__bar { height: 6px; margin-top: var(--space-3); overflow: hidden; border-radius: var(--radius-full); background: var(--grouped-tertiary); }
 .qform__bar span { display: block; height: 100%; border-radius: inherit; background: var(--highlight); transition: width .3s ease; }
 .qform__body { width: min(100%, 620px); margin: auto; padding: var(--space-8) 0; }
+.qform__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); }
 .qform__num { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: #f3e3e8; color: var(--tint-text); font: 700 14px/1 var(--font-sans); }
 .qform__prompt { margin: var(--space-5) 0 var(--space-2); font: 800 clamp(28px, 4vw, 40px)/1.15 var(--font-sans); letter-spacing: -0.03em; color: var(--brand-tyrian); }
 .qform__helper { max-width: 34em; color: var(--label-secondary); font: 400 17px/1.5 var(--font-sans); }
@@ -105,7 +106,23 @@ h1, h2, h3, p { margin: 0; }
 .qform__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); width: min(100%, 620px); margin: 0 auto; padding-top: var(--space-5); border-top: 1px solid var(--card-edge); }
 .qform__actions .ck-btn > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .qform__actions .is-hidden { visibility: hidden; }
-@media (prefers-reduced-motion: reduce) { .qform__bar span, .qform__option { transition: none; } }
+
+/* Abe: at the end of the number row on smaller screens (pointing back at the question) */
+.qform__guide { display: block; flex: none; width: 96px; height: 96px; animation: guide-in .3s ease-out both; }
+.qform__guide.guide-pose--point { transform: scaleX(-1); }
+@keyframes guide-in { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+/* Wide screens: a wider card, with Abe standing in the space beside the question so the
+   question itself never moves. The side is set per question (data-side). */
+@media (min-width: 1024px) {
+  .qform { max-width: none; padding-inline: 40px; }
+  .qform__body, .qform__actions { width: min(620px, 100% - 2 * (144px + var(--space-6))); }
+  .qform__body { position: relative; }
+  .qform__guide { position: absolute; top: var(--space-8); width: 144px; height: 144px; }
+  .qform__guide.guide-pose--point { transform: none; }
+  .qform__body[data-side='left'] .qform__guide { right: calc(100% + var(--space-6)); }
+  .qform__body[data-side='right'] .qform__guide { left: calc(100% + var(--space-4)); }
+}
+@media (prefers-reduced-motion: reduce) { .qform__bar span, .qform__option { transition: none; } .qform__guide { animation: none; } }
 @media (max-width: 480px) {
   .qform { border-radius: 20px; padding-inline: var(--space-4); }
   .qform__body { padding: var(--space-6) 0; }
@@ -218,9 +235,6 @@ h1, h2, h3, p { margin: 0; }
 .lp-hero { display: grid; gap: 48px; padding: 48px 0 56px; align-items: center; }
 .lp-hero__copy { display: grid; gap: var(--space-5); justify-items: start; }
 
-.lp-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font: 700 13px/18px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--label-secondary); }
-.lp-eyebrow__pill { padding: 6px var(--space-3); border-radius: var(--radius-full); background: #f3e3e8; color: var(--tint-text); }
-.lp-eyebrow__dot { width: 5px; height: 5px; border-radius: 50%; background: var(--highlight-text); }
 
 .lp-title { font: 800 48px/1.02 var(--font-sans); letter-spacing: -0.035em; color: var(--brand-tyrian); }
 .lp-title__accent { color: var(--highlight-text); }
@@ -245,7 +259,7 @@ h1, h2, h3, p { margin: 0; }
 .lp-preview__ring { position: absolute; left: 2%; bottom: 18%; width: 44px; height: 44px; border-radius: 50%; border: 8px solid var(--highlight); opacity: .85; }
 .lp-card__note { display: flex; align-items: center; justify-content: center; gap: var(--space-1); margin-top: calc(-1 * var(--space-1)); color: var(--label-secondary); }
 
-/* Pip */
+/* Abe, the guide's avatar */
 .avatar { display: block; flex: none; clip-path: inset(0 round 28%); image-rendering: pixelated; }
 
 /* Chat preview on Home */
@@ -267,7 +281,7 @@ h1, h2, h3, p { margin: 0; }
 @keyframes lp-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .lp-chat__cta > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 
-/* Pip's introduction at the top of the chat */
+/* Abe's introduction at the top of the chat */
 .chat-intro { display: grid; justify-items: center; gap: var(--space-1); margin-bottom: var(--space-6); padding-bottom: var(--space-5); border-bottom: 1px solid var(--card-edge); text-align: center; }
 .chat-intro__face { margin-bottom: var(--space-2); }
 

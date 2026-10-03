@@ -1,66 +1,74 @@
-// Pip, the guide you chat with: a 32×32 pixel-art placeholder.
+// Abe, the guide you chat with: a chibi Abraham Lincoln in 32×32 pixel art.
 // To use your own art, return an <img> here with the same size and className.
 
 // One letter per pixel. Letters map to the colors below.
 const PIXELS = [
   '................................',
-  '............bbbbbbbb............',
-  '.........bbbKKKKKKKKbbb.........',
-  '........bbKHHhhhhhHHHKbb........',
-  '......bbbKHggghhhhhHHHKbbb......',
-  '.....bbbKHgghhhhHHHHHHHKbbb.....',
-  '.....bbKHgHHHHHHHHHHHHHHKbb.....',
-  '....bbbKhHHHHHHHHHHHHHHHKbbb....',
-  '...bbbKHHHHHHHHHHHHHHHHHHKbbb...',
-  '...bbbKHHHHSShHHHHHHHHHHHKbbb...',
-  '...bbKHHHHSSsshhhHHHHHHHHKKbb...',
-  '..bbbKHHHHSSSSssshhhHHHHHKKbbb..',
-  '..bbbKKHHHSBBBSSSsBBhhHHHKKbbb..',
-  '..bbbKKHHHSSSSSSSSSSSsHHHKKbbb..',
-  '..bbbKKHhHSzEESSSSEEzsHHHKKbbb..',
-  '..bbbKKHhHSSWESSSSWESsHhHKKbbb..',
-  '..bbbKKHhHSSEISSSSEISsHhHKKbbb..',
-  '..bbbKKHhHSCCSSSsSSCCsHhHKKbbb..',
-  '..bbbKKHHHSSSSSSzSSSSsHhHKKbbb..',
-  '...bbKKHHHHSSSmSSmSSsHHHHKKbb...',
-  '...bbKKHhHHSSSSmmSSSsHHHHKKbb...',
-  '...bbKKHhHHHSSSSSSSsHHHhHKKbb...',
-  '....bKKHhHHHHSSSSssHHHHhHKKb....',
-  '.....KKHhHHHHHssssHHHHHhHKK.....',
-  '.....KKHHHHHHHSSSsHHHHHHHKK.....',
-  '......KHhHTTteSSSscdTTHHHK......',
-  '.....dKHHHTTteyccycdTTHhHKd.....',
-  '...dTtTKHHTTTteoOcdTTTHHKTdTd...',
-  '..dTTtTKHTTTTteOOcdTTTTHKTdTTd..',
-  '.dTTTTtTTTTTTTtecdTTTTTTTdTTTTd.',
-  '.dTTTTtTTTTTTTtTTdTTTTTTTdTTTTd.',
-  '.dTTTTTtTTTTTTtTTdTTTTTTdTTTTTd.'
+  '..........KKKKKKKKKKKK..........',
+  '..........KAaaAAAAAAAK..........',
+  '.........bKAaaAAAAAAAKb.........',
+  '........bbKAaAAAAAAAAKbb........',
+  '......bbbbKAaAAAAAAAAKbbbb......',
+  '......bbbbKAaAAAAAAAAKbbbb......',
+  '.....bbbbbKTttTTTTTTTKbbbbb.....',
+  '....bbbbbbKTTTTTTTTTTKbbbbbb....',
+  '....bbKAaaaaaAAAAAAAAAAAAKbb....',
+  '...bbbbKKKKKKKKKKKKKKKKKKbbbb...',
+  '...bbbbHHhssssssssssssHHHbbbb...',
+  '...bbbbHHHHSSSSSSSSSSHHHHbbbb...',
+  '...bbbbbhHSBBBSSSSBBBSHHbbbbb...',
+  '...bbbbbzHSsssSSSSsssSHzbbbbb...',
+  '...bbbbzSHSSwESSsSwESSHSzbbbb...',
+  '...bbbbzSHSSEESSsSEESSHSzbbbb...',
+  '...bbbbbsDDCSSSSsSSSCDDsbbbbb...',
+  '...bbbbbDdDDSMSzzSSSDDDDbbbbb...',
+  '...bbbbbDdDDDSnmmnSDdDDDbbbbb...',
+  '....bbbbDDgDDDSSSSDDdDDDbbbb....',
+  '....bbbbDDDdDDDgDDDDDDDDbbbb....',
+  '.....bbbbKDdDDDgDdDgDdKbbbb.....',
+  '......bbbbKDDdDDDdDDDKbbbb......',
+  '......bbbbbDDdDDgDDDDbbbbb......',
+  '........KKKKKDDDDDDKKKKK........',
+  '.....KKKKJJYYYccccYYYJJKKKK.....',
+  '...KKjjJJJJYYYYyyYYYYJJJJJKKK...',
+  '..KKjjJJJJJYYLecccLYYJoJJJJJKK..',
+  '..KjjJJJJJJJJLLccLLJJJOJJJJJJK..',
+  '..KJJJJJJJJJJJLecLJJJJJJJJJJJK..',
+  '..KJJJJJJJJJJJLccLJJJJJJJJJJJK..'
 ]
 
 const COLORS: Record<string, string> = {
   '.': '#fde4d6', // background
   'b': '#fff1e7', // soft halo
-  'K': '#2e1814', // hair outline
-  'H': '#4f2a20', // hair
-  'h': '#6e3c2c', // hair strands
-  'g': '#a0623f', // hair shine
+  'K': '#1c1316', // outline
+  'A': '#2d2428', // hat
+  'a': '#4d4146', // hat shine
+  'T': '#650030', // hat band, brand burgundy
+  't': '#86193f', // band light
+  'H': '#3a2820', // hair
+  'h': '#52362a', // hair strands
   'S': '#f8d5bb', // skin
   's': '#ecb89a', // skin shadow
-  'z': '#dc9f80', // deep shadow, lashes
+  'z': '#dc9f80', // deep shadow
+  'B': '#33211b', // brows
   'E': '#2a1410', // eyes
-  'I': '#7a4630', // iris
-  'W': '#ffffff', // eye glint
-  'B': '#7a4632', // brows
-  'C': '#f4a493', // blush
-  'm': '#a23e55', // smile line
-  'T': '#650030', // cardigan, brand burgundy
-  't': '#86193f', // cardigan light
-  'd': '#480022', // cardigan shade
-  'c': '#fff7f0', // blouse
-  'e': '#ecdccf', // blouse shade
-  'O': '#ff7a47', // pendant, brand orange
-  'o': '#ffc7a8', // pendant shine
-  'y': '#e9b98f' // chain
+  'w': '#d9d2cd', // soft eye glint
+  'C': '#f2bfa6', // blush
+  'M': '#9a6248', // mole
+  'm': '#8e4a4f', // mouth
+  'n': '#c07a72', // mouth corners
+  'D': '#3a2820', // beard
+  'd': '#5c4134', // beard strands
+  'g': '#77706b', // gray strands
+  'J': '#262025', // coat
+  'j': '#3d353b', // coat light
+  'L': '#38303a', // lapels
+  'c': '#fff7f0', // shirt
+  'e': '#ecdccf', // shirt shade
+  'Y': '#141012', // bow tie
+  'y': '#3a3236', // bow tie knot
+  'O': '#ff7a47', // lapel pin, brand orange
+  'o': '#ffc7a8' // pin shine
 }
 
 // Merge each row's runs of one color into a single rect.

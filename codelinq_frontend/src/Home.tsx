@@ -1,4 +1,4 @@
-// Home: a short pitch, a preview of the chat with Pip, then the details further down.
+// Home: a short pitch, a preview of the chat with Abe, then the details further down.
 import { useEffect, useState } from 'react'
 import { Button, Icon, ListRow, ListSection, StatCard, type HueName, type IconName } from './kit/Kit.tsx'
 import { Avatar } from './guide/Avatar.tsx'
@@ -32,11 +32,6 @@ export function Home() {
     <main className="lp">
       <section className="lp-hero" aria-labelledby="hero-title">
         <div className="lp-hero__copy">
-          <p className="lp-eyebrow">
-            <span className="lp-eyebrow__pill">Free guided assessment</span>
-            <span className="lp-eyebrow__dot" aria-hidden="true" />
-            <span>No sales pressure</span>
-          </p>
           <h1 id="hero-title" className="lp-title">Life insurance,<br /><span className="lp-title__accent">made simple.</span></h1>
           <p className="lp-lede">Find out how much coverage your family may need in one friendly conversation. We explain every question and show you every number.</p>
           <div className="lp-cta">
@@ -112,7 +107,7 @@ export function Home() {
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
-// A preview of the chat with Pip. Messages appear one at a time, like the real thing.
+// A preview of the chat with Abe. Messages appear one at a time, like the real thing.
 function Preview({ onStart }: { onStart: () => void }) {
   const [shown, setShown] = useState(() => (reduceMotion() ? DEMO.length : 0))
   const typing = shown < DEMO.length && DEMO[shown].role === 'bot'

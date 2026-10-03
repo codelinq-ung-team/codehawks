@@ -1,4 +1,4 @@
-// The conversation with Pip: one question at a time, quick replies, and "why?" any time.
+// The conversation with Abe: one question at a time, quick replies, and "why?" any time.
 // Answers are checked on the Review screen, so this screen is only the chat.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button, Icon } from '../kit/Kit.tsx'
@@ -88,7 +88,7 @@ export function Chat() {
     inputRef.current?.focus()
   }
 
-  // Pip's face sits beside the last bubble in each run of her messages.
+  // Abe's face sits beside the last bubble in each run of his messages.
   const showFace = (i: number) => (i === msgs.length - 1 ? !state.typing : msgs[i + 1].role !== 'bot')
 
   return (

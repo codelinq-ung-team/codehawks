@@ -1,5 +1,5 @@
 // LinqLife: a guided chat that estimates how much life insurance a household needs.
-// Flow: Home → Prepare → Chat (with Pip) → Review → Results, routed by the URL hash.
+// Flow: Home → Prepare → Chat (with Abe) → Review → Results, routed by the URL hash.
 import { useEffect, type ComponentType } from 'react'
 import './kit/tokens.css'
 import './kit/kit.css'
