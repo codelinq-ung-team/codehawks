@@ -598,6 +598,7 @@
                     "cloudformation:DescribeStackResources",
                     "cloudformation:ListStackResources",
                     "cloudformation:GetTemplate",
+                    "cloudformation:GetTemplateSummary",
                     "cloudformation:CreateChangeSet",
                     "cloudformation:DescribeChangeSet",
                     "cloudformation:ExecuteChangeSet",
