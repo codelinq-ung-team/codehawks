@@ -4,7 +4,6 @@ on:
     branches: [main]
     paths:
       - 'infra/app.json'
-      - 'infra/config.json'
       - 'scripts/aws_actions.py'
       - 'scripts/build-app.sh'
       - 'scripts/publish-app.sh'
