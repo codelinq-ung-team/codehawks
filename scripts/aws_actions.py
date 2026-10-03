@@ -101,7 +101,7 @@ def bootstrap_oac_id():
     outputs = {item["OutputKey"]: item["OutputValue"] for item in stacks[0].get("Outputs", [])}
     value = outputs.get("CloudFrontOriginAccessControlId")
     if not value:
-        raise RuntimeError("Bootstrap stack has no CloudFront OAC yet; run the approved bootstrap update first")
+        raise RuntimeError("Bootstrap stack has no CloudFront OAC yet; run the bootstrap update first")
     return value
 
 

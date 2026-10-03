@@ -12,7 +12,7 @@
     "BootstrapRevision": {
       "Type": "String",
       "Default": "1",
-      "Description": "Updated by each Israel-reviewed bootstrap Actions deployment.",
+      "Description": "Updated by each GitHub Actions bootstrap deployment.",
       "AllowedPattern": "^[0-9]{1,12}$"
     },
     "GitHubOrganization": {
@@ -969,6 +969,7 @@
                     "cloudformation:DescribeStackResources",
                     "cloudformation:ListStackResources",
                     "cloudformation:GetTemplate",
+                    "cloudformation:GetTemplateSummary",
                     "cloudformation:UpdateStack",
                     "cloudformation:CreateChangeSet",
                     "cloudformation:ExecuteChangeSet"
