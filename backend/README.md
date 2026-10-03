@@ -1,7 +1,7 @@
 # Life insurance chatbot backend
 
 The chatbot uses Amazon Bedrock's Converse APIs with IAM authentication. The
-deployed Python backend runs behind Lambda Web Adapter, an IAM-protected Function
+deployed Python Flask API runs in Gunicorn behind Lambda Web Adapter, an IAM-protected Function
 URL, and the existing CloudFront distribution. Model credentials never enter the
 repository, GitHub secrets, or frontend. Conversations are not stored, and the
 backend does not log message bodies or raw provider errors.
@@ -81,11 +81,11 @@ without `done` means the reply is incomplete. Only retain completed replies in
 conversation history. Explicit `stream:false` returns a single JSON `{ "reply":
 "..." }` response instead.
 
-Invalid input returns 400/413/415; disallowed Origin returns 403; missing
+Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
 failures return 502; provider timeouts return 504. Error details are sanitized.
-Production accepts `https://codelinq.codehawks.org` and requests with no Origin;
-this is not end-user authentication. Direct Function URL access requires AWS IAM
+Production delegates origin authorization to CloudFront and IAM. The local harness
+rejects foreign browser origins with 403. Direct Function URL access requires AWS IAM
 authorization and grants CloudFront access only for this distribution.
 
 `GET /health` is the adapter readiness endpoint. `GET /api/health` exposes the
@@ -109,6 +109,9 @@ python scripts/build_backend.py
 Tests stub Bedrock and do not use credentials or spend model tokens. The build
 downloads pinned Linux-compatible wheels and produces ignored `build/backend.zip`
 with an executable LF-terminated launcher and the reviewed reference files.
+
+Gunicorn serves `backend.app:app` in production. The Lambda ZIP excludes the
+standard-library HTTP server and local environment loader.
 
 The optional local harness remains `python -m backend.server` on localhost.
 Copy `.env.example` to `backend/.env` for nonsecret `MODEL_ID`,

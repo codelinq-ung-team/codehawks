@@ -157,7 +157,6 @@
             "MODEL_ID": {
               "Ref": "BedrockModelId"
             },
-            "APP_MODE": "production",
             "PORT": "8000",
             "AWS_LAMBDA_EXEC_WRAPPER": "/opt/bootstrap",
             "AWS_LWA_PORT": "8000",

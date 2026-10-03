@@ -61,6 +61,8 @@ Lambda Web Adapter layer version in addition to the existing app permissions.
 The backend artifact is packaged in Actions with `scripts/build_backend.py` and
 uploaded only to the hackathon artifact bucket by the existing packaging step.
 Pull-request tests remain fully offline and receive no AWS credentials.
+Production runs the Flask API in Gunicorn through Lambda Web Adapter. The
+standard-library HTTP server is a local harness and is excluded from the ZIP.
 
 After merging, run **Update hackathon AWS bootstrap**, then **Deploy hackathon**.
 The deploy workflow runs the backend smoke check through CloudFront, including

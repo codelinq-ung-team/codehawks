@@ -257,29 +257,9 @@ class ChatTests(unittest.TestCase):
         with self.open("/../.env") as response:
             self.assertEqual(response.status, 404)
 
-    def test_production_is_api_only_and_health_needs_no_aws(self):
-        self.backend.production = True
-        for path in ("/health", "/api/health"):
-            with self.open(path) as response:
-                self.assertEqual(json.load(response), {"status": "ok"})
-        for path in ("/", "/chat.js", "/style.css", "/missing"):
-            with self.open(path) as response:
-                self.assertEqual(response.status, 404)
-                self.assertEqual(json.load(response), {"error": "Not found"})
-        self.client.converse.assert_not_called()
-
-    def test_production_accepts_site_and_absent_origin(self):
-        self.backend.production = True
-        body = json.dumps({"messages": MESSAGES, "stream": False}).encode()
-        self.assertEqual(self.request(body)[0], 200)
-        self.assertEqual(self.request(body, headers={"Content-Type": "application/json",
-                                                   "Origin": "https://codelinq.codehawks.org"})[0], 200)
-
     def test_foreign_origin_does_not_call_provider(self):
-        for production in (False, True):
-            self.backend.production = production
-            status, _ = self.request(b"{}", headers={"Origin": "https://other.example", "Content-Type": "application/json"})
-            self.assertEqual(status, 403)
+        status, _ = self.request(b"{}", headers={"Origin": "https://other.example", "Content-Type": "application/json"})
+        self.assertEqual(status, 403)
         self.client.converse.assert_not_called()
         self.client.converse_stream.assert_not_called()
 

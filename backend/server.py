@@ -1,4 +1,4 @@
-"""HTTP routes and streaming transport. Run: python -m backend.server."""
+"""Local development HTTP routes and streaming transport. Run: python -m backend.server."""
 import json
 import os
 import sys
@@ -44,7 +44,7 @@ class Handler(BaseHTTPRequestHandler):
         assets = {"/": ("index.html", "text/html; charset=utf-8"),
                   "/chat.js": ("chat.js", "text/javascript; charset=utf-8"),
                   "/style.css": ("style.css", "text/css; charset=utf-8")}
-        if not getattr(self.server, "production", False) and self.path in assets:
+        if self.path in assets:
             name, content_type = assets[self.path]
             data = (LOCAL_UI / name).read_bytes()
             self.send_response(200)
@@ -65,8 +65,7 @@ class Handler(BaseHTTPRequestHandler):
         self.connection.settimeout(50)
         origin = self.headers.get("Origin")
         port = self.server.server_port
-        allowed_origins = (("https://codelinq.codehawks.org",) if getattr(self.server, "production", False)
-                           else (f"http://127.0.0.1:{port}", f"http://localhost:{port}"))
+        allowed_origins = (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
         if origin and origin not in allowed_origins:
             self.respond(403, {"error": "Send requests from the configured site origin."})
             return
@@ -116,11 +115,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    production = os.environ.get("APP_MODE") == "production"
-    if not production:
-        load_local_env()
+    load_local_env()
     server = ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("PORT", "8000"))), Handler)
-    server.production = production
     print(f"Chat backend listening on http://127.0.0.1:{server.server_port}")
     try:
         server.serve_forever()

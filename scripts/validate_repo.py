@@ -91,11 +91,10 @@ def validate_chat(template):
     assert function["Handler"] == "run.sh" and function["Code"] == "../build/backend.zip"
     variables = function["Environment"]["Variables"]
     assert variables["MODEL_ID"] == {"Ref": "BedrockModelId"}
-    assert variables["APP_MODE"] == "production"
     assert variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
     assert variables["AWS_LWA_INVOKE_MODE"] == "response_stream"
     assert variables["AWS_LWA_READINESS_CHECK_PATH"] == "/health"
-    assert set(variables) == {"MODEL_ID", "APP_MODE", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+    assert set(variables) == {"MODEL_ID", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
                               "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
                               "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
     url = resources["ChatFunctionUrl"]["Properties"]

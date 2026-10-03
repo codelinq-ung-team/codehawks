@@ -1,5 +1,6 @@
 """Amazon Bedrock inference using the runtime IAM role."""
 import os
+from contextlib import contextmanager
 from functools import lru_cache
 
 import boto3
@@ -78,25 +79,19 @@ def provider_error(code):
 
 
 def generate_reply(payload, emit=None):
-    messages = validate_messages(payload)
-    model = os.environ.get("MODEL_ID", "").strip()
-    if not model:
-        raise ChatError(503, "Configure MODEL_ID on the server.")
-    request = {
-        "modelId": model, "system": [{"text": SYSTEM_PROMPT}], "messages": messages,
-        "inferenceConfig": {"maxTokens": 4096},
-    }
-    try:
-        client = get_client()
-        if emit is not None:
-            response = client.converse_stream(**request)
-            stream = response["stream"]
-            try:
-                return consume_stream(stream, emit)
-            finally:
-                # Also release the upstream connection when emit detects a disconnect.
-                stream.close()
-        response = client.converse(**request)
+    if emit is not None:
+        events = iter_reply_events(payload)
+        parts = []
+        try:
+            for event in events:
+                parts.append(event["delta"])
+                emit(event)
+        finally:
+            events.close()
+        return {"reply": "".join(parts)}
+    request = model_request(payload)
+    with provider_errors():
+        response = get_client().converse(**request)
         check_stop_reason(response["stopReason"])
         content = response["output"]["message"]["content"]
         reply = "".join(block["text"] for block in content if "text" in block)
@@ -105,6 +100,23 @@ def generate_reply(payload, emit=None):
         if len(reply.encode("utf-8")) > MAX_REPLY_BYTES:
             raise ChatError(502, "The LLM returned an oversized response.")
         return {"reply": reply}
+
+
+def model_request(payload):
+    messages = validate_messages(payload)
+    model = os.environ.get("MODEL_ID", "").strip()
+    if not model:
+        raise ChatError(503, "Configure MODEL_ID on the server.")
+    return {
+        "modelId": model, "system": [{"text": SYSTEM_PROMPT}], "messages": messages,
+        "inferenceConfig": {"maxTokens": 4096},
+    }
+
+
+@contextmanager
+def provider_errors():
+    try:
+        yield
     except ClientError as error:
         raise provider_error(error.response.get("Error", {}).get("Code")) from None
     except (ReadTimeoutError, ConnectTimeoutError, TimeoutError):
@@ -117,7 +129,32 @@ def generate_reply(payload, emit=None):
         raise ChatError(502, "The LLM returned an invalid response.") from None
 
 
-def consume_stream(stream, emit):
+def iter_reply_events(payload):
+    request = model_request(payload)
+    with provider_errors():
+        stream = get_client().converse_stream(**request)["stream"]
+        try:
+            yield from consume_stream(stream)
+        finally:
+            stream.close()
+
+
+def iter_chat_events(payload):
+    events = iter_reply_events(payload)
+    parts = []
+    try:
+        for event in events:
+            parts.append(event["delta"])
+            yield event
+    finally:
+        events.close()
+    latest = payload["messages"][-1]["content"].lower()
+    if any(term in latest for term in ("how much", "calculator", "enough coverage", "coverage needs")) and "calcxml.com/calculators/life-insurance-calculator" not in "".join(parts):
+        yield {"delta": "\n\nCoverage planning reference: [Lincoln Financial's life insurance calculator](https://calcxml.com/calculators/life-insurance-calculator?skn=458&r=1)."}
+    yield {"done": True}
+
+
+def consume_stream(stream):
     """Forward only text, and require messageStop before declaring success."""
     parts, total, finished = [], 0, False
     for event in stream:
@@ -136,11 +173,10 @@ def consume_stream(stream, emit):
                     raise ChatError(502, "The LLM returned an oversized response.")
                 parts.append(delta)
                 if delta:
-                    emit({"delta": delta})
+                    yield {"delta": delta}
         elif "messageStop" in event:
             check_stop_reason(event["messageStop"]["stopReason"])
             finished = True
     reply = "".join(parts)
     if not finished or not reply.strip():
         raise ChatError(502, "The LLM stream ended without a complete reply.")
-    return {"reply": reply}

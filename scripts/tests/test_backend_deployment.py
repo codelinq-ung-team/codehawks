@@ -124,13 +124,17 @@ class DeploymentTests(unittest.TestCase):
             with ZipFile(output) as archive:
                 names = set(archive.namelist())
                 self.assertIn("backend/references/lincoln_calculator.md", names)
-                self.assertIn("backend/server.py", names)
+                self.assertIn("backend/app.py", names)
+                self.assertNotIn("backend/server.py", names)
+                self.assertNotIn("backend/config.py", names)
                 self.assertIn("boto3.py", names)
                 self.assertNotIn("backend/.env", names)
                 self.assertFalse(any("tests/" in name or name.startswith("frontend/") for name in names))
                 launcher = archive.getinfo("run.sh")
                 self.assertEqual((launcher.external_attr >> 16) & 0o777, 0o755)
                 self.assertNotIn(b"\r", archive.read("run.sh"))
+                self.assertIn(b"python -m gunicorn", archive.read("run.sh"))
+                self.assertIn(b"backend.app:app", archive.read("run.sh"))
 
     def test_smoke_client_hashes_exact_body_without_signing_credentials(self):
         body = b'{"messages":[]}'
