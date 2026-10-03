@@ -12,3 +12,6 @@ cdk.out/
 *.tfstate*
 *.tfplan
 bootstrap-outputs.local.json
+
+# Advisor3D output is built by scripts/build-advisor3d.sh during deploy
+app/public/advisor3d/
