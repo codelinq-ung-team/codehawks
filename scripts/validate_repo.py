@@ -2,6 +2,7 @@
 """Offline ownership checks, in addition to cfn-lint's AWS schema checks."""
 import json
 from pathlib import Path
+from bedrock_config import ADAPTER_LAYER, ARN_PATTERN, BEDROCK_ACTIONS, MODEL_PATTERN
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / "infra/config.json").read_text())
@@ -52,6 +53,110 @@ def validate_app(template):
         if resource["Type"] == "AWS::S3::Bucket":
             tags = {item["Key"]: item["Value"] for item in properties.get("Tags", [])}
             assert tags.get("Project") == CONFIG["prefix"], f"{logical_id}: Project tag required by cleanup"
+    validate_chat(template)
+
+
+def validate_model_parameters(template):
+    parameters = template["Parameters"]
+    assert parameters["BedrockModelId"]["AllowedPattern"] == MODEL_PATTERN, "Validate model IDs without wildcards"
+    assert parameters["BedrockModelArns"]["Type"] == "CommaDelimitedList"
+    assert parameters["BedrockModelArns"]["AllowedPattern"] == ARN_PATTERN, "Model ARN allowlist must be account-scoped and wildcard-free"
+    assert "Default" not in parameters["BedrockModelId"], "Require an explicitly authorized model"
+    assert "Default" not in parameters["BedrockModelArns"], "Require explicitly authorized model ARNs"
+
+
+def validate_bedrock_statements(statements):
+    found = []
+    for statement in statements:
+        actions = statement.get("Action", [])
+        actions = [actions] if isinstance(actions, str) else actions
+        assert "*" not in actions, "Do not grant all AWS actions to an app runtime"
+        if any(action.startswith("bedrock:") for action in actions):
+            assert statement["Effect"] == "Allow"
+            assert sorted(actions) == sorted(BEDROCK_ACTIONS), "Only the two Bedrock inference actions are allowed"
+            assert statement["Resource"] == {"Ref": "BedrockModelArns"}, "Use the exact model ARN allowlist"
+            found.append(statement)
+    return found
+
+
+def validate_chat(template):
+    validate_model_parameters(template)
+    resources = template["Resources"]
+    function = resources["ChatFunction"]["Properties"]
+    assert function["Role"] == {"Fn::GetAtt": ["ChatRole", "Arn"]}
+    assert function["Runtime"] == "python3.12" and function["Architectures"] == ["x86_64"]
+    assert function["Layers"] == [ADAPTER_LAYER], "Only the pinned streaming adapter layer is allowed"
+    assert function["ReservedConcurrentExecutions"] == 2, "Limit concurrent paid inference"
+    assert function["Timeout"] == 120 and function["MemorySize"] == 512
+    assert function["Handler"] == "run.sh" and function["Code"] == "../build/backend.zip"
+    variables = function["Environment"]["Variables"]
+    assert variables["MODEL_ID"] == {"Ref": "BedrockModelId"}
+    assert variables["APP_MODE"] == "production"
+    assert variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
+    assert variables["AWS_LWA_INVOKE_MODE"] == "response_stream"
+    assert variables["AWS_LWA_READINESS_CHECK_PATH"] == "/health"
+    assert set(variables) == {"MODEL_ID", "APP_MODE", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+                              "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
+                              "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
+    url = resources["ChatFunctionUrl"]["Properties"]
+    assert url["AuthType"] == "AWS_IAM" and url["InvokeMode"] == "RESPONSE_STREAM"
+    assert url["TargetFunctionArn"] == {"Fn::GetAtt": ["ChatFunction", "Arn"]}
+    source = {"Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"}
+    for name, action in (("ChatUrlPermission", "lambda:InvokeFunctionUrl"), ("ChatInvokePermission", "lambda:InvokeFunction")):
+        permission = resources[name]["Properties"]
+        assert permission["FunctionName"] == {"Ref": "ChatFunction"}
+        assert permission["Action"] == action and permission["Principal"] == "cloudfront.amazonaws.com"
+        assert permission["SourceArn"] == source, "Only this distribution may invoke chat"
+    assert resources["ChatUrlPermission"]["Properties"]["FunctionUrlAuthType"] == "AWS_IAM"
+    assert resources["ChatInvokePermission"]["Properties"]["InvokedViaFunctionUrl"] is True
+    assert resources["ChatLogGroup"]["Properties"]["RetentionInDays"] == 7
+    for name in ("ChatFunction", "ChatRole", "ChatLogGroup"):
+        tags = {tag["Key"]: tag["Value"] for tag in resources[name]["Properties"]["Tags"]}
+        assert tags == {"Project": CONFIG["prefix"], "Owner": "Israel Jauregui",
+                        "Lifecycle": "ephemeral", "ManagedBy": "CloudFormation"}
+    policies = resources["ChatRole"]["Properties"]["Policies"]
+    statements = [s for policy in policies for s in policy["PolicyDocument"]["Statement"]]
+    assert len(validate_bedrock_statements(statements)) == 1
+    assert len(statements) == 2, "Chat needs only scoped inference and logging"
+    logging = [s for s in statements if s["Action"] != BEDROCK_ACTIONS]
+    assert logging == [{"Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+                        "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-chat:log-stream:*"}}], "Chat may write only its own log streams"
+    assert not resources["ChatRole"]["Properties"].get("ManagedPolicyArns"), "Do not bypass the scoped inline runtime policy"
+    for resource in resources.values():
+        if resource["Type"] == "AWS::IAM::Role":
+            for policy in resource["Properties"].get("Policies", []):
+                validate_bedrock_statements(policy["PolicyDocument"]["Statement"])
+    distribution = resources["SiteDistribution"]["Properties"]["DistributionConfig"]
+    errors = distribution.get("CustomErrorResponses", [])
+    assert {error["ErrorCode"] for error in errors} == {403, 404, 500, 502, 503, 504}
+    assert all(error == {"ErrorCode": error["ErrorCode"], "ErrorCachingMinTTL": 0} for error in errors), "Do not cache or rewrite API errors into HTML"
+    behavior = [b for b in distribution["CacheBehaviors"] if b["PathPattern"] == "/api/*"]
+    assert len(behavior) == 1 and behavior[0]["TargetOriginId"] == "HackathonChat"
+    assert behavior[0]["CachePolicyId"] == "413f1602-6f6d-4f29-9b3b-ae0a58b8b8d6", "Disable API caching"
+    assert behavior[0]["OriginRequestPolicyId"] == "b689b0a8-53d0-40ab-baf2-68738e2966ac", "Forward payload hash and Origin, exclude viewer Host"
+    assert "POST" in behavior[0]["AllowedMethods"] and behavior[0]["Compress"] is False
+    origin = [o for o in distribution["Origins"] if o["Id"] == "HackathonChat"]
+    assert len(origin) == 1 and origin[0]["OriginAccessControlId"] == {"Ref": "ChatOriginAccessControlId"}
+    assert origin[0]["CustomOriginConfig"]["OriginProtocolPolicy"] == "https-only"
+
+
+def validate_chat_bootstrap(template):
+    validate_model_parameters(template)
+    resources = template["Resources"]
+    statements = resources["RuntimeBoundary"]["Properties"]["PolicyDocument"]["Statement"]
+    assert len(validate_bedrock_statements(statements)) == 1
+    oac = resources["ChatOriginAccessControl"]
+    assert oac["Type"] == "AWS::CloudFront::OriginAccessControl"
+    assert oac["DeletionPolicy"] == oac["UpdateReplacePolicy"] == "Retain", "Israel removes the generated OAC after app teardown"
+    assert oac["DependsOn"] == "BootstrapCloudFormationRole"
+    config = oac["Properties"]["OriginAccessControlConfig"]
+    assert config["Name"] == "codelinq-hackathon-app-chat-oac"
+    assert config["OriginAccessControlOriginType"] == "lambda"
+    assert config["SigningBehavior"] == "always" and config["SigningProtocol"] == "sigv4"
+    assert template["Outputs"]["ChatOriginAccessControlId"]["Value"] == {"Fn::GetAtt": ["ChatOriginAccessControl", "Id"]}
+    statements = resources["CloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+    layer = [s for s in statements if s["Action"] == "lambda:GetLayerVersion"]
+    assert len(layer) == 1 and layer[0]["Resource"] == ADAPTER_LAYER, "Layer reads must use the exact adapter ARN"
 
 
 def main():
@@ -66,6 +171,7 @@ def main():
     app = json.loads((ROOT / "infra/app.json").read_text())
     validate_app(app)
     bootstrap = json.loads((ROOT / "infra/bootstrap.json").read_text())
+    validate_chat_bootstrap(bootstrap)
     assert not any(r["Type"] == "AWS::IAM::OIDCProvider" for r in bootstrap["Resources"].values()), "The shared OIDC provider must remain outside this stack"
     assert bootstrap["Resources"]["CloudFrontOriginAccessControl"]["Type"] == "AWS::CloudFront::OriginAccessControl"
     assert bootstrap["Outputs"]["CloudFrontOriginAccessControlId"]["Value"] == {"Fn::GetAtt": ["CloudFrontOriginAccessControl", "Id"]}

@@ -19,3 +19,4 @@ jobs:
       - run: cfn-lint infra/bootstrap.json infra/app.json
       - run: python scripts/validate_repo.py
       - run: python -m unittest discover -s backend/tests -v
+      - run: python -m unittest discover -s scripts/tests -v

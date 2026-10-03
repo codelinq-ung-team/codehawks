@@ -29,6 +29,12 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements-dev.txt
       - run: cfn-lint infra/app.json && python scripts/validate_repo.py
+      - name: Validate Bedrock settings
+        if: inputs.verify_only != true
+        env:
+          BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
+          BEDROCK_MODEL_ARNS: ${{ vars.BEDROCK_MODEL_ARNS }}
+        run: python scripts/bedrock_config.py
       - name: Require Cloudflare DNS credential for a site deployment
         if: inputs.verify_only != true
         env:
@@ -40,6 +46,9 @@ jobs:
           if [ -f scripts/build-app.sh ]; then
             bash scripts/build-app.sh
           fi
+      - name: Package streaming backend
+        if: inputs.verify_only != true
+        run: python scripts/build_backend.py
       - name: Inspect GitHub OIDC claim values without printing the token
         if: inputs.verify_only == true
         run: |
@@ -70,6 +79,8 @@ jobs:
         env:
           VERIFY_ONLY: ${{ inputs.verify_only }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
+          BEDROCK_MODEL_ARNS: ${{ vars.BEDROCK_MODEL_ARNS }}
         run: |
           if [ "$VERIFY_ONLY" = true ]; then
             python scripts/aws_actions.py verify-deploy
@@ -84,3 +95,6 @@ jobs:
           if [ -f scripts/publish-app.sh ]; then
             bash scripts/publish-app.sh
           fi
+      - name: Verify deployed backend (two small Bedrock requests)
+        if: inputs.verify_only != true
+        run: python scripts/smoke_backend.py

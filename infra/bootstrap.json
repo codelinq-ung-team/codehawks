@@ -46,6 +46,16 @@
       "AllowedValues": [
         "1403496059"
       ]
+    },
+    "BedrockModelId": {
+      "Type": "String",
+      "AllowedPattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "Description": "Authorized Converse model or inference profile ID/ARN; supplied by protected Actions variables."
+    },
+    "BedrockModelArns": {
+      "Type": "CommaDelimitedList",
+      "AllowedPattern": "^arn:aws:bedrock:[a-z]{2}-[a-z]+-[0-9]:(:foundation-model/[A-Za-z0-9._:-]+|394270749442:(inference-profile|application-inference-profile)/[A-Za-z0-9._:-]+)$",
+      "Description": "Exact Bedrock model/profile ARNs, including destination foundation models. No wildcards."
     }
   },
   "Resources": {
@@ -249,6 +259,16 @@
               "Action": "secretsmanager:GetSecretValue",
               "Resource": {
                 "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:codelinq-hackathon-app-*"
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "bedrock:InvokeModel",
+                "bedrock:InvokeModelWithResponseStream"
+              ],
+              "Resource": {
+                "Ref": "BedrockModelArns"
               }
             }
           ]
@@ -525,6 +545,11 @@
                       "aws:ResourceTag/Project": "codelinq-hackathon"
                     }
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "lambda:GetLayerVersion",
+                  "Resource": "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:30"
                 }
               ]
             }
@@ -1178,9 +1203,27 @@
       "DependsOn": "BootstrapCloudFormationRole",
       "DeletionPolicy": "Retain",
       "UpdateReplacePolicy": "Retain"
+    },
+    "ChatOriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": "codelinq-hackathon-app-chat-oac",
+          "Description": "Private streaming Lambda access for the Codelinq hackathon API.",
+          "OriginAccessControlOriginType": "lambda",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      },
+      "DependsOn": "BootstrapCloudFormationRole",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain"
     }
   },
   "Outputs": {
+    "BedrockModelId": {
+      "Value": { "Ref": "BedrockModelId" }
+    },
     "DeployRoleArn": {
       "Value": {
         "Fn::GetAtt": [
@@ -1245,6 +1288,14 @@
       "Value": {
         "Fn::GetAtt": [
           "CloudFrontOriginAccessControl",
+          "Id"
+        ]
+      }
+    },
+    "ChatOriginAccessControlId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ChatOriginAccessControl",
           "Id"
         ]
       }

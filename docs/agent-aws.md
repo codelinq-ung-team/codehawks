@@ -42,11 +42,40 @@ python scripts/validate_repo.py
 
 For initial setup, merge the IaC change and add the Cloudflare environment secrets described above. Any collaborator with write access can run **Actions → Update hackathon AWS bootstrap** on `main`, then **Actions → Deploy hackathon → Run workflow**. Deployments are manual from `main`, so agents can prepare and merge app changes before a collaborator starts the AWS deployment. A deploy requests and validates the ACM certificate, creates the CloudFront distribution, syncs `app/public/`, then points the DNS-only CNAME at that distribution. The first CloudFront distribution can take several minutes to finish provisioning. Verify `https://codelinq.codehawks.org` after the run completes.
 
+## Bedrock backend deployment
+
+The backend uses Lambda's IAM role for Bedrock inference; there is no Bedrock API
+key. Set matching `BEDROCK_MODEL_ID` and `BEDROCK_MODEL_ARNS` variables in the
+`hackathon-admin` and `hackathon` GitHub environments. The latter is a JSON array
+of exact model/profile ARNs, including every destination foundation-model ARN for
+cross-region profiles. Israel confirms access and destinations before deployment.
+No wildcard model resources or account-wide Bedrock policies are allowed. The
+templates require these parameters; changing a model requires updating the
+bootstrap boundary before deploying the app. Deploy refuses differing settings.
+
+The bootstrap owns the retained `codelinq-hackathon-app-chat-oac`, which signs
+requests to the app's IAM-protected streaming Function URL. The runtime role has
+only the two scoped Bedrock inference actions and access to its own logs, with
+the exported runtime boundary attached. CloudFormation can read only the pinned
+Lambda Web Adapter layer version in addition to the existing app permissions.
+The backend artifact is packaged in Actions with `scripts/build_backend.py` and
+uploaded only to the hackathon artifact bucket by the existing packaging step.
+Pull-request tests remain fully offline and receive no AWS credentials.
+
+After merging, run **Update hackathon AWS bootstrap**, then **Deploy hackathon**.
+The deploy workflow runs the backend smoke check through CloudFront, including
+two small billable model requests. It does not log prompt or reply bodies.
+The `/api/*` behavior has caching disabled and forwards the required request
+headers without the viewer Host. Callers must supply `x-amz-content-sha256` on
+POST requests; see [the backend contract](../backend/README.md). Global 403/404
+HTML rewrites are removed to preserve API errors. Reserved concurrency of two
+limits parallel inference; user authentication, WAF, and guardrails are deferred.
+
 ## End-of-hackathon teardown
 
 Use **Actions → Tear down hackathon → Run workflow** on `main`, and enter exactly `DELETE codelinq-hackathon 394270749442`. The workflow has no approval gate, so any collaborator with write access can run it. It refuses a mismatched app-stack tag, an unrelated bucket, a bucket with another Project tag, an unimplemented nested stack, or nonempty-object/ECR deletion errors. It removes the matching hostname and certificate validation records, disables CloudFront, deletes and waits for the `codelinq-hackathon-app` stack, removes the tagged ACM certificate, empties the versioned contents and markers of tagged app buckets, then empties the seven-day build-artifact bucket. This action permanently deletes app data and disables `codelinq.codehawks.org`.
 
-After the action succeeds, sign in to AWS as Israel, open CloudFormation in `us-east-1`, select `codelinq-hackathon-bootstrap`, and delete it. The bootstrap CloudFormation role has `DeletionPolicy: Retain` and `UpdateReplacePolicy: Retain` because AWS CloudFormation is still using it while the stack deletes its other resources. The CloudFront OAC is also retained because its generated ID is unknown until creation, and granting broad OAC deletion permission would let the bootstrap role delete other OACs in the account. After the stack completes, delete `codelinq-hackathon-cloudformation-bootstrap` from IAM and the managed `codelinq-hackathon-bootstrap-oac-v2` from CloudFront; this OAC can be removed only after the app distribution has been deleted. An earlier failed setup attempt may also have left an untracked `codelinq-hackathon-bootstrap-oac`; delete that only if it is still present and no distribution uses it. This removes every hackathon role, the runtime boundary, OACs, and artifact bucket while leaving a step-by-step audit trail. Do not delete the shared `token.actions.githubusercontent.com` OIDC provider; do not delete or alter any Codehawks stack.
+After the action succeeds, sign in to AWS as Israel, open CloudFormation in `us-east-1`, select `codelinq-hackathon-bootstrap`, and delete it. The bootstrap CloudFormation role has `DeletionPolicy: Retain` and `UpdateReplacePolicy: Retain` because AWS CloudFormation is still using it while the stack deletes its other resources. Both CloudFront OACs are also retained because their generated IDs are unknown until creation, and granting broad OAC deletion permission would let the bootstrap role delete other OACs in the account. After the stack completes, delete `codelinq-hackathon-cloudformation-bootstrap` from IAM and the managed `codelinq-hackathon-bootstrap-oac-v2` and `codelinq-hackathon-app-chat-oac` from CloudFront; these OACs can be removed only after the app distribution has been deleted. Record both IDs from the bootstrap outputs before deleting the stack. An earlier failed setup attempt may also have left an untracked `codelinq-hackathon-bootstrap-oac`; delete that only if it is still present and no distribution uses it. This removes every hackathon role, the runtime boundary, OACs, and artifact bucket while leaving a step-by-step audit trail. Do not delete the shared `token.actions.githubusercontent.com` OIDC provider; do not delete or alter any Codehawks stack.
 
 ## Repository map
 
