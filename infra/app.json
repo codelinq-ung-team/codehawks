@@ -1,0 +1,75 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Stack-neutral hackathon starting point. Add runtime resources here when the app is chosen.",
+  "Parameters": {
+    "RuntimePermissionsBoundaryArn": {
+      "Type": "String",
+      "Description": "Apply this boundary to every app runtime role.",
+      "AllowedPattern": "arn:aws:iam::394270749442:policy/codelinq-hackathon-runtime-boundary"
+    }
+  },
+  "Resources": {
+    "AssetsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Delete",
+      "UpdateReplacePolicy": "Delete",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "codelinq-hackathon-app-assets-${AWS::AccountId}-${AWS::Region}"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "codelinq-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "RuntimePermissionsBoundaryArn": {
+      "Value": {
+        "Ref": "RuntimePermissionsBoundaryArn"
+      }
+    },
+    "AssetsBucketName": {
+      "Value": {
+        "Ref": "AssetsBucket"
+      }
+    }
+  }
+}

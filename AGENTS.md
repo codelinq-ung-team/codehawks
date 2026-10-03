@@ -79,3 +79,7 @@ Heads-up: <dependencies, setup changes, mocks, or remaining gaps>
 - Keep setup and demo steps in the README so “works on my machine” doesn't block the team.
 - Prepare predictable demo data and a backup recording or screenshots if the network fails.
 - Check the submission requirements early: repo access, project description, links, video, and deadline. Make sure someone owns the final submission.
+
+## AWS deployment
+
+Read [the AWS and deployment guide](docs/agent-aws.md) before changing infrastructure or deployment workflows. This repository owns only the `codelinq-hackathon` namespace; Codehawks has independent production infrastructure in the same account. Change resources through reviewed CloudFormation and main-branch GitHub Actions. Local AWS CLI use is read-only; Israel Jauregui is the AWS account owner. Apply the `codelinq-hackathon-app-` resource prefix, `Project=codelinq-hackathon`, and `RuntimePermissionsBoundaryArn` to runtime roles. Never grant the shared GitHub OIDC provider to the hackathon stack.
