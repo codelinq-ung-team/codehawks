@@ -165,7 +165,7 @@ def update_bootstrap():
         status = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])["Stacks"][0]["StackStatus"]
         if status in ("UPDATE_COMPLETE", "IMPORT_COMPLETE"):
             break
-        if status in ("UPDATE_ROLLBACK_COMPLETE", "UPDATE_ROLLBACK_FAILED", "IMPORT_ROLLBACK_COMPLETE", "IMPORT_ROLLBACK_FAILED"):
+        if status.startswith(("UPDATE_ROLLBACK_", "IMPORT_ROLLBACK_")):
             raise RuntimeError(f"Bootstrap stack update ended in {status}")
         time.sleep(10)
     else:
