@@ -16,8 +16,10 @@ type Step = {
   ask: (s: AppState) => Question
   why: string
   optional?: boolean
-  read: (text: string) => Read
-  ack: (v: number | Household) => string
+  read: (text: string, s: AppState) => Read
+  ack: (v: number | Household, s: AppState) => string
+  // Other fields this answer settles, like the debts left once the mortgage is known.
+  also?: (v: number | Household, s: AppState) => Partial<Profile>
 }
 export type Reply = {
   updates?: Partial<Profile>
@@ -29,7 +31,9 @@ export type Reply = {
 
 const has = (p: Profile, id: FieldId) => p[id].status !== 'empty'
 const val = (p: Profile, id: FieldId) => (p[id].status === 'proposed' || p[id].status === 'confirmed') ? p[id].value : null
-const hasKids = (s: AppState) => s.flags.kids === true || ['kids', 'both'].includes(String(val(s.profile, 'household')))
+const hasKids = (s: AppState) => ['kids', 'both'].includes(String(val(s.profile, 'household')))
+// Total debt from the form, when it's above zero. Pip then asks how much of it is the mortgage.
+const debtTotal = (s: AppState) => (s.form.debt ?? 0) > 0 ? s.form.debt as number : null
 const money = (v: number | Household) => formatMoney(Number(v))
 
 function moneyReader(opts: { monthlyCheck?: boolean } = {}) {
@@ -54,7 +58,16 @@ function countReader(min: number, max: number, noun: string) {
 const STEPS: Step[] = [
   {
     id: 'household',
-    ask: () => ({ text: 'Let’s start with the people who count on you. Who depends on your income?', replies: Object.values(HOUSEHOLD) }),
+    ask(s) {
+      const n = s.form.dependents ?? 0
+      if (n > 0) {
+        return {
+          text: `You mentioned ${n} ${n === 1 ? 'person depends' : 'people depend'} on your income. Who ${n === 1 ? 'is that' : 'are they'}?`,
+          replies: Object.entries(HOUSEHOLD).filter(([k]) => k !== 'none').map(([, label]) => label),
+        }
+      }
+      return { text: 'Let’s start with the people who count on you. Who depends on your income?', replies: Object.values(HOUSEHOLD) }
+    },
     why: 'Life insurance is there for the people who rely on your paycheck. Knowing who they are helps us ask the right questions next.',
     read(text) {
       const t = text.toLowerCase()
@@ -126,11 +139,38 @@ const STEPS: Step[] = [
   },
   {
     id: 'mortgage',
-    when: (s) => s.flags.mortgage !== false,
-    ask: () => ({ text: 'Do you have a mortgage? If so, about how much is left to pay?', replies: ['No mortgage', 'Not sure'] }),
+    ask(s) {
+      const total = debtTotal(s)
+      if (total) {
+        return {
+          text: `You said you have about ${formatMoney(total)} in total debt. How much of that is left on a mortgage?`,
+          replies: ['No mortgage', 'All of it', 'Not sure'],
+        }
+      }
+      return { text: 'Do you have a mortgage? If so, about how much is left to pay?', replies: ['No mortgage', 'Not sure'] }
+    },
     why: 'Paying off the house means your family could stay in their home without a monthly payment. You can find the balance on your latest mortgage statement.',
-    read: moneyReader(),
-    ack: (v) => v === 0 ? 'No mortgage, got it.' : `Thanks, ${money(v)} left on the mortgage.`,
+    read(text, s) {
+      const total = debtTotal(s)
+      if (!total) return moneyReader()(text)
+      if (/\b(all( of it)?|the whole (thing|amount)|everything|it'?s all)\b/.test(text.toLowerCase())) return { value: total }
+      const r = moneyReader()(text)
+      if ('value' in r && Number(r.value) > total) {
+        return { retry: `That’s more than the ${formatMoney(total)} total you entered. How much of the ${formatMoney(total)} is the mortgage? You can fix the total during review.` }
+      }
+      return r
+    },
+    also(v, s) {
+      const total = debtTotal(s)
+      return total ? { otherDebts: { status: 'proposed', value: total - Number(v) } } : {}
+    },
+    ack(v, s) {
+      const total = debtTotal(s)
+      if (!total) return v === 0 ? 'No mortgage, got it.' : `Thanks, ${money(v)} left on the mortgage.`
+      if (v === 0) return `Got it, no mortgage. So all ${formatMoney(total)} is other debts.`
+      if (v === total) return `Got it, all ${formatMoney(total)} is the mortgage.`
+      return `Got it, ${money(v)} on the mortgage and ${formatMoney(total - Number(v))} in other debts.`
+    },
   },
   {
     id: 'otherDebts',
@@ -159,8 +199,9 @@ const STEPS: Step[] = [
   },
   {
     id: 'existing',
-    when: (s) => s.flags.coverage !== false,
-    ask: () => ({ text: 'Do you already have life insurance, through work or on your own? What’s the total amount?', replies: ['None', 'Not sure'] }),
+    ask: (s) => s.form.coverage
+      ? { text: 'You mentioned you have life insurance. About how much coverage is it in total, including any through work?', replies: ['Not sure'] }
+      : { text: 'Do you already have life insurance, through work or on your own? What’s the total amount?', replies: ['None', 'Not sure'] },
     why: 'Coverage you already have counts toward what your family needs. If it’s through work, check your benefits portal or ask HR for the amount.',
     read: moneyReader(),
     ack: (v) => v === 0 ? 'No current coverage, noted.' : `Great, ${money(v)} already in place.`,
@@ -180,17 +221,21 @@ const STEP = Object.fromEntries(STEPS.map((s) => [s.id, s])) as Record<FieldId, 
 export const WHY = 'Why do you ask?'
 export const CLOSING = 'That’s everything I need. Let’s look over your answers together, and then I’ll show you the math.'
 
-// Apply quick-start answers before the chat so we skip questions that don't apply.
-export function applyQuickStart(state: AppState): Partial<AppState> {
+// Apply the form's answers before the chat so Pip skips what's already known.
+// Re-running it (after going back to the form) updates its own unconfirmed answers only.
+export function applyForm(state: AppState): Partial<AppState> {
   const p = { ...state.profile }
-  const f = state.flags
+  const f = state.form
   const set = (id: FieldId, value: Field['value']) => {
-    if (p[id].status === 'empty' && value != null) p[id] = { status: 'proposed', value, source: 'quickstart' }
+    if (value == null) return
+    if (p[id].status === 'empty' || (p[id].source === 'form' && p[id].status === 'proposed')) {
+      p[id] = { status: 'proposed', value, source: 'form' }
+    }
   }
-  if (f.partner != null && f.kids != null) {
-    set('household', f.partner && f.kids ? 'both' : f.partner ? 'partner' : f.kids ? 'kids' : null)
-  }
-  if (f.mortgage === false) set('mortgage', 0)
+  set('income', f.income)
+  // With no dependents we know the answer; otherwise Pip asks who they are.
+  if (f.dependents === 0 && f.marital) set('household', f.marital === 'married' ? 'partner' : 'none')
+  if (f.debt === 0) { set('mortgage', 0); set('otherDebts', 0) }
   if (f.coverage === false) set('existing', 0)
   return { profile: p }
 }
@@ -206,17 +251,21 @@ export function question(stepId: FieldId, state: AppState): Question {
 }
 
 export function intro(state: AppState): string[] {
-  const known: string[] = []
-  if (state.profile.household.source === 'quickstart') known.push('who depends on you')
-  if (state.profile.mortgage.source === 'quickstart') known.push('that you don’t have a mortgage')
-  if (state.profile.existing.source === 'quickstart') known.push('that you don’t have coverage yet')
-  const lines = [`Hi, I’m ${GUIDE_NAME}! I’ll ask a few short questions about your household, one at a time. You can answer in your own words, tap a suggestion, or say “not sure.” Nothing is final until you review it.`]
-  if (known.length) lines.push(`From your quick start, I already know ${known.join(' and ')}, so we’ll skip ahead.`)
-  return lines
+  const fromForm = Object.values(state.profile).some((f) => f.source === 'form')
+  return [
+    fromForm
+      ? `Hi, I’m ${GUIDE_NAME}! Thanks for answering those first questions. I won’t ask them again. I just have a few follow-ups, one at a time.`
+      : `Hi, I’m ${GUIDE_NAME}! I’ll ask a few short questions about your household, one at a time.`,
+    'You can answer in your own words, tap a suggestion, or say “not sure.” Nothing is final until you review it.',
+  ]
 }
 
-function done(step: Step, value: number | Household, extra: string[]): Reply {
-  return { updates: { [step.id]: { status: 'proposed', value } }, say: extra.length ? extra : [step.ack(value)], pending: null }
+function done(step: Step, value: number | Household, extra: string[], state: AppState): Reply {
+  return {
+    updates: { ...step.also?.(value, state), [step.id]: { status: 'proposed', value } },
+    say: extra.length ? extra : [step.ack(value, state)],
+    pending: null,
+  }
 }
 
 // Read one user message for the current step.
@@ -227,8 +276,8 @@ export function respond(stepId: FieldId, text: string, state: AppState): Reply {
   if (state.pending) {
     const t = trimmed.toLowerCase()
     const monthly = state.pending.value
-    if (/\b(yes|yep|monthly|month|correct|right)\b/.test(t)) return done(step, monthly * 12, [`Thanks. That’s ${formatMoney(monthly * 12)} a year.`])
-    if (/\b(no|nope|yearly|year|annual)\b/.test(t)) return done(step, monthly, [])
+    if (/\b(yes|yep|monthly|month|correct|right)\b/.test(t)) return done(step, monthly * 12, [`Thanks. That’s ${formatMoney(monthly * 12)} a year.`], state)
+    if (/\b(no|nope|yearly|year|annual)\b/.test(t)) return done(step, monthly, [], state)
     return { say: [`Sorry, is ${formatMoney(monthly)} a monthly amount?`], pending: state.pending, replies: ['Yes, monthly', 'No, yearly'] }
   }
 
@@ -245,7 +294,7 @@ export function respond(stepId: FieldId, text: string, state: AppState): Reply {
     return { updates: { [stepId]: { status: 'skipped', value: null } }, say: ['Okay, we’ll leave that out of the math.'] }
   }
 
-  const r = step.read(trimmed)
+  const r = step.read(trimmed, state)
   if ('retry' in r) return { say: [r.retry], replies: question(stepId, state).replies }
   if ('clarify' in r) {
     return {
@@ -254,5 +303,5 @@ export function respond(stepId: FieldId, text: string, state: AppState): Reply {
       replies: ['Yes, monthly', 'No, yearly'],
     }
   }
-  return done(step, r.value, [])
+  return done(step, r.value, [], state)
 }

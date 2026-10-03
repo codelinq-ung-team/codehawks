@@ -16,7 +16,7 @@ const DEMO: { role: 'bot' | 'user'; text: string; why?: boolean }[] = [
 ]
 
 const STEPS: { icon: IconName; hue: HueName; title: string; text: string }[] = [
-  { icon: 'info', hue: 'blue', title: 'Know what to expect', text: 'See the topics we’ll cover and what’s handy to have nearby.' },
+  { icon: 'info', hue: 'blue', title: 'Start with the basics', text: 'Five quick questions about your income, family, debts and coverage.' },
   { icon: 'people', hue: 'indigo', title: 'Chat in your own words', text: 'Ask “why?” any time. “Not sure” is always an answer.' },
   { icon: 'check-circle', hue: 'green', title: 'Check your answers', text: 'Fix anything before we do the math.' },
   { icon: 'trend-up', hue: 'orange', title: 'See the math', text: 'Try different numbers and copy a summary to keep.' },
@@ -43,7 +43,7 @@ export function Home() {
             <Button size="large" onClick={start} className="lp-cta__btn">{startLabel}<Icon name="chevron-right" size={18} weight={2.6} /></Button>
             {resume
               ? <button type="button" className="link-button subhead" onClick={() => { resetState(); go('prepare') }}>Start fresh instead</button>
-              : <span className="subhead muted">About 10 short questions</span>}
+              : <span className="subhead muted">5 quick questions, then a short chat</span>}
           </div>
           <ul className="lp-trust">
             <li><Icon name="shield" size={22} /><span><strong>Private by design</strong><span>Answers stay in this session</span></span></li>

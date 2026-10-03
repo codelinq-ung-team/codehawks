@@ -2,11 +2,13 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { emptyProfile, type FieldId, type Field, type Profile } from '../domain/calculator.ts'
 
-export type Flags = { partner: boolean | null; kids: boolean | null; mortgage: boolean | null; coverage: boolean | null }
+// Answers from the short form before the chat. null means not answered yet (never zero).
+export type Marital = 'single' | 'married'
+export type Form = { income: number | null; marital: Marital | null; dependents: number | null; debt: number | null; coverage: boolean | null }
 export type Message = { role: 'bot' | 'user'; text: string; replies?: string[]; why?: boolean; done?: boolean }
 export type AppState = {
   profile: Profile
-  flags: Flags
+  form: Form
   messages: Message[]
   pending: { value: number } | null
   started: boolean
@@ -19,7 +21,7 @@ const listeners = new Set<() => void>()
 function initial(): AppState {
   return {
     profile: emptyProfile(),
-    flags: { partner: null, kids: null, mortgage: null, coverage: null },
+    form: { income: null, marital: null, dependents: null, debt: null, coverage: null },
     messages: [],
     pending: null,
     started: false,

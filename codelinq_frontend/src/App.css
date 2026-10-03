@@ -10,7 +10,7 @@
   --gray-6: #f1ece6;
   --card-edge: #e6dfd7;
 }
-.ck-list__body, .ck-stat:not(.ck-stat--brand), .topic, .quick__card {
+.ck-list__body, .ck-stat:not(.ck-stat--brand) {
   box-shadow: inset 0 0 0 1px var(--card-edge);
 }
 
@@ -53,32 +53,63 @@ h1, h2, h3, p { margin: 0; }
 .screen__title { display: grid; gap: var(--space-2); margin-bottom: var(--space-6); max-width: 40em; }
 .section-title { margin: 0 0 var(--space-3); padding: 0 var(--space-4); }
 
-/* Prepare */
-.prepare__grid { display: grid; gap: var(--space-8); }
-.topics { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.topic { display: flex; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--grouped-secondary); }
-.topic__tile { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: var(--radius-sm); color: #fff; }
-.topic__body { display: grid; gap: var(--space-1); justify-items: start; min-width: 0; }
-.topic__handy { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--success); }
-.topic__why { margin-top: var(--space-1); padding: var(--space-3); border-radius: var(--radius-md); background: var(--fill-quaternary); }
+/* Prepare: the short form, one question at a time (layout follows the team's assessment form) */
 .link-button {
   min-height: 32px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--tint-text); font-weight: 600;
   border-radius: var(--radius-sm);
 }
 .link-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-.quick__card { display: grid; gap: var(--space-4); padding: var(--space-5); border-radius: var(--radius-lg); background: var(--grouped-secondary); }
-.quick__list { display: grid; gap: var(--space-4); }
-.quick__item { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
-.quick__item legend { padding: 0; margin-bottom: var(--space-2); }
-.choice { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
-.choice__btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-height: var(--tap-target);
-  border: 0; border-radius: var(--radius-md); background: var(--fill-tertiary); color: var(--label-primary);
-  font: 500 17px/22px var(--font-sans); cursor: pointer;
+.qform-screen { padding-top: var(--space-6); }
+.qform {
+  display: flex; flex-direction: column; max-width: 860px; min-height: min(640px, calc(100dvh - 180px)); margin: 0 auto;
+  padding: var(--space-6) clamp(var(--space-5), 6vw, 72px) var(--space-6); box-sizing: border-box;
+  border-radius: 24px; background: var(--grouped-secondary);
+  box-shadow: 0 0 0 1px var(--card-edge), 0 18px 48px rgba(60, 20, 30, .08);
 }
-.choice__btn.is-on { background: var(--tint); color: var(--on-tint); font-weight: 600; }
-.choice__btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.qform__meta { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--label-secondary); font: 700 12px/16px var(--font-sans); letter-spacing: .06em; text-transform: uppercase; }
+.qform__bar { height: 6px; margin-top: var(--space-3); overflow: hidden; border-radius: var(--radius-full); background: var(--grouped-tertiary); }
+.qform__bar span { display: block; height: 100%; border-radius: inherit; background: var(--highlight); transition: width .3s ease; }
+.qform__body { width: min(100%, 620px); margin: auto; padding: var(--space-8) 0; }
+.qform__num { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: #f3e3e8; color: var(--tint-text); font: 700 14px/1 var(--font-sans); }
+.qform__prompt { margin: var(--space-5) 0 var(--space-2); font: 800 clamp(28px, 4vw, 40px)/1.15 var(--font-sans); letter-spacing: -0.03em; color: var(--brand-tyrian); }
+.qform__helper { max-width: 34em; color: var(--label-secondary); font: 400 17px/1.5 var(--font-sans); }
+
+.qform__options { display: grid; gap: var(--space-3); margin-top: var(--space-6); }
+.qform__option {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 64px; padding: 0 var(--space-4) 0 var(--space-5);
+  border: 0; border-radius: var(--radius-md); background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--card-edge);
+  color: var(--label-primary); font: 600 17px/22px var(--font-sans); text-align: left; cursor: pointer; transition: box-shadow .15s ease, background .15s ease;
+}
+.qform__option:hover { box-shadow: inset 0 0 0 1px var(--tint-text); }
+.qform__option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.qform__option.is-on { background: #fbf3f5; box-shadow: inset 0 0 0 2px var(--tint); }
+.qform__option i { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--card-edge); color: var(--on-tint); }
+.qform__option.is-on i { background: var(--tint); box-shadow: none; }
+
+.qform__input {
+  display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-6); padding: 0 var(--space-4);
+  border-radius: var(--radius-md); background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+.qform__input:focus-within { box-shadow: inset 0 0 0 2px var(--tint); }
+.qform__input.is-error { box-shadow: inset 0 0 0 2px var(--danger); }
+.qform__prefix { color: var(--label-secondary); font: 600 22px/1 var(--font-sans); }
+.qform__input input {
+  flex: 1; min-width: 0; min-height: 64px; padding: 0; border: 0; outline: none; background: none;
+  color: var(--label-primary); font: 600 22px/1 var(--font-sans);
+}
+.qform__input input::placeholder { color: var(--label-tertiary); font-weight: 500; }
+.qform__error { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); color: var(--danger); font: 500 15px/20px var(--font-sans); }
+.qform__skip { margin-top: var(--space-3); }
+
+.qform__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); width: min(100%, 620px); margin: 0 auto; padding-top: var(--space-5); border-top: 1px solid var(--card-edge); }
+.qform__actions .ck-btn > span { display: inline-flex; align-items: center; gap: var(--space-2); }
+.qform__actions .is-hidden { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .qform__bar span, .qform__option { transition: none; } }
+@media (max-width: 480px) {
+  .qform { border-radius: 20px; padding-inline: var(--space-4); }
+  .qform__body { padding: var(--space-6) 0; }
+}
 
 /* ---------- Chat ---------- */
 .chat-screen { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: var(--space-4); }
@@ -151,8 +182,6 @@ h1, h2, h3, p { margin: 0; }
 /* ---------- Wide screens ---------- */
 @media (min-width: 900px) {
   .app { padding: 0 var(--space-6) var(--space-8); }
-  .prepare__grid { grid-template-columns: 1.4fr 1fr; gap: var(--space-8); align-items: start; }
-  .quick { position: sticky; top: var(--space-4); }
   .review__grid, .results__grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
   .review__side, .results__side { position: sticky; top: var(--space-4); }
 }

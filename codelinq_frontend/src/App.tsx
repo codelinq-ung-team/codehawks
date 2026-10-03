@@ -13,7 +13,7 @@ import { Review } from './intake/Review.tsx'
 import { Results } from './results/Results.tsx'
 
 const SCREENS: Record<Route, ComponentType> = { home: Home, prepare: Prepare, chat: Chat, review: Review, results: Results }
-const TITLES: Record<Route, string> = { home: '', prepare: 'Before we chat', chat: 'Chat', review: 'Check your answers', results: 'Your estimate' }
+const TITLES: Record<Route, string> = { home: '', prepare: 'The basics', chat: 'Chat', review: 'Check your answers', results: 'Your estimate' }
 
 export default function App() {
   const route = useRoute()

@@ -4,7 +4,7 @@ import { Alert, Button, Icon, PartnerBadge } from '../kit/Kit.tsx'
 import { go, resetState, type Route } from './store.ts'
 
 const STEPS: { id: Route; label: string }[] = [
-  { id: 'prepare', label: 'Prepare' },
+  { id: 'prepare', label: 'Basics' },
   { id: 'chat', label: 'Chat' },
   { id: 'review', label: 'Review' },
   { id: 'results', label: 'Results' },

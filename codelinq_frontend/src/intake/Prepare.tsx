@@ -1,114 +1,134 @@
-// Before the chat: what we'll ask about and why, plus a few yes/no questions that tailor it.
-// Topics follow the sections of Lincoln Financial's online needs calculator.
-import { useState } from 'react'
-import { Button, Icon, type HueName, type IconName } from '../kit/Kit.tsx'
-import { Page, Title } from '../lib/Chrome.tsx'
-import { go, setState, useStore, type Flags } from '../lib/store.ts'
-import { applyQuickStart } from './script.ts'
+// Before the chat: five short form questions, one at a time (same layout as the team's
+// assessment form). Answers fill in the profile so Pip only asks the follow-ups.
+import { useState, type FormEvent } from 'react'
+import { Button, Icon } from '../kit/Kit.tsx'
+import { Page } from '../lib/Chrome.tsx'
+import { go, setState, useStore, type Form } from '../lib/store.ts'
+import { GUIDE_NAME } from '../guide/guide.ts'
+import { applyForm } from './script.ts'
 
-const TOPICS: { icon: IconName; hue: HueName; title: string; ask: string; why: string; handy: string }[] = [
+type Option = { label: string; value: Form[keyof Form] }
+type Question = { id: keyof Form; prompt: string; helper: string } & (
+  | { type: 'options'; options: Option[] }
+  | { type: 'number'; money?: boolean; max: number; placeholder: string }
+)
+
+const QUESTIONS: Question[] = [
   {
-    icon: 'people', hue: 'indigo', title: 'Your household',
-    ask: 'Who depends on your income, and how old your youngest child is.',
-    why: 'Life insurance is for the people who rely on you. Their needs shape everything else.',
-    handy: 'Your kids’ ages',
+    id: 'income', type: 'number', money: true, max: 100_000_000, placeholder: '75,000',
+    prompt: 'What is your yearly income?',
+    helper: 'Before taxes. A rough number is fine.',
   },
   {
-    icon: 'house', hue: 'blue', title: 'Income your family would need',
-    ask: 'What you earn, how much your family would need each year, and for how many years.',
-    why: 'This is usually the biggest part. It replaces your paycheck so daily life can go on.',
-    handy: 'A recent pay stub or tax return',
+    id: 'marital', type: 'options',
+    prompt: 'What is your marital status?',
+    helper: 'Choose Married if you share a household with a partner.',
+    options: [{ label: 'Single', value: 'single' }, { label: 'Married', value: 'married' }],
   },
   {
-    icon: 'calendar', hue: 'orange', title: 'Debts and final costs',
-    ask: 'What’s left on your mortgage, other loans and cards, and funeral costs.',
-    why: 'Paying these off means your family isn’t left with bills or monthly payments.',
-    handy: 'Your latest mortgage and loan statements',
+    id: 'dependents', type: 'number', max: 20, placeholder: '0',
+    prompt: 'How many dependents do you have?',
+    helper: 'Children, or anyone else who relies on your income. Enter 0 if no one does.',
   },
   {
-    icon: 'gift', hue: 'purple', title: 'Future goals',
-    ask: 'Big costs you’d want covered, like your kids’ education.',
-    why: 'These are costs your family would face later, even without your income.',
-    handy: 'A rough idea is fine',
+    id: 'debt', type: 'number', money: true, max: 100_000_000, placeholder: '180,000',
+    prompt: 'What is your current total debt?',
+    helper: `Include your mortgage, car loans, student loans and credit cards. ${GUIDE_NAME} will ask how much of it is the mortgage.`,
   },
   {
-    icon: 'shield', hue: 'green', title: 'What you already have',
-    ask: 'Life insurance through work or on your own, and savings your family could use.',
-    why: 'What you already have counts toward the total, so you don’t buy more than you need.',
-    handy: 'Your benefits portal or policy papers',
+    id: 'coverage', type: 'options',
+    prompt: 'Do you currently have life insurance?',
+    helper: 'Include any coverage through work.',
+    options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
   },
 ]
 
-const QUICK: { id: keyof Flags; q: string }[] = [
-  { id: 'partner', q: 'Do you have a partner or spouse?' },
-  { id: 'kids', q: 'Do you have children?' },
-  { id: 'mortgage', q: 'Do you have a mortgage?' },
-  { id: 'coverage', q: 'Do you have any life insurance now, including through work?' },
-]
+const digits = (text: string) => text.replace(/\D/g, '').slice(0, 9)
 
 export function Prepare() {
-  const { flags } = useStore()
-  const [open, setOpen] = useState<number | null>(null)
+  const { form } = useStore()
+  const [index, setIndex] = useState(0)
+  const q = QUESTIONS[index]
+  const answer = form[q.id]
+  const last = index === QUESTIONS.length - 1
+  const progress = Math.round(((index + 1) / QUESTIONS.length) * 100)
+  const tooBig = q.type === 'number' && typeof answer === 'number' && answer > q.max
 
-  const setFlag = (id: keyof Flags, v: boolean) =>
-    setState((s) => ({ flags: { ...s.flags, [id]: s.flags[id] === v ? null : v } }))
+  const save = (value: Form[keyof Form]) => setState((s) => ({ form: { ...s.form, [q.id]: value } }))
 
-  function start() {
-    setState((s) => ({ ...applyQuickStart(s), started: true }))
-    go('chat')
+  function next() {
+    if (last) {
+      setState((s) => ({ ...applyForm(s), started: true }))
+      go('chat')
+    } else {
+      setIndex(index + 1)
+    }
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    if (answer != null && !tooBig) next()
+  }
+
+  // "Not sure" leaves the answer empty (never zero); Pip asks again in the chat.
+  function skip() {
+    save(null)
+    next()
   }
 
   return (
-    <Page className="prepare">
-      <Title sub="Here’s what we’ll talk about and why it matters. Have these handy if you can, but a good guess is fine.">Before we chat</Title>
+    <Page className="qform-screen">
+      <form className="qform" onSubmit={submit} aria-labelledby="q-heading" noValidate>
+        <div className="qform__meta"><span>Question {index + 1} of {QUESTIONS.length}</span><span>{progress}% complete</span></div>
+        <div className="qform__bar" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>
 
-      <div className="prepare__grid">
-        <section aria-labelledby="topics-title">
-          <h2 id="topics-title" className="section-title headline">What we’ll ask about</h2>
-          <ul className="topics">
-            {TOPICS.map((t, i) => (
-              <li key={t.title} className="topic">
-                <span className="topic__tile" style={{ background: `var(--hue-${t.hue})` }} aria-hidden="true"><Icon name={t.icon} size={20} weight={2.2} /></span>
-                <div className="topic__body">
-                  <h3 className="headline">{t.title}</h3>
-                  <p className="subhead muted">{t.ask}</p>
-                  <p className="footnote topic__handy"><Icon name="check" size={14} weight={2.6} />Handy to have: {t.handy}</p>
-                  <button type="button" className="link-button subhead" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
-                    {open === i ? 'Hide why it matters' : 'Why it matters'}
+        <div className="qform__body" key={q.id}>
+          <span className="qform__num" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <h1 id="q-heading" className="qform__prompt">{q.prompt}</h1>
+          <p className="qform__helper" id="q-helper">{q.helper}</p>
+
+          {q.type === 'options' && (
+            <div className="qform__options" role="radiogroup" aria-labelledby="q-heading" aria-describedby="q-helper">
+              {q.options.map((o) => {
+                const on = answer === o.value
+                return (
+                  <button
+                    key={o.label} type="button" role="radio" aria-checked={on}
+                    className={'qform__option' + (on ? ' is-on' : '')} onClick={() => save(o.value)}
+                  >
+                    <span>{o.label}</span>
+                    <i aria-hidden="true">{on && <Icon name="check" size={14} weight={3} />}</i>
                   </button>
-                  {open === i && <p className="subhead topic__why">{t.why}</p>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <aside className="quick" aria-labelledby="quick-title">
-          <div className="quick__card">
-            <h2 id="quick-title" className="headline">A few quick questions</h2>
-            <p className="subhead muted">Optional. Your answers help us skip questions that don’t apply to you.</p>
-            <div className="quick__list">
-              {QUICK.map((q) => (
-                <fieldset key={q.id} className="quick__item">
-                  <legend className="body">{q.q}</legend>
-                  <div className="choice">
-                    {([['Yes', true], ['No', false]] as const).map(([label, v]) => (
-                      <button
-                        key={label} type="button" aria-pressed={flags[q.id] === v}
-                        className={'choice__btn' + (flags[q.id] === v ? ' is-on' : '')} onClick={() => setFlag(q.id, v)}
-                      >
-                        {flags[q.id] === v && <Icon name="check" size={16} weight={2.6} />}{label}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-              ))}
+                )
+              })}
             </div>
-            <Button size="large" fullWidth onClick={start}>Start Chat</Button>
-            <p className="footnote muted center">You can say “not sure” to anything.</p>
-          </div>
-        </aside>
-      </div>
+          )}
+
+          {q.type === 'number' && (
+            <>
+              <div className={'qform__input' + (tooBig ? ' is-error' : '')}>
+                {q.money && <span className="qform__prefix" aria-hidden="true">$</span>}
+                <input
+                  type="text" inputMode="numeric" autoComplete="off" autoFocus
+                  aria-labelledby="q-heading" aria-describedby="q-helper" aria-invalid={tooBig || undefined}
+                  placeholder={q.placeholder}
+                  value={typeof answer === 'number' ? (q.money ? answer.toLocaleString('en-US') : String(answer)) : ''}
+                  onChange={(e) => { const d = digits(e.target.value); save(d === '' ? null : Number(d)) }}
+                />
+              </div>
+              {tooBig && <p className="qform__error" role="alert"><Icon name="exclamation" size={15} />Please enter a number up to {q.max.toLocaleString('en-US')}.</p>}
+              <button type="button" className="link-button subhead qform__skip" onClick={skip}>Not sure? Skip, and {GUIDE_NAME} will ask later</button>
+            </>
+          )}
+        </div>
+
+        <div className="qform__actions">
+          <Button variant="bordered" className={index === 0 ? 'is-hidden' : ''} onClick={() => setIndex(index - 1)}>Back</Button>
+          <Button type="submit" disabled={answer == null || tooBig}>
+            {last ? `Start Chat with ${GUIDE_NAME}` : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} />
+          </Button>
+        </div>
+      </form>
     </Page>
   )
 }
