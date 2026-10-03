@@ -6,8 +6,11 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 
+from cloudflare_dns import delete_acm_validation, delete_owned_cname, ensure_acm_validation
 from validate_repo import CONFIG, ROOT, validate_app
+from bedrock_config import from_environment, validate_model_settings
 
 
 def aws(*args, json_output=True):
@@ -44,8 +47,78 @@ def describe_app():
         raise
 
 
+def hackathon_certificate():
+    """Find only the tagged public certificate for this exact subdomain."""
+    certificates = aws("acm", "list-certificates").get("CertificateSummaryList", [])
+    matches = []
+    for item in certificates:
+        if item.get("DomainName") != CONFIG["site_domain"]:
+            continue
+        tags = aws("acm", "list-tags-for-certificate", "--certificate-arn", item["CertificateArn"]).get("Tags", [])
+        values = {tag["Key"]: tag["Value"] for tag in tags}
+        if values.get("Project") == CONFIG["prefix"] and values.get("Lifecycle") == "ephemeral":
+            matches.append(item["CertificateArn"])
+    if len(matches) > 1:
+        raise RuntimeError("Multiple hackathon ACM certificates exist for the site domain; resolve manually")
+    return matches[0] if matches else None
+
+
+def ensure_site_certificate():
+    """Request, DNS-validate, and wait for the single hackathon site certificate."""
+    certificate = hackathon_certificate()
+    if certificate is None:
+        certificate_tags = [
+            {"Key": "Project", "Value": CONFIG["prefix"]},
+            {"Key": "Owner", "Value": "Israel Jauregui"},
+            {"Key": "Lifecycle", "Value": "ephemeral"},
+            {"Key": "ManagedBy", "Value": "GitHubActions"},
+        ]
+        result = aws(
+            "acm", "request-certificate", "--domain-name", CONFIG["site_domain"],
+            "--validation-method", "DNS", "--idempotency-token", "codelinqhackathon",
+            "--tags", json.dumps(certificate_tags),
+        )
+        certificate = result["CertificateArn"]
+
+    deadline = time.monotonic() + 1500
+    while time.monotonic() < deadline:
+        details = aws("acm", "describe-certificate", "--certificate-arn", certificate)["Certificate"]
+        status = details["Status"]
+        if status == "ISSUED":
+            return certificate
+        if status in ("FAILED", "REVOKED", "EXPIRED"):
+            raise RuntimeError(f"Hackathon ACM certificate entered terminal status {status}: {details.get('FailureReason', '')}")
+        options = details.get("DomainValidationOptions", [])
+        for option in options:
+            record = option.get("ResourceRecord")
+            if record:
+                ensure_acm_validation(record)
+        time.sleep(15)
+    raise TimeoutError("ACM certificate did not validate within 25 minutes; check Cloudflare DNS and rerun deploy")
+
+
+def bootstrap_settings(model, arns):
+    stacks = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])["Stacks"]
+    outputs = {item["OutputKey"]: item["OutputValue"] for item in stacks[0].get("Outputs", [])}
+    parameters = {item["ParameterKey"]: item["ParameterValue"] for item in stacks[0].get("Parameters", [])}
+    configured = validate_model_settings(parameters.get("BedrockModelId", ""),
+                                        parameters.get("BedrockModelArns", "").split(","))
+    if configured != (model, arns):
+        raise ValueError("Bedrock settings differ from the deployed runtime boundary; update bootstrap first.")
+    oac = outputs.get("CloudFrontOriginAccessControlId")
+    chat_oac = outputs.get("ChatOriginAccessControlId")
+    if not oac or not chat_oac:
+        raise RuntimeError("Bootstrap stack needs both site and chat OACs; run the bootstrap update first.")
+    return oac, chat_oac
+
+
 def deploy():
     validate_app(json.loads((ROOT / "infra/app.json").read_text()))
+    model, arns = from_environment()
+    oac, chat_oac = bootstrap_settings(model, arns)
+    if not (ROOT / "build/backend.zip").is_file():
+        raise ValueError("Build the backend artifact before deploying.")
+    certificate = ensure_site_certificate()
     revision = os.environ["GITHUB_SHA"]
     with tempfile.TemporaryDirectory() as directory:
         packaged = Path(directory) / "packaged.json"
@@ -58,6 +131,8 @@ def deploy():
             f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['cloudformation_role']}",
             "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides",
             f"RuntimePermissionsBoundaryArn={CONFIG['runtime_boundary']}",
+            f"SiteCertificateArn={certificate}", f"CloudFrontOriginAccessControlId={oac}",
+            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}",
             "--tags", f"Project={CONFIG['prefix']}", "Owner=Israel Jauregui", "Lifecycle=ephemeral", "ManagedBy=CloudFormation",
             "--no-fail-on-empty-changeset", json_output=False)
     stack = describe_app()
@@ -70,15 +145,54 @@ def deploy():
 
 
 def update_bootstrap():
+    model, arns = from_environment()
     revision = os.environ["GITHUB_RUN_NUMBER"]
     assert revision.isdecimal() and len(revision) <= 12, "Unexpected GitHub Actions run number"
-    aws("cloudformation", "deploy", "--template-file", str(ROOT / "infra/bootstrap.json"),
-        "--stack-name", CONFIG["bootstrap_stack"], "--role-arn",
-        f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
-        "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides", f"BootstrapRevision={revision}",
-        "--no-fail-on-empty-changeset", json_output=False)
+    template = ROOT / "infra/bootstrap.json"
+    assert template.stat().st_size <= 51200, "Bootstrap template exceeds CloudFormation's inline template limit"
+    change_set = f"codelinq-hackathon-bootstrap-{revision}"
+    parameters = bootstrap_parameters(json.loads(template.read_text()), revision, model, arns)
+    aws("cloudformation", "create-change-set", "--stack-name", CONFIG["bootstrap_stack"],
+        "--change-set-name", change_set, "--change-set-type", "UPDATE",
+        "--template-body", f"file://{template}", "--capabilities", "CAPABILITY_NAMED_IAM",
+        "--parameters", json.dumps(parameters),
+        "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
+        "--description", "Update isolated codelinq hackathon bootstrap")
+
+    deadline = time.monotonic() + 600
+    while time.monotonic() < deadline:
+        details = aws("cloudformation", "describe-change-set", "--stack-name", CONFIG["bootstrap_stack"],
+                      "--change-set-name", change_set)
+        if details["Status"] == "CREATE_COMPLETE":
+            break
+        if details["Status"] == "FAILED":
+            raise RuntimeError(f"Bootstrap change set failed: {details.get('StatusReason', 'unknown reason')}")
+        time.sleep(5)
+    else:
+        raise TimeoutError("Bootstrap change set did not finish within 10 minutes")
+
+    aws("cloudformation", "execute-change-set", "--stack-name", CONFIG["bootstrap_stack"],
+        "--change-set-name", change_set, json_output=False)
+    deadline = time.monotonic() + 1800
+    while time.monotonic() < deadline:
+        status = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])["Stacks"][0]["StackStatus"]
+        if status in ("UPDATE_COMPLETE", "IMPORT_COMPLETE"):
+            break
+        if status.startswith(("UPDATE_ROLLBACK_", "IMPORT_ROLLBACK_")):
+            raise RuntimeError(f"Bootstrap stack update ended in {status}")
+        time.sleep(10)
+    else:
+        raise TimeoutError("Bootstrap stack update did not complete within 30 minutes")
     result = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])
     print(json.dumps(result["Stacks"][0].get("Outputs", []), indent=2))
+
+
+def bootstrap_parameters(template, revision, model, arns):
+    """Preserve existing account/trust settings while explicitly updating model access."""
+    updates = {"BootstrapRevision": revision, "BedrockModelId": model, "BedrockModelArns": ",".join(arns)}
+    return [{"ParameterKey": name, "ParameterValue": updates[name]} if name in updates
+            else {"ParameterKey": name, "UsePreviousValue": True}
+            for name in template["Parameters"]]
 
 
 def owned_resources(stack):
@@ -123,6 +237,18 @@ def teardown(confirmation):
     resources = owned_resources(stack)
     assert not any(r["ResourceType"] == "AWS::CloudFormation::Stack" for r in resources), "Nested stack cleanup must be implemented first"
     print("Stack-owned cleanup inventory:", json.dumps(resources, indent=2))
+    certificate = hackathon_certificate()
+    if stack:
+        outputs = {item["OutputKey"]: item["OutputValue"] for item in stack.get("Outputs", [])}
+        distribution_domain = outputs.get("SiteDistributionDomainName")
+        if distribution_domain:
+            delete_owned_cname(CONFIG["site_domain"], distribution_domain)
+    if certificate:
+        details = aws("acm", "describe-certificate", "--certificate-arn", certificate)["Certificate"]
+        for option in details.get("DomainValidationOptions", []):
+            record = option.get("ResourceRecord")
+            if record:
+                delete_acm_validation(record)
     for resource in resources:
         if resource["ResourceStatus"] in ("DELETE_COMPLETE", "DELETE_SKIPPED"):
             continue
@@ -133,12 +259,22 @@ def teardown(confirmation):
             empty_bucket(physical_id)
         elif resource["ResourceType"] == "AWS::ECR::Repository":
             empty_repository(physical_id)
+        elif resource["ResourceType"] == "AWS::CloudFront::Distribution":
+            distribution = aws("cloudfront", "get-distribution-config", "--id", physical_id)
+            config = distribution["DistributionConfig"]
+            if config.get("Enabled"):
+                config["Enabled"] = False
+                aws("cloudfront", "update-distribution", "--id", physical_id,
+                    "--if-match", distribution["ETag"], "--distribution-config", json.dumps(config))
+                aws("cloudfront", "wait", "distribution-deployed", "--id", physical_id, json_output=False)
     if stack:
         aws("cloudformation", "delete-stack", "--stack-name", CONFIG["app_stack"],
             "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['cloudformation_role']}")
         aws("cloudformation", "wait", "stack-delete-complete", "--stack-name", CONFIG["app_stack"])
+    if certificate:
+        aws("acm", "delete-certificate", "--certificate-arn", certificate, json_output=False)
     empty_bucket(CONFIG["artifacts_bucket"])
-    message = ("Workload deleted and artifacts emptied. Israel: delete codelinq-hackathon-bootstrap "
+    message = ("Workload, CloudFront distribution, certificate and DNS record deleted; artifacts emptied. Israel: delete codelinq-hackathon-bootstrap "
                "in the us-east-1 CloudFormation console to remove the artifact bucket and IAM access. "
                "The shared GitHub OIDC provider and Codehawks production resources remain outside this stack.")
     print(message)

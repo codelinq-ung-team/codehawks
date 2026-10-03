@@ -1,0 +1,67 @@
+"""Production API served by Gunicorn through Lambda Web Adapter."""
+import json
+
+from flask import Flask, Response, jsonify, request
+from werkzeug.exceptions import HTTPException
+
+from .llm import ChatError, chat, iter_chat_events
+
+app = Flask(__name__, static_folder=None)
+app.config["MAX_CONTENT_LENGTH"] = 65536
+
+
+@app.after_request
+def no_cache(response):
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.errorhandler(HTTPException)
+def http_error(error):
+    return jsonify(error="Not found" if error.code == 404 else error.name), error.code
+
+
+@app.get("/health")
+@app.get("/api/health")
+def health():
+    return jsonify(status="ok")
+
+
+@app.post("/api/chat")
+def chat_route():
+    events = None
+    try:
+        if request.headers.get("Transfer-Encoding"):
+            raise ChatError(400, "Use Content-Length; chunked requests are unsupported.")
+        if request.mimetype != "application/json":
+            raise ChatError(415, "Send Content-Type: application/json.")
+        if not request.content_length or request.content_length > 65536:
+            raise ChatError(413, "Request body must be between 1 and 65536 bytes.")
+        try:
+            payload = json.loads(request.get_data())
+        except (ValueError, UnicodeError):
+            raise ChatError(400, "Request body must be valid JSON.") from None
+        if isinstance(payload, dict) and payload.get("stream", True) is False:
+            return jsonify(chat(payload))
+        events = iter_chat_events(payload)
+        # Keep the HTTP error status until the first model text is available.
+        first = next(events)
+    except ChatError as error:
+        if events is not None:
+            events.close()
+        return jsonify(error=error.message), error.status
+
+    def body():
+        try:
+            yield json.dumps(first) + "\n"
+            for event in events:
+                yield json.dumps(event) + "\n"
+        except ChatError as error:
+            yield json.dumps({"error": error.message}) + "\n"
+        finally:
+            events.close()
+
+    response = Response(body(), content_type="application/x-ndjson; charset=utf-8")
+    response.headers["X-Accel-Buffering"] = "no"
+    response.call_on_close(events.close)
+    return response

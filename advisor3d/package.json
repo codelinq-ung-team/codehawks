@@ -1,0 +1,23 @@
+{
+  "name": "advisor3d",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "node --test tests/*.test.ts",
+    "adb:reverse": "adb reverse tcp:5173 tcp:5173",
+    "quest": "adb reverse tcp:5173 tcp:5173 && adb shell am start -a android.intent.action.VIEW -d http://localhost:5173 com.oculus.browser"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

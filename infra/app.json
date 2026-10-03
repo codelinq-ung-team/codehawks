@@ -1,7 +1,32 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Stack-neutral hackathon starting point. Add runtime resources here when the app is chosen.",
+  "Description": "Private hackathon site and streaming Bedrock backend for codelinq.codehawks.org.",
   "Parameters": {
+    "BedrockModelId": {
+      "Type": "String",
+      "AllowedPattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "Description": "Authorized Converse model or inference profile ID/ARN; supplied by protected Actions variables."
+    },
+    "BedrockModelArns": {
+      "Type": "CommaDelimitedList",
+      "AllowedPattern": "^arn:aws:bedrock:[a-z]{2}-[a-z]+-[0-9]:(:foundation-model/[A-Za-z0-9._:-]+|394270749442:(inference-profile|application-inference-profile)/[A-Za-z0-9._:-]+)$",
+      "Description": "Exact Bedrock model/profile ARNs, including destination foundation models. No wildcards."
+    },
+    "ChatOriginAccessControlId": {
+      "Type": "String",
+      "AllowedPattern": "^[A-Z0-9]+$",
+      "Description": "Lambda-origin OAC owned by the hackathon bootstrap stack."
+    },
+    "SiteCertificateArn": {
+      "Type": "String",
+      "Description": "DNS-validated ACM certificate for codelinq.codehawks.org.",
+      "AllowedPattern": "^arn:aws:acm:us-east-1:394270749442:certificate/[0-9a-f-]+$"
+    },
+    "CloudFrontOriginAccessControlId": {
+      "Type": "String",
+      "Description": "Hackathon-owned CloudFront OAC from the bootstrap stack.",
+      "AllowedPattern": "^[A-Z0-9]+$"
+    },
     "RuntimePermissionsBoundaryArn": {
       "Type": "String",
       "Description": "Apply this boundary to every app runtime role.",
@@ -9,6 +34,199 @@
     }
   },
   "Resources": {
+    "ChatLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/codelinq-hackathon-app-chat",
+        "RetentionInDays": 7,
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "codelinq-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
+    "ChatRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "codelinq-hackathon-app-chat",
+        "PermissionsBoundary": {
+          "Ref": "RuntimePermissionsBoundaryArn"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "sts:AssumeRole",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "chat-runtime",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock:InvokeModel",
+                    "bedrock:InvokeModelWithResponseStream"
+                  ],
+                  "Resource": {
+                    "Ref": "BedrockModelArns"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-chat:log-stream:*"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "codelinq-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
+    "ChatFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Metadata": { "cfn-lint": { "config": { "ignore_checks": ["W3002"] } } },
+      "DependsOn": "ChatLogGroup",
+      "Properties": {
+        "FunctionName": "codelinq-hackathon-app-chat",
+        "Runtime": "python3.12",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Handler": "run.sh",
+        "Code": "../build/backend.zip",
+        "Role": {
+          "Fn::GetAtt": [
+            "ChatRole",
+            "Arn"
+          ]
+        },
+        "MemorySize": 512,
+        "Timeout": 120,
+        "ReservedConcurrentExecutions": 2,
+        "Layers": [
+          "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:30"
+        ],
+        "Environment": {
+          "Variables": {
+            "MODEL_ID": {
+              "Ref": "BedrockModelId"
+            },
+            "PORT": "8000",
+            "AWS_LAMBDA_EXEC_WRAPPER": "/opt/bootstrap",
+            "AWS_LWA_PORT": "8000",
+            "AWS_LWA_READINESS_CHECK_PATH": "/health",
+            "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS": "200",
+            "AWS_LWA_INVOKE_MODE": "response_stream",
+            "AWS_LWA_ENABLE_COMPRESSION": "false"
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "codelinq-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
+    "ChatFunctionUrl": {
+      "Type": "AWS::Lambda::Url",
+      "Properties": {
+        "TargetFunctionArn": {
+          "Fn::GetAtt": [
+            "ChatFunction",
+            "Arn"
+          ]
+        },
+        "AuthType": "AWS_IAM",
+        "InvokeMode": "RESPONSE_STREAM"
+      }
+    },
+    "ChatUrlPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ChatFunction"
+        },
+        "Action": "lambda:InvokeFunctionUrl",
+        "FunctionUrlAuthType": "AWS_IAM",
+        "Principal": "cloudfront.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"
+        }
+      }
+    },
+    "ChatInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ChatFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "InvokedViaFunctionUrl": true,
+        "Principal": "cloudfront.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"
+        }
+      }
+    },
     "AssetsBucket": {
       "Type": "AWS::S3::Bucket",
       "DeletionPolicy": "Delete",
@@ -58,9 +276,144 @@
           }
         ]
       }
+    },
+    "AssetsBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "AssetsBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "s3:GetObject",
+              "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/*" },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": { "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}" }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "SiteDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Aliases": [ "codelinq.codehawks.org" ],
+          "Comment": "Codelinq hackathon site; managed by this repository.",
+          "Enabled": true,
+          "DefaultRootObject": "index.html",
+          "HttpVersion": "http2and3",
+          "IPV6Enabled": true,
+          "Origins": [
+            {
+              "Id": "HackathonChat",
+              "DomainName": {
+                "Fn::Select": [
+                  2,
+                  {
+                    "Fn::Split": [
+                      "/",
+                      {
+                        "Fn::GetAtt": [
+                          "ChatFunctionUrl",
+                          "FunctionUrl"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "OriginAccessControlId": {
+                "Ref": "ChatOriginAccessControlId"
+              },
+              "CustomOriginConfig": {
+                "OriginProtocolPolicy": "https-only",
+                "OriginSSLProtocols": [
+                  "TLSv1.2"
+                ],
+                "OriginReadTimeout": 60
+              }
+            },
+            {
+              "Id": "HackathonAssets",
+              "DomainName": { "Fn::GetAtt": [ "AssetsBucket", "RegionalDomainName" ] },
+              "OriginAccessControlId": { "Ref": "CloudFrontOriginAccessControlId" },
+              "S3OriginConfig": { "OriginAccessIdentity": "" }
+            }
+          ],
+          "CacheBehaviors": [
+            {
+              "PathPattern": "/api/*",
+              "TargetOriginId": "HackathonChat",
+              "ViewerProtocolPolicy": "https-only",
+              "AllowedMethods": [
+                "GET",
+                "HEAD",
+                "OPTIONS",
+                "PUT",
+                "POST",
+                "PATCH",
+                "DELETE"
+              ],
+              "CachedMethods": [
+                "GET",
+                "HEAD"
+              ],
+              "Compress": false,
+              "CachePolicyId": "413f1602-6f6d-4f29-9b3b-ae0a58b8b8d6",
+              "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "HackathonAssets",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": [ "GET", "HEAD", "OPTIONS" ],
+            "CachedMethods": [ "GET", "HEAD", "OPTIONS" ],
+            "Compress": true,
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6"
+          },
+          "PriceClass": "PriceClass_100",
+          "CustomErrorResponses": [
+            { "ErrorCode": 403, "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 404, "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 500, "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 502, "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 503, "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 504, "ErrorCachingMinTTL": 0 }
+          ],
+          "Restrictions": { "GeoRestriction": { "RestrictionType": "none" } },
+          "ViewerCertificate": {
+            "AcmCertificateArn": { "Ref": "SiteCertificateArn" },
+            "MinimumProtocolVersion": "TLSv1.2_2021",
+            "SslSupportMethod": "sni-only"
+          }
+        },
+        "Tags": [
+          { "Key": "Project", "Value": "codelinq-hackathon" },
+          { "Key": "Owner", "Value": "Israel Jauregui" },
+          { "Key": "Lifecycle", "Value": "ephemeral" },
+          { "Key": "ManagedBy", "Value": "CloudFormation" }
+        ]
+      }
     }
   },
   "Outputs": {
+    "ChatFunctionUrl": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ChatFunctionUrl",
+          "FunctionUrl"
+        ]
+      }
+    },
+    "ChatEndpoint": {
+      "Value": "https://codelinq.codehawks.org/api/chat"
+    },
     "RuntimePermissionsBoundaryArn": {
       "Value": {
         "Ref": "RuntimePermissionsBoundaryArn"
@@ -70,6 +423,15 @@
       "Value": {
         "Ref": "AssetsBucket"
       }
+    },
+    "SiteDistributionId": {
+      "Value": { "Ref": "SiteDistribution" }
+    },
+    "SiteDistributionDomainName": {
+      "Value": { "Fn::GetAtt": [ "SiteDistribution", "DomainName" ] }
+    },
+    "SiteUrl": {
+      "Value": "https://codelinq.codehawks.org"
     }
   }
 }

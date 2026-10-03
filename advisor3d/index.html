@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="Find out how much life insurance your family may need in a guided chat, in VR or passthrough." />
+    <title>LinqLife Advisor3D</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#650030" />
+    <link rel="icon" href="icon-192.png" />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #f8f5f2; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+      canvas { display: block; touch-action: none; }
+      .entry { position: fixed; left: 0; right: 0; bottom: 20px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; padding: 0 16px; pointer-events: none; }
+      .entry > * { pointer-events: auto; }
+      .entry button { min-height: 50px; padding: 0 28px; border: 0; border-radius: 999px; font: 600 17px/22px inherit; font-family: inherit; letter-spacing: -0.01em; cursor: pointer; }
+      .entry button:focus-visible { outline: 2px solid #650030; outline-offset: 2px; }
+      #enter-vr { background: #650030; color: #fff; box-shadow: 0 10px 24px rgba(101, 0, 48, .18); }
+      #enter-ar { background: #fff; color: #650030; box-shadow: inset 0 0 0 1.5px #650030; }
+      .entry p { margin: 0; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .82); color: #5a5a5a; font: 400 13px/18px inherit; font-family: inherit; }
+      .has-xr .entry p, body:not([data-route="home"]) .entry p { display: none; }
+      .in-xr .entry { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="entry">
+      <button id="enter-vr" type="button" hidden>Enter VR</button>
+      <button id="enter-ar" type="button" hidden>Enter Passthrough</button>
+      <p>Prototype. Open this page in the Quest Browser to step inside. A mouse and number keys work here too.</p>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

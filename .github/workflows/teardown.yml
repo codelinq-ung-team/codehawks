@@ -33,4 +33,5 @@ jobs:
       - name: Delete app resources and empty build artifacts
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: python3 scripts/aws_actions.py teardown --confirm "$CONFIRMATION"

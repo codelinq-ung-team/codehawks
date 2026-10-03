@@ -12,7 +12,7 @@
     "BootstrapRevision": {
       "Type": "String",
       "Default": "1",
-      "Description": "Updated by each Israel-reviewed bootstrap Actions deployment.",
+      "Description": "Updated by each GitHub Actions bootstrap deployment.",
       "AllowedPattern": "^[0-9]{1,12}$"
     },
     "GitHubOrganization": {
@@ -46,6 +46,16 @@
       "AllowedValues": [
         "1403496059"
       ]
+    },
+    "BedrockModelId": {
+      "Type": "String",
+      "AllowedPattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "Description": "Authorized Converse model or inference profile ID/ARN; supplied by protected Actions variables."
+    },
+    "BedrockModelArns": {
+      "Type": "CommaDelimitedList",
+      "AllowedPattern": "^arn:aws:bedrock:[a-z]{2}-[a-z]+-[0-9]:(:foundation-model/[A-Za-z0-9._:-]+|394270749442:(inference-profile|application-inference-profile)/[A-Za-z0-9._:-]+)$",
+      "Description": "Exact Bedrock model/profile ARNs, including destination foundation models. No wildcards."
     }
   },
   "Resources": {
@@ -249,6 +259,16 @@
               "Action": "secretsmanager:GetSecretValue",
               "Resource": {
                 "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:codelinq-hackathon-app-*"
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "bedrock:InvokeModel",
+                "bedrock:InvokeModelWithResponseStream"
+              ],
+              "Resource": {
+                "Ref": "BedrockModelArns"
               }
             }
           ]
@@ -455,6 +475,81 @@
                       }
                     }
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudfront:CreateDistribution",
+                    "cloudfront:TagResource"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Lifecycle": "ephemeral"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudfront:GetDistribution",
+                    "cloudfront:GetDistributionConfig",
+                    "cloudfront:UpdateDistribution",
+                    "cloudfront:DeleteDistribution",
+                    "cloudfront:TagResource",
+                    "cloudfront:UntagResource",
+                    "cloudfront:ListTagsForResource",
+                    "cloudfront:CreateInvalidation",
+                    "cloudfront:GetInvalidation",
+                    "cloudfront:ListInvalidations"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:ListOriginAccessControls",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:GetOriginAccessControl",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:CreateConnectionGroup",
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Lifecycle": "ephemeral"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:GetVpcOrigin",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:vpcorigin/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "lambda:GetLayerVersion",
+                  "Resource": "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:30"
                 }
               ]
             }
@@ -515,20 +610,22 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "cloudformation:DescribeStacks",
-                    "cloudformation:DescribeStackEvents",
-                    "cloudformation:DescribeStackResources",
-                    "cloudformation:ListStackResources",
-                    "cloudformation:GetTemplate",
-                    "cloudformation:CreateChangeSet",
-                    "cloudformation:DescribeChangeSet",
-                    "cloudformation:ExecuteChangeSet",
-                    "cloudformation:DeleteChangeSet"
-                  ],
+                  "Action": "cloudformation:DescribeStacks",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudformation:*",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-app-*/*"
+                    }
+                  ]
                 },
                 {
                   "Effect": "Allow",
@@ -613,6 +710,68 @@
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinq-hackathon-app-*"
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "acm:RequestCertificate",
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "acm:ValidationMethod": "DNS",
+                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Lifecycle": "ephemeral"
+                    },
+                    "ForAllValues:StringEquals": {
+                      "acm:DomainNames": "codelinq.codehawks.org"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "acm:ListCertificates"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "acm:AddTagsToCertificate",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:acm:us-east-1:${AWS::AccountId}:certificate/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Lifecycle": "ephemeral"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "acm:DescribeCertificate",
+                    "acm:ListTagsForCertificate"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:acm:us-east-1:${AWS::AccountId}:certificate/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:CreateInvalidation",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                    }
+                  }
                 }
               ]
             }
@@ -673,17 +832,15 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "cloudformation:DescribeStacks",
-                    "cloudformation:DescribeStackEvents",
-                    "cloudformation:DescribeStackResources",
-                    "cloudformation:ListStackResources",
-                    "cloudformation:GetTemplate",
-                    "cloudformation:DeleteStack"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
-                  }
+                  "Action": "cloudformation:*",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-app-*/*"
+                    }
+                  ]
                 },
                 {
                   "Effect": "Allow",
@@ -737,6 +894,45 @@
                   ],
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinq-hackathon-app-*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudfront:GetDistribution",
+                    "cloudfront:GetDistributionConfig",
+                    "cloudfront:UpdateDistribution"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "acm:ListCertificates"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "acm:DescribeCertificate",
+                    "acm:ListTagsForCertificate",
+                    "acm:DeleteCertificate"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:acm:us-east-1:${AWS::AccountId}:certificate/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                    }
                   }
                 }
               ]
@@ -798,31 +994,15 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "cloudformation:DescribeStacks",
-                    "cloudformation:DescribeStackEvents",
-                    "cloudformation:DescribeStackResources",
-                    "cloudformation:ListStackResources",
-                    "cloudformation:GetTemplate",
-                    "cloudformation:UpdateStack",
-                    "cloudformation:CreateChangeSet",
-                    "cloudformation:ExecuteChangeSet"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
-                  }
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": "cloudformation:DescribeChangeSet",
-                  "Resource": "*"
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": "cloudformation:DeleteChangeSet",
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-bootstrap-*/*"
-                  }
+                  "Action": "cloudformation:*",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-bootstrap-*/*"
+                    }
+                  ]
                 },
                 {
                   "Effect": "Allow",
@@ -968,6 +1148,21 @@
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:ListOriginAccessControls",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:CreateOriginAccessControl",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudfront:GetOriginAccessControl",
+                  "Resource": "*"
                 }
               ]
             }
@@ -993,9 +1188,42 @@
         ]
       },
       "UpdateReplacePolicy": "Retain"
+    },
+    "CloudFrontOriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": "codelinq-hackathon-bootstrap-oac-v2",
+          "Description": "Private S3 access for the Codelinq hackathon CloudFront site.",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      },
+      "DependsOn": "BootstrapCloudFormationRole",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain"
+    },
+    "ChatOriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": "codelinq-hackathon-app-chat-oac",
+          "Description": "Private streaming Lambda access for the Codelinq hackathon API.",
+          "OriginAccessControlOriginType": "lambda",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      },
+      "DependsOn": "BootstrapCloudFormationRole",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain"
     }
   },
   "Outputs": {
+    "BedrockModelId": {
+      "Value": { "Ref": "BedrockModelId" }
+    },
     "DeployRoleArn": {
       "Value": {
         "Fn::GetAtt": [
@@ -1053,6 +1281,22 @@
         "Fn::GetAtt": [
           "BootstrapCloudFormationRole",
           "Arn"
+        ]
+      }
+    },
+    "CloudFrontOriginAccessControlId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "CloudFrontOriginAccessControl",
+          "Id"
+        ]
+      }
+    },
+    "ChatOriginAccessControlId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ChatOriginAccessControl",
+          "Id"
         ]
       }
     }
