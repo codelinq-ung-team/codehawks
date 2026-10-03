@@ -1,6 +1,6 @@
 // Cache the app shell so Advisor3D opens offline once installed.
 // Scope is the folder this file lives in (/advisor3d/), so it never touches the main site.
-const CACHE = 'advisor3d-v2';
+const CACHE = 'advisor3d-v3';
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./index.html', './manifest.webmanifest'])));
