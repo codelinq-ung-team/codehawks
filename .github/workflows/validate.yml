@@ -18,3 +18,5 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: cfn-lint infra/bootstrap.json infra/app.json
       - run: python scripts/validate_repo.py
+      - name: Build Advisor3D
+        run: bash scripts/build-advisor3d.sh
