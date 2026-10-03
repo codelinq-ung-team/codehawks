@@ -1178,7 +1178,7 @@
       "Type": "AWS::CloudFront::OriginAccessControl",
       "Properties": {
         "OriginAccessControlConfig": {
-          "Name": "codelinq-hackathon-bootstrap-oac",
+          "Name": "codelinq-hackathon-bootstrap-oac-v2",
           "Description": "Private S3 access for the Codelinq hackathon CloudFront site.",
           "OriginAccessControlOriginType": "s3",
           "SigningBehavior": "always",

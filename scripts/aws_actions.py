@@ -144,7 +144,7 @@ def update_bootstrap():
         "--template-body", f"file://{template}", "--capabilities", "CAPABILITY_NAMED_IAM",
         "--parameters", f"ParameterKey=BootstrapRevision,ParameterValue={revision}",
         "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
-        "--import-existing-resources", "--description", "Update isolated codelinq hackathon bootstrap")
+        "--description", "Update isolated codelinq hackathon bootstrap")
 
     deadline = time.monotonic() + 600
     while time.monotonic() < deadline:
