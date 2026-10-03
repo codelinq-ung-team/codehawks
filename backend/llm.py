@@ -154,4 +154,3 @@ def consume_stream(response, emit):
                 if delta:
                     emit({"delta": delta})
     raise ChatError(502, "The LLM connection closed before the reply was complete. Please try again.")
-

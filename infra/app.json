@@ -1,7 +1,17 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Stack-neutral hackathon starting point. Add runtime resources here when the app is chosen.",
+  "Description": "Private S3-hosted hackathon site for codelinq.codehawks.org. Add app runtime resources here as the stack is chosen.",
   "Parameters": {
+    "SiteCertificateArn": {
+      "Type": "String",
+      "Description": "DNS-validated ACM certificate for codelinq.codehawks.org.",
+      "AllowedPattern": "^arn:aws:acm:us-east-1:394270749442:certificate/[0-9a-f-]+$"
+    },
+    "CloudFrontOriginAccessControlId": {
+      "Type": "String",
+      "Description": "Hackathon-owned CloudFront OAC from the bootstrap stack.",
+      "AllowedPattern": "^[A-Z0-9]+$"
+    },
     "RuntimePermissionsBoundaryArn": {
       "Type": "String",
       "Description": "Apply this boundary to every app runtime role.",
@@ -58,6 +68,74 @@
           }
         ]
       }
+    },
+    "AssetsBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "AssetsBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "s3:GetObject",
+              "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/*" },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": { "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}" }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "SiteDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Aliases": [ "codelinq.codehawks.org" ],
+          "Comment": "Codelinq hackathon site; managed by this repository.",
+          "Enabled": true,
+          "DefaultRootObject": "index.html",
+          "HttpVersion": "http2and3",
+          "IPV6Enabled": true,
+          "Origins": [
+            {
+              "Id": "HackathonAssets",
+              "DomainName": { "Fn::GetAtt": [ "AssetsBucket", "RegionalDomainName" ] },
+              "OriginAccessControlId": { "Ref": "CloudFrontOriginAccessControlId" },
+              "S3OriginConfig": { "OriginAccessIdentity": "" }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "HackathonAssets",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": [ "GET", "HEAD", "OPTIONS" ],
+            "CachedMethods": [ "GET", "HEAD", "OPTIONS" ],
+            "Compress": true,
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6"
+          },
+          "CustomErrorResponses": [
+            { "ErrorCode": 403, "ResponseCode": 200, "ResponsePagePath": "/index.html", "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 404, "ResponseCode": 200, "ResponsePagePath": "/index.html", "ErrorCachingMinTTL": 0 }
+          ],
+          "PriceClass": "PriceClass_100",
+          "Restrictions": { "GeoRestriction": { "RestrictionType": "none" } },
+          "ViewerCertificate": {
+            "AcmCertificateArn": { "Ref": "SiteCertificateArn" },
+            "MinimumProtocolVersion": "TLSv1.2_2021",
+            "SslSupportMethod": "sni-only"
+          }
+        },
+        "Tags": [
+          { "Key": "Project", "Value": "codelinq-hackathon" },
+          { "Key": "Owner", "Value": "Israel Jauregui" },
+          { "Key": "Lifecycle", "Value": "ephemeral" },
+          { "Key": "ManagedBy", "Value": "CloudFormation" }
+        ]
+      }
     }
   },
   "Outputs": {
@@ -70,6 +148,15 @@
       "Value": {
         "Ref": "AssetsBucket"
       }
+    },
+    "SiteDistributionId": {
+      "Value": { "Ref": "SiteDistribution" }
+    },
+    "SiteDistributionDomainName": {
+      "Value": { "Fn::GetAtt": [ "SiteDistribution", "DomainName" ] }
+    },
+    "SiteUrl": {
+      "Value": "https://codelinq.codehawks.org"
     }
   }
 }
