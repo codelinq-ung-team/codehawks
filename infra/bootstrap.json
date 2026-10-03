@@ -715,6 +715,19 @@
                 },
                 {
                   "Effect": "Allow",
+                  "Action": "acm:AddTagsToCertificate",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:acm:us-east-1:${AWS::AccountId}:certificate/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Lifecycle": "ephemeral"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
                   "Action": [
                     "acm:DescribeCertificate",
                     "acm:ListTagsForCertificate"
