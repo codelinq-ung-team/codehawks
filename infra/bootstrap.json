@@ -592,21 +592,15 @@
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "cloudformation:DescribeStacks",
-                    "cloudformation:DescribeStackEvents",
-                    "cloudformation:DescribeStackResources",
-                    "cloudformation:ListStackResources",
-                    "cloudformation:GetTemplate",
-                    "cloudformation:GetTemplateSummary",
-                    "cloudformation:CreateChangeSet",
-                    "cloudformation:DescribeChangeSet",
-                    "cloudformation:ExecuteChangeSet",
-                    "cloudformation:DeleteChangeSet"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
-                  }
+                  "Action": "cloudformation:*",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-app-*/*"
+                    }
+                  ]
                 },
                 {
                   "Effect": "Allow",
@@ -813,17 +807,15 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "cloudformation:DescribeStacks",
-                    "cloudformation:DescribeStackEvents",
-                    "cloudformation:DescribeStackResources",
-                    "cloudformation:ListStackResources",
-                    "cloudformation:GetTemplate",
-                    "cloudformation:DeleteStack"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
-                  }
+                  "Action": "cloudformation:*",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-app-*/*"
+                    }
+                  ]
                 },
                 {
                   "Effect": "Allow",
@@ -977,31 +969,15 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "cloudformation:DescribeStacks",
-                    "cloudformation:DescribeStackEvents",
-                    "cloudformation:DescribeStackResources",
-                    "cloudformation:ListStackResources",
-                    "cloudformation:GetTemplate",
-                    "cloudformation:UpdateStack",
-                    "cloudformation:CreateChangeSet",
-                    "cloudformation:ExecuteChangeSet"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
-                  }
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": "cloudformation:DescribeChangeSet",
-                  "Resource": "*"
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": "cloudformation:DeleteChangeSet",
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-bootstrap-*/*"
-                  }
+                  "Action": "cloudformation:*",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-bootstrap-*/*"
+                    }
+                  ]
                 },
                 {
                   "Effect": "Allow",
