@@ -17,10 +17,9 @@ type QuestionBase = {
 }
 
 export type AssessmentQuestion = QuestionBase & (
-  | { type: 'single-select'; options: AssessmentOption[] }
-  | { type: 'multi-select'; options: AssessmentOption[] }
+  | { type: 'options'; options: AssessmentOption[]; allowMultiple?: boolean }
+  | { type: 'number-input'; placeholder?: string; min?: number; max?: number }
   | { type: 'text'; placeholder?: string }
-  | { type: 'number'; placeholder?: string; min?: number; max?: number }
 )
 
 export type AssessmentAnswersJSON = {
@@ -162,17 +161,17 @@ export default function AssessmentPage({
             <h2 id="question-heading">{question.prompt}</h2>
             {question.helperText && <p>{question.helperText}</p>}
 
-            {(question.type === 'single-select' || question.type === 'multi-select') && (
+            {question.type === 'options' && (
               <div className="assessment-options">
                 {question.options.map((option) => {
-                  const isSelected = question.type === 'multi-select'
+                  const isSelected = question.allowMultiple
                     ? Array.isArray(answer) && answer.includes(option.value)
                     : answer === option.value
                   return (
                     <button
                       className={isSelected ? 'selected' : ''}
                       key={option.value}
-                      onClick={() => question.type === 'multi-select' ? toggleMultiSelect(question.id, option.value) : saveAnswer(question.id, option.value)}
+                      onClick={() => question.allowMultiple ? toggleMultiSelect(question.id, option.value) : saveAnswer(question.id, option.value)}
                       aria-pressed={isSelected}
                     >
                       <span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>
@@ -187,8 +186,20 @@ export default function AssessmentPage({
               <textarea value={typeof answer === 'string' ? answer : ''} placeholder={question.placeholder} onChange={(event) => saveAnswer(question.id, event.target.value)} />
             )}
 
-            {question.type === 'number' && (
-              <input type="number" value={typeof answer === 'number' ? answer : ''} placeholder={question.placeholder} min={question.min} max={question.max} onChange={(event) => saveAnswer(question.id, event.target.value === '' ? '' : event.target.valueAsNumber)} />
+            {question.type === 'number-input' && (
+              <input
+                className="assessment-number-input"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                aria-labelledby="question-heading"
+                value={typeof answer === 'number' ? String(answer) : ''}
+                placeholder={question.placeholder}
+                onChange={(event) => {
+                  const digitsOnly = event.target.value.replace(/\D/g, '')
+                  saveAnswer(question.id, digitsOnly === '' ? '' : Number(digitsOnly))
+                }}
+              />
             )}
           </div>
 

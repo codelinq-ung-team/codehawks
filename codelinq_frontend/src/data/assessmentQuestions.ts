@@ -1,18 +1,52 @@
 import type { AssessmentQuestion } from '../components/AssessmentPage'
 
 // Add, remove, or reorder questions in this array. The AssessmentPage component
-// supports: single-select, multi-select, text, and number question types.
+// supports options, number-input, and text question types.
 export const assessmentQuestions: AssessmentQuestion[] = [
   {
-    id: 'placeholder-question',
-    type: 'single-select',
-    prompt: 'This is a placeholder question. Which sample answer would you choose?',
-    helperText: 'Replace this object with your first real assessment question when you are ready.',
+    id: 'current-coverage',
+    type: 'options',
+    prompt: 'Do you currently have life insurance?',
+    helperText: '',
     required: true,
     options: [
-      { value: 'sample-a', label: 'Sample answer A', description: 'Optional supporting text can go here.' },
-      { value: 'sample-b', label: 'Sample answer B', description: 'Each option needs a unique value.' },
-      { value: 'sample-c', label: 'Sample answer C' },
+      { value: 'Yes', label: 'Yes', description: '' },
+      { value: 'No', label: 'No', description: '' },
     ],
+  },
+  {
+    id: 'number-of-dependents',
+    type: 'number-input',
+    prompt: 'How many dependents do you have?',
+    helperText: '',
+    placeholder: 'Enter a number',
+    required: true,
+  },
+  {
+    id: 'marital-status',
+    type: 'options',
+    prompt: 'What is your marital status?',
+    helperText: '',
+    required: true,
+    options: [
+      { value: 'Single', label: 'Single', description: '' },
+      { value: 'Married', label: 'Married', description: '' },
+    ],
+  },
+  {
+    id: 'income',
+    type: 'number-input',
+    prompt: 'What is your yearly income?',
+    helperText: '',
+    placeholder: 'Enter a number',
+    required: true,
+  },
+  {
+    id: 'debt',
+    type: 'number-input',
+    prompt: 'What is your current total debt?',
+    helperText: '',
+    placeholder: 'Enter a number',
+    required: true,
   },
 ]

@@ -73,10 +73,10 @@
 .assessment-options button.selected i { border-color: #195c50; background: #195c50; }
 
 .question-content textarea,
-.question-content input[type='number'] { width: 100%; border: 1px solid #dce5de; margin-top: 28px; padding: 16px; color: #163733; background: #fff; border-radius: 11px; outline: none; font: inherit; }
+.question-content .assessment-number-input { width: 100%; border: 1px solid #dce5de; margin-top: 28px; padding: 16px; color: #163733; background: #fff; border-radius: 11px; outline: none; font: inherit; }
 .question-content textarea { min-height: 150px; resize: vertical; }
 .question-content textarea:focus,
-.question-content input[type='number']:focus { border-color: #4f9280; box-shadow: 0 0 0 3px rgba(79,146,128,.12); }
+.question-content .assessment-number-input:focus { border-color: #4f9280; box-shadow: 0 0 0 3px rgba(79,146,128,.12); }
 
 .question-actions { width: min(100%, 660px); display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 auto; padding-top: 24px; border-top: 1px solid #e3e9e5; }
 .assessment-primary, .assessment-secondary { border: 0; min-height: 46px; border-radius: 9px; padding: 12px 20px; font-weight: 700; }
