@@ -19,6 +19,14 @@ NAMES = {
 
 
 def validate_app(template):
+    assert template["Parameters"]["SiteCertificateArn"]["AllowedPattern"] == "^arn:aws:acm:us-east-1:394270749442:certificate/[0-9a-f-]+$"
+    assert template["Parameters"]["CloudFrontOriginAccessControlId"]["AllowedPattern"] == "^[A-Z0-9]+$"
+    distributions = [r for r in template["Resources"].values() if r["Type"] == "AWS::CloudFront::Distribution"]
+    assert len(distributions) == 1, "The site stack must own exactly one CloudFront distribution"
+    assert distributions[0]["Properties"]["DistributionConfig"]["Aliases"] == [CONFIG["site_domain"]]
+    assert distributions[0]["Properties"]["DistributionConfig"]["ViewerCertificate"]["AcmCertificateArn"] == {"Ref": "SiteCertificateArn"}
+    assert distributions[0]["Properties"]["Tags"]
+    assert {tag["Key"]: tag["Value"] for tag in distributions[0]["Properties"]["Tags"]}.get("Project") == CONFIG["prefix"]
     for logical_id, resource in template["Resources"].items():
         properties = resource.get("Properties", {})
         retained = logical_id == "BootstrapCloudFormationRole" and resource.get("DeletionPolicy") == "Retain" and resource.get("UpdateReplacePolicy") == "Retain"
@@ -53,10 +61,15 @@ def main():
     assert CONFIG["repository_id"] == "1403496059"
     assert CONFIG["app_stack"] == "codelinq-hackathon-app"
     assert CONFIG["bootstrap_stack"] == "codelinq-hackathon-bootstrap"
+    assert CONFIG["site_domain"] == "codelinq.codehawks.org"
+    assert CONFIG["cloudflare_zone"] == "codehawks.org"
     app = json.loads((ROOT / "infra/app.json").read_text())
     validate_app(app)
     bootstrap = json.loads((ROOT / "infra/bootstrap.json").read_text())
     assert not any(r["Type"] == "AWS::IAM::OIDCProvider" for r in bootstrap["Resources"].values()), "The shared OIDC provider must remain outside this stack"
+    assert bootstrap["Resources"]["CloudFrontOriginAccessControl"]["Type"] == "AWS::CloudFront::OriginAccessControl"
+    assert bootstrap["Outputs"]["CloudFrontOriginAccessControlId"]["Value"] == {"Fn::GetAtt": ["CloudFrontOriginAccessControl", "Id"]}
+    assert bootstrap["Resources"]["CloudFrontOriginAccessControl"]["DeletionPolicy"] == "Retain"
     trust_subjects = [("DeployRole", "hackathon"), ("TeardownRole", "hackathon-teardown"), ("BootstrapRole", "hackathon-admin")]
     for role, environment in trust_subjects:
         trust = bootstrap["Resources"][role]["Properties"]["AssumeRolePolicyDocument"]["Statement"][0]
