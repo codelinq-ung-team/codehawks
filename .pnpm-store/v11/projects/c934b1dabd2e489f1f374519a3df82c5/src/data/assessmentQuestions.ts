@@ -4,20 +4,9 @@ import type { AssessmentQuestion } from '../components/AssessmentPage'
 // supports options, number-input, and text question types.
 export const assessmentQuestions: AssessmentQuestion[] = [
   {
-    id: 'current-coverage',
-    type: 'options',
-    prompt: 'Do you currently have life insurance?',
-    helperText: '',
-    required: true,
-    options: [
-      { value: 'Yes', label: 'Yes', description: '' },
-      { value: 'No', label: 'No', description: '' },
-    ],
-  },
-  {
-    id: 'number-of-dependents',
+    id: 'income',
     type: 'number-input',
-    prompt: 'How many dependents do you have?',
+    prompt: 'What is your yearly income?',
     helperText: '',
     placeholder: 'Enter a number',
     required: true,
@@ -34,9 +23,9 @@ export const assessmentQuestions: AssessmentQuestion[] = [
     ],
   },
   {
-    id: 'income',
+    id: 'number-of-dependents',
     type: 'number-input',
-    prompt: 'What is your yearly income?',
+    prompt: 'How many dependents do you have?',
     helperText: '',
     placeholder: 'Enter a number',
     required: true,
@@ -49,4 +38,15 @@ export const assessmentQuestions: AssessmentQuestion[] = [
     placeholder: 'Enter a number',
     required: true,
   },
+  {
+    id: 'current-coverage',
+    type: 'options',
+    prompt: 'Do you currently have life insurance?',
+    helperText: '',
+    required: true,
+    options: [
+      { value: 'Yes', label: 'Yes', description: '' },
+      { value: 'No', label: 'No', description: '' },
+    ],
+  }
 ]
