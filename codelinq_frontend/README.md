@@ -1,5 +1,38 @@
 # React + TypeScript + Vite
 
+## Combined frontend
+
+This integration uses Justin's Home, Abe artwork, Basics layout, Chat, Review,
+and Results screens with the frontend-team questionnaire contract.
+
+- Edit questions in `src/data/assessmentQuestions.ts`. Question IDs, option values,
+  helper text, and model-only descriptions are preserved from frontend-team.
+- Supported types: `options` (optionally `allowMultiple`), `number-input`, and `text`.
+- Complete Basics to view and copy the full assessment JSON, then continue to Abe.
+  The same questionnaire snapshot is also available on Results.
+- The public payload remains `version`, `assessmentId`, `startedAt`, `updatedAt`,
+  `answers`, and `questionDescriptions`. IDs and timestamps survive draft reloads.
+- Questionnaire drafts use the existing local-storage key
+  `linqlife-assessment-answers`; follow-up chat uses session storage.
+  Exit keeps the draft; Start Over clears the draft and current chat.
+- `debt` excludes mortgage debt and rent. The chat asks about the mortgage
+  separately and never subtracts it from the questionnaire's debt answer.
+- Abe currently uses Justin's scripted fallback, not a connected LLM. Chat/review
+  data is kept separate from the original questionnaire JSON snapshot.
+
+Use Node 22.14 or newer. From this folder:
+
+```sh
+npm ci
+npm run dev
+npm run build
+npm run lint
+npm test
+```
+
+The original `#assessment` link opens the new Basics screen; new routes use
+`#/prepare`, `#/chat`, `#/review`, and `#/results`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

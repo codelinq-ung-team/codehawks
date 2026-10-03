@@ -1,37 +1,17 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type FormEvent } from 'react'
+import {
+  ASSESSMENT_STORAGE_KEY, completeAssessment, restoreAssessment,
+  type AssessmentAnswer, type AssessmentAnswersJSON, type AssessmentQuestion,
+} from '../domain/assessment.ts'
+import { Button, EmptyState, Icon } from '../kit/Kit.tsx'
+import { Page, Title } from '../lib/Chrome.tsx'
+import { GUIDE_NAME } from '../guide/guide.ts'
+import { GuidePose, type PoseName } from '../guide/Poses.tsx'
+import { AssessmentJSON } from './AssessmentJSON.tsx'
 import './AssessmentPage.css'
 
-export type AssessmentAnswer = string | string[] | number
-
-export type AssessmentOption = {
-  value: string
-  label: string
-  description?: string
-}
-
-type QuestionBase = {
-  id: string
-  prompt: string
-  /** Context for the model; not displayed in the questionnaire. */
-  description: string
-  helperText?: string
-  required?: boolean
-}
-
-export type AssessmentQuestion = QuestionBase & (
-  | { type: 'options'; options: AssessmentOption[]; allowMultiple?: boolean }
-  | { type: 'number-input'; placeholder?: string; min?: number; max?: number }
-  | { type: 'text'; placeholder?: string }
-)
-
-export type AssessmentAnswersJSON = {
-  version: 1
-  assessmentId: string
-  startedAt: string
-  updatedAt: string
-  answers: Record<string, AssessmentAnswer>
-  questionDescriptions: Record<string, string>
-}
+// Retain the original import location for question authors and existing consumers.
+export type { AssessmentAnswer, AssessmentOption, AssessmentQuestion, AssessmentAnswersJSON } from '../domain/assessment.ts'
 
 type AssessmentPageProps = {
   questions: AssessmentQuestion[]
@@ -39,199 +19,141 @@ type AssessmentPageProps = {
   title?: string
   onExit?: () => void
   onComplete?: (result: AssessmentAnswersJSON) => void
+  onContinue?: () => void
 }
 
-const getQuestionDescriptions = (questions: AssessmentQuestion[]) =>
-  Object.fromEntries(questions.map(({ id, description }) => [id, description]))
-
-const createAssessment = (questions: AssessmentQuestion[]): AssessmentAnswersJSON => ({
-  version: 1,
-  assessmentId: crypto.randomUUID(),
-  startedAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  answers: {},
-  questionDescriptions: getQuestionDescriptions(questions),
-})
-
-const loadAssessment = (storageKey: string, questions: AssessmentQuestion[]) => {
-  try {
-    const saved = window.localStorage.getItem(storageKey)
-    if (!saved) return createAssessment(questions)
-
-    const assessment = JSON.parse(saved) as AssessmentAnswersJSON
-    return {
-      ...assessment,
-      // Refresh context from the question definitions, including for older drafts.
-      questionDescriptions: getQuestionDescriptions(questions),
-      // Older drafts may still contain answers to the removed demo questions.
-      answers: Object.fromEntries(
-        Object.entries(assessment.answers).filter(([id]) => !id.startsWith('placeholder-')),
-      ),
-    }
-  } catch {
-    return createAssessment(questions)
-  }
-}
-
-function AssessmentIcon({ children }: { children: ReactNode }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{children}</svg>
-}
+const POSES: PoseName[] = ['wave', 'point', 'think', 'clipboard', 'thumbs']
 
 export default function AssessmentPage({
-  questions,
-  storageKey = 'linqlife-assessment-answers',
-  title = 'Your needs assessment',
-  onExit,
-  onComplete,
+  questions, storageKey = ASSESSMENT_STORAGE_KEY, title = 'Your needs assessment',
+  onExit, onComplete, onContinue,
 }: AssessmentPageProps) {
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [result, setResult] = useState<AssessmentAnswersJSON>(() => loadAssessment(storageKey, questions))
+  const [index, setIndex] = useState(0)
+  const [result, setResult] = useState(() => {
+    try { return restoreAssessment(localStorage.getItem(storageKey), questions) }
+    catch { return restoreAssessment(null, questions) }
+  })
   const [isComplete, setIsComplete] = useState(false)
+  const [storageError, setStorageError] = useState(false)
+  const q = questions[index]
+  const answer = q ? result.answers[q.id] : undefined
+  const last = index === questions.length - 1
+  const hasAnswer = Array.isArray(answer) ? answer.length > 0 : answer !== undefined && answer !== ''
+  const invalidNumber = q?.type === 'number-input' && hasAnswer && (
+    typeof answer !== 'number' || !Number.isSafeInteger(answer) || answer < (q.min ?? 0)
+    || answer > (q.max ?? Number.MAX_SAFE_INTEGER)
+  )
+  const canContinue = (!q?.required || hasAnswer) && !invalidNumber
+  const pose = last && hasAnswer ? 'cheer' : POSES[index % POSES.length]
 
-  const question = questions[currentIndex]
-  const answer = question ? result.answers[question.id] : undefined
-  const progress = questions.length ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0
-  const canContinue = !question?.required || (Array.isArray(answer) ? answer.length > 0 : answer !== undefined && answer !== '')
-
-  const saveAnswer = (questionId: string, value: AssessmentAnswer) => {
-    setResult((current) => {
-      const next = {
-        ...current,
-        updatedAt: new Date().toISOString(),
-        answers: { ...current.answers, [questionId]: value },
-        questionDescriptions: getQuestionDescriptions(questions),
-      }
-      window.localStorage.setItem(storageKey, JSON.stringify(next))
-      return next
-    })
+  function persist(next: AssessmentAnswersJSON) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next))
+      setStorageError(false)
+    } catch { setStorageError(true) }
+    setResult(next)
   }
 
-  const toggleMultiSelect = (questionId: string, value: string) => {
-    const currentValues = Array.isArray(result.answers[questionId]) ? result.answers[questionId] as string[] : []
-    saveAnswer(questionId, currentValues.includes(value) ? currentValues.filter((item) => item !== value) : [...currentValues, value])
+  function save(value: AssessmentAnswer) {
+    persist(completeAssessment({ ...result, answers: { ...result.answers, [q.id]: value } }, questions))
   }
 
-  const goNext = () => {
+  function submit(event: FormEvent) {
+    event.preventDefault()
     if (!canContinue) return
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex((current) => current + 1)
-      return
-    }
-
-    const completedResult = {
-      ...result,
-      updatedAt: new Date().toISOString(),
-      questionDescriptions: getQuestionDescriptions(questions),
-    }
-    window.localStorage.setItem(storageKey, JSON.stringify(completedResult))
-    setResult(completedResult)
+    if (!last) { setIndex(index + 1); return }
+    const completed = completeAssessment(result, questions)
+    persist(completed)
     setIsComplete(true)
-    onComplete?.(completedResult)
+    onComplete?.(completed)
   }
 
-  if (!question) {
-    return (
-      <main className="assessment-empty">
-        <h1>No questions yet</h1>
-        <p>Add a question to the array passed into the assessment component.</p>
-        {onExit && <button onClick={onExit}>Return home</button>}
-      </main>
-    )
+  if (!q) {
+    return <Page><EmptyState title="No questions yet" message="Add questions to the assessment configuration." action={onExit ? { label: 'Return Home', onClick: onExit } : undefined} /></Page>
   }
 
   if (isComplete) {
     return (
-      <main className="assessment-complete">
-        <div className="complete-mark">✓</div>
-        <span className="assessment-kicker">ASSESSMENT SAVED</span>
-        <h1>Your response is stored.</h1>
-        <p>The component has saved the answers as JSON in local storage and passed the same object to the completion callback.</p>
-        <details>
-          <summary>View complete assessment JSON</summary>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
-        </details>
-        <button className="assessment-primary" onClick={onExit}>Return home</button>
-      </main>
+      <Page className="assessment-finished">
+        <GuidePose name="cheer" className="assessment-finished__guide" />
+        <Title sub="Your basics are ready. You can review the complete questionnaire JSON below.">Your assessment is ready</Title>
+        {storageError && <p role="status">Your browser couldn't save a copy. Copy the JSON before leaving this page.</p>}
+        <AssessmentJSON result={result} />
+        <div className="assessment-finished__actions">
+          <Button variant="bordered" onClick={() => setIsComplete(false)}>Edit Answers</Button>
+          {onContinue && <Button onClick={onContinue}>Start Chat with {GUIDE_NAME}<Icon name="chevron-right" size={18} /></Button>}
+          {onExit && <Button variant="bordered" onClick={onExit}>Exit Assessment</Button>}
+        </div>
+      </Page>
     )
   }
 
   return (
-    <div className="assessment-page">
-      <header className="assessment-header">
-        <button className="assessment-brand" onClick={onExit} aria-label="Return to LinqLife home">
-          <span className="assessment-brand-mark">
-            <AssessmentIcon><path d="M20.8 5.8a5.4 5.4 0 0 0-7.6 0L12 7l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 22l8.8-8.6a5.4 5.4 0 0 0 0-7.6Z" /></AssessmentIcon>
-          </span>
-          <span>Linq<strong>Life</strong></span>
-        </button>
-        <div className="assessment-header-title">{title}</div>
-        <div className="assessment-save-state"><span /> Saved locally</div>
-      </header>
+    <Page className="qform-screen">
+      <form className="qform" onSubmit={submit} aria-label={title} noValidate>
+        <div className="qform__meta"><span>Question {index + 1} of {questions.length}</span><span>{Math.round(((index + 1) / questions.length) * 100)}% complete</span></div>
+        <div className="qform__bar" aria-hidden="true"><span style={{ width: `${((index + 1) / questions.length) * 100}%` }} /></div>
+        <div className="qform__body" key={q.id} data-side={index % POSES.length < 3 ? 'left' : 'right'}>
+          <div className="qform__head">
+            <span className="qform__num" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+            <GuidePose key={pose} name={pose} className="qform__guide" />
+          </div>
+          <h1 id="q-heading" className="qform__prompt">{q.prompt}</h1>
+          {q.helperText && <p className="qform__helper" id="q-helper">{q.helperText}</p>}
 
-      <main className="assessment-main">
-        <aside className="assessment-guide">
-          <button className="assessment-back-link" onClick={onExit}>
-            <AssessmentIcon><path d="m15 18-6-6 6-6" /></AssessmentIcon>
-            Exit Assessment
-          </button>
-        </aside>
+          {q.type === 'options' && (
+            <div className="qform__options" role="group" aria-labelledby="q-heading">
+              {q.options.map((option) => {
+                const selected = q.allowMultiple ? Array.isArray(answer) && answer.includes(option.value) : answer === option.value
+                return (
+                  <button
+                    key={option.value} type="button" aria-pressed={selected}
+                    className={'qform__option' + (selected ? ' is-on' : '')}
+                    onClick={() => {
+                      const values = Array.isArray(answer) ? answer : []
+                      save(q.allowMultiple ? selected ? values.filter((value) => value !== option.value) : [...values, option.value] : option.value)
+                    }}
+                  >
+                    <span>{option.label}{option.description && <small className="assessment-option-description">{option.description}</small>}</span>
+                    <i aria-hidden="true">{selected && <Icon name="check" size={14} weight={3} />}</i>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
-        <section className="question-panel" aria-labelledby="question-heading">
-          <div className="question-meta"><span>Question {currentIndex + 1} of {questions.length}</span><span>{progress}% complete</span></div>
-          <div className="question-progress"><span style={{ width: `${progress}%` }} /></div>
-          <div className="question-content">
-            <span className="question-number">{String(currentIndex + 1).padStart(2, '0')}</span>
-            <h2 id="question-heading">{question.prompt}</h2>
-            {question.helperText && <p>{question.helperText}</p>}
-
-            {question.type === 'options' && (
-              <div className="assessment-options">
-                {question.options.map((option) => {
-                  const isSelected = question.allowMultiple
-                    ? Array.isArray(answer) && answer.includes(option.value)
-                    : answer === option.value
-                  return (
-                    <button
-                      className={isSelected ? 'selected' : ''}
-                      key={option.value}
-                      onClick={() => question.allowMultiple ? toggleMultiSelect(question.id, option.value) : saveAnswer(question.id, option.value)}
-                      aria-pressed={isSelected}
-                    >
-                      <span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>
-                      <i>{isSelected ? '✓' : ''}</i>
-                    </button>
-                  )
-                })}
+          {q.type === 'number-input' && (
+            <>
+              <div className={'qform__input' + (invalidNumber ? ' is-error' : '')}>
+                <input
+                  type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" autoFocus
+                  aria-labelledby="q-heading" aria-describedby={q.helperText ? 'q-helper' : undefined}
+                  aria-invalid={invalidNumber || undefined} placeholder={q.placeholder}
+                  value={typeof answer === 'number' ? String(answer) : ''}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, '')
+                    if (digits === '' || Number.isSafeInteger(Number(digits))) save(digits === '' ? '' : Number(digits))
+                  }}
+                />
               </div>
-            )}
+              {invalidNumber && <p className="qform__error" role="alert">Enter a whole number from {q.min ?? 0} to {q.max ?? Number.MAX_SAFE_INTEGER}.</p>}
+            </>
+          )}
 
-            {question.type === 'text' && (
-              <textarea value={typeof answer === 'string' ? answer : ''} placeholder={question.placeholder} onChange={(event) => saveAnswer(question.id, event.target.value)} />
-            )}
-
-            {question.type === 'number-input' && (
-              <input
-                className="assessment-number-input"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                aria-labelledby="question-heading"
-                value={typeof answer === 'number' ? String(answer) : ''}
-                placeholder={question.placeholder}
-                onChange={(event) => {
-                  const digitsOnly = event.target.value.replace(/\D/g, '')
-                  saveAnswer(question.id, digitsOnly === '' ? '' : Number(digitsOnly))
-                }}
-              />
-            )}
-          </div>
-
-          <div className="question-actions">
-            <button className="assessment-secondary" disabled={currentIndex === 0} onClick={() => setCurrentIndex((current) => current - 1)}>Back</button>
-            <button className="assessment-primary" disabled={!canContinue} onClick={goNext}>{currentIndex === questions.length - 1 ? 'Save assessment' : 'Continue'} <span>→</span></button>
-          </div>
-        </section>
-      </main>
-    </div>
+          {q.type === 'text' && (
+            <textarea
+              className="summary-text assessment-text" aria-labelledby="q-heading"
+              placeholder={q.placeholder} value={typeof answer === 'string' ? answer : ''}
+              onChange={(event) => save(event.target.value)}
+            />
+          )}
+        </div>
+        {storageError && <p role="status" className="footnote warn">Your answers are available here, but this browser couldn't save them for later.</p>}
+        <div className="qform__actions">
+          <Button variant="bordered" disabled={index === 0} className={index === 0 ? 'is-hidden' : ''} onClick={() => setIndex(index - 1)}>Back</Button>
+          <Button type="submit" disabled={!canContinue}>{last ? 'Save Assessment' : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} /></Button>
+        </div>
+      </form>
+    </Page>
   )
 }

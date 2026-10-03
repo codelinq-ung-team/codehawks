@@ -1,0 +1,247 @@
+/* codeLinc App Kit — component styles. Every color, space and radius is a token from tokens.css. */
+.ck-icon { display: block; flex: none; }
+
+/* ---------- Button ---------- */
+.ck-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: var(--tap-target); padding: 0 var(--space-5); border: 0; border-radius: var(--radius-full);
+  font: 600 17px/22px var(--font-sans); letter-spacing: -0.01em; cursor: pointer; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; transition: transform .12s ease, opacity .12s ease, filter .12s ease;
+}
+.ck-btn:active:not(:disabled) { transform: scale(.97); filter: brightness(.92); }
+.ck-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ck-btn:disabled { cursor: default; opacity: .4; }
+.ck-btn[aria-busy="true"] { opacity: 1; }
+.ck-btn--large { min-height: var(--button-height-large); padding: 0 var(--space-6); }
+.ck-btn--small { min-height: 32px; padding: 0 var(--space-3); font: 600 15px/20px var(--font-sans); }
+.ck-btn--small::before { content: ""; position: absolute; inset: -6px 0; } /* keeps a 44pt hit area */
+.ck-btn--full { display: flex; width: 100%; }
+.ck-btn--prominent { background: var(--tint); color: var(--on-tint); }
+.ck-btn--prominent .ck-spinner { color: var(--on-tint); }
+.ck-btn--bordered { background: var(--fill-tertiary); color: var(--tint-text); }
+.ck-btn--plain { background: transparent; color: var(--tint-text); padding: 0 var(--space-3); }
+.ck-btn--glass {
+  background: var(--material-glass); color: var(--label-primary);
+  -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 1px var(--material-glass-edge), var(--shadow-floating);
+}
+.ck-btn--destructive { color: var(--danger); }
+.ck-btn--prominent.ck-btn--destructive { background: var(--fill-tertiary); color: var(--danger); }
+.ck-spinner {
+  width: 18px; height: 18px; border-radius: 50%; border: 2.4px solid currentColor; border-right-color: transparent;
+  animation: ck-spin .8s linear infinite;
+}
+@keyframes ck-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ck-spinner { animation-duration: 2.4s; } .ck-btn, .ck-toggle, .ck-toggle__knob, .ck-seg__thumb { transition: none; } }
+
+/* ---------- Toggle ---------- */
+.ck-toggle {
+  position: relative; flex: none; width: 51px; height: 31px; padding: 0; border: 0; border-radius: var(--radius-full);
+  background: var(--fill-primary); cursor: pointer; transition: background .2s ease;
+}
+.ck-toggle::before { content: ""; position: absolute; inset: -7px -2px; } /* 44pt hit area */
+.ck-toggle.is-on { background: var(--tint); }
+.ck-toggle:disabled { opacity: .4; cursor: default; }
+.ck-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ck-toggle__knob {
+  position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: var(--radius-full);
+  background: var(--on-tint); box-shadow: var(--shadow-thumb); transition: transform .22s cubic-bezier(.3,.7,.4,1.2);
+}
+.ck-toggle.is-on .ck-toggle__knob { transform: translateX(20px); }
+
+/* ---------- SegmentedControl ---------- */
+.ck-seg {
+  position: relative; display: grid; grid-template-columns: repeat(var(--n), 1fr); padding: 3px;
+  min-height: 36px; border-radius: var(--radius-full); background: var(--fill-secondary);
+}
+.ck-seg__thumb {
+  position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n));
+  transform: translateX(calc(100% * var(--i))); border-radius: var(--radius-full);
+  background: var(--control-thumb); box-shadow: var(--shadow-thumb); transition: transform .25s cubic-bezier(.3,.7,.4,1);
+}
+.ck-seg__item {
+  position: relative; z-index: 1; min-height: 30px; padding: 0 var(--space-3); border: 0; background: none; cursor: pointer;
+  font: 500 15px/20px var(--font-sans); color: var(--label-primary); border-radius: var(--radius-full);
+}
+.ck-seg__item.is-selected { font-weight: 600; }
+.ck-seg__item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; }
+
+/* ---------- TextField ---------- */
+.ck-field { display: grid; gap: 6px; font-family: var(--font-sans); }
+.ck-field__label { font: 400 13px/18px var(--font-sans); color: var(--label-secondary); padding: 0 var(--space-4); }
+.ck-field__box {
+  display: flex; align-items: center; gap: var(--space-2); min-height: var(--tap-target); padding: 0 var(--space-4);
+  border-radius: var(--radius-md); background: var(--fill-tertiary); color: var(--label-secondary);
+}
+.ck-field--search .ck-field__box { border-radius: var(--radius-full); min-height: 40px; padding: 0 var(--space-3); }
+.ck-field__box:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 0; }
+.is-error .ck-field__box { box-shadow: inset 0 0 0 1.5px var(--danger); }
+.ck-field__input {
+  flex: 1; min-width: 0; height: 100%; min-height: 40px; border: 0; padding: 0; background: none; outline: none;
+  font: 400 17px/22px var(--font-sans); color: var(--label-primary);
+}
+.ck-field__input::placeholder { color: var(--label-tertiary); }
+.ck-field__input::-webkit-search-decoration { -webkit-appearance: none; }
+.ck-field__msg { display: flex; align-items: center; gap: var(--space-1); margin: 0; padding: 0 var(--space-4); font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
+.ck-field__msg--error { color: var(--danger); }
+
+/* ---------- List ---------- */
+.ck-list { font-family: var(--font-sans); }
+.ck-list + .ck-list { margin-top: var(--space-8); }
+.ck-list__header { margin: 0 0 var(--space-2); padding: 0 var(--space-4); font: 600 17px/22px var(--font-sans); color: var(--label-primary); }
+.ck-list__footer { margin: var(--space-2) 0 0; padding: 0 var(--space-4); font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
+.ck-list__body { background: var(--grouped-secondary); border-radius: var(--radius-lg); overflow: hidden; }
+.ck-row {
+  position: relative; display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--row-height);
+  padding: 11px var(--space-4); box-sizing: border-box; border: 0; background: none; text-align: left; text-decoration: none;
+  font: 400 17px/22px var(--font-sans); color: var(--label-primary);
+}
+.ck-row + .ck-row::before {
+  content: ""; position: absolute; top: 0; right: 0; left: var(--space-4); height: 1px; transform: scaleY(.5); transform-origin: top;
+  background: var(--separator-translucent);
+}
+.ck-list__body:has(.ck-row__tile) .ck-row + .ck-row::before { left: calc(var(--space-4) + var(--icon-tile) + var(--space-3)); }
+.ck-row--tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ck-row--tap:active { background: var(--fill-quaternary); }
+.ck-row--tap:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.ck-row__tile {
+  display: grid; place-items: center; flex: none; width: var(--icon-tile); height: var(--icon-tile); border-radius: var(--radius-sm);
+}
+.ck-row__text { display: grid; flex: 1; min-width: 0; gap: 1px; }
+.ck-row__title { overflow-wrap: anywhere; }
+.ck-row__title.is-destructive { color: var(--danger); }
+.ck-row__subtitle { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.ck-row__trail { display: flex; align-items: center; gap: var(--space-2); flex: none; color: var(--label-secondary); }
+.ck-row__value { font: 400 17px/22px var(--font-sans); }
+.ck-row__chev { color: var(--gray-1); }
+.ck-row__check { color: var(--tint-text); }
+
+/* ---------- NavigationBar ---------- */
+.ck-nav { font-family: var(--font-sans); color: var(--label-primary); padding: 0 var(--space-4); }
+.ck-nav__bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 52px; }
+.ck-nav__lead { display: flex; gap: var(--space-2); }
+.ck-nav__trail { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.ck-nav__inline { margin: 0; font: 600 17px/22px var(--font-sans); text-align: center; }
+.ck-nav__large { margin: var(--space-1) 0 var(--space-2); font: 700 34px/41px var(--font-sans); letter-spacing: .01em; }
+.ck-nav__glass {
+  display: grid; place-items: center; width: var(--tap-target); height: var(--tap-target); padding: 0; border: 0; cursor: pointer;
+  border-radius: var(--radius-full); color: var(--label-primary); background: var(--material-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 1px var(--material-glass-edge), var(--shadow-thumb);
+}
+.ck-nav__glass.is-prominent { background: var(--tint); color: var(--on-tint); box-shadow: var(--shadow-thumb); }
+.ck-nav__glass:focus-visible, .ck-nav__text:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ck-nav__text {
+  min-height: var(--tap-target); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-full); cursor: pointer;
+  font: 400 17px/22px var(--font-sans); color: var(--label-primary); background: var(--material-glass);
+  box-shadow: inset 0 0 0 1px var(--material-glass-edge), var(--shadow-thumb);
+}
+.ck-nav__text.is-prominent { font-weight: 600; background: var(--tint); color: var(--on-tint); }
+
+/* ---------- TabBar ---------- */
+.ck-tabbar { position: sticky; bottom: 0; padding: var(--space-2) var(--space-5) var(--space-5); pointer-events: none; }
+.ck-tabbar--static { position: relative; }
+.ck-tabbar__glass {
+  pointer-events: auto; display: flex; padding: 4px; border-radius: var(--radius-full); background: var(--material-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: inset 0 0 0 1px var(--material-glass-edge), var(--shadow-floating);
+}
+.ck-tab {
+  flex: 1; display: grid; justify-items: center; gap: 1px; min-height: 54px; padding: 6px 4px 5px; border: 0; cursor: pointer;
+  border-radius: var(--radius-full); background: none; color: var(--label-primary); -webkit-tap-highlight-color: transparent;
+}
+.ck-tab.is-selected { background: var(--fill-tertiary); color: var(--tint-text); }
+.ck-tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.ck-tab__icon { position: relative; }
+.ck-tab__label { font: 500 11px/13px var(--font-sans); }
+.ck-tab.is-selected .ck-tab__label { font-weight: 600; }
+.ck-tab__badge {
+  position: absolute; top: -4px; left: 16px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: var(--radius-full);
+  background: var(--hue-red); color: #fff; font: 700 12px/18px var(--font-sans); text-align: center;
+}
+
+/* ---------- Overlays: Sheet + Alert ---------- */
+.ck-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; font-family: var(--font-sans); }
+.ck-overlay.is-contained { position: absolute; }
+.ck-overlay--center { align-items: center; justify-content: center; }
+.ck-scrim { position: absolute; inset: 0; background: var(--scrim); }
+.ck-sheet {
+  position: relative; width: 100%; max-height: 92%; overflow: auto; margin: 0 6px 6px; padding: 0 var(--space-5) var(--space-6);
+  border-radius: var(--radius-xl); background: var(--bg-secondary); color: var(--label-primary); box-shadow: var(--shadow-sheet);
+}
+.ck-sheet--large { min-height: 88%; margin: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.ck-sheet__grabber { display: block; width: 36px; height: 5px; margin: 6px auto 0; border-radius: var(--radius-full); background: var(--gray-3); }
+.ck-sheet__head { display: grid; grid-template-columns: var(--tap-target) 1fr var(--tap-target); align-items: center; gap: var(--space-2); padding: var(--space-2) 0 var(--space-4); }
+.ck-sheet__title { margin: 0; text-align: center; font: 600 17px/22px var(--font-sans); }
+.ck-sheet__body { display: grid; gap: var(--space-4); font: 400 17px/22px var(--font-sans); }
+.ck-sheet__body p { margin: 0; }
+.ck-alert {
+  position: relative; width: 300px; max-width: calc(100% - 48px); padding: var(--space-5) var(--space-5) var(--space-4);
+  border-radius: var(--radius-xl); background: var(--bg-secondary); color: var(--label-primary); text-align: center;
+  box-shadow: var(--shadow-sheet);
+}
+.ck-alert__title { margin: 0; font: 600 17px/22px var(--font-sans); }
+.ck-alert__msg { margin: var(--space-1) 0 0; font: 400 15px/20px var(--font-sans); color: var(--label-primary); }
+.ck-alert__actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-5); }
+.ck-alert__actions.is-stacked { grid-template-columns: 1fr; }
+.ck-alert__actions .ck-btn { padding: 0 var(--space-2); }
+
+/* ---------- StatCard ---------- */
+.ck-stat {
+  display: grid; align-content: start; gap: 2px; padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--grouped-secondary); color: var(--label-primary); font-family: var(--font-sans);
+}
+.ck-stat__icon { color: var(--tint-text); margin-bottom: var(--space-2); }
+.ck-stat__value { font-family: var(--font-rounded); font-variant-numeric: tabular-nums; }
+.ck-stat__label { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.ck-stat__trend { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--space-2); font: 600 13px/18px var(--font-sans); color: var(--success); }
+.ck-stat--brand { position: relative; overflow: hidden; background: var(--brand-tyrian); color: var(--on-brand); }
+.ck-stat--brand::after { /* the horizon arc */
+  content: ""; position: absolute; right: -72px; bottom: -112px; width: 156px; height: 156px; border-radius: 50%;
+  border: 6px solid var(--highlight); pointer-events: none;
+}
+.ck-stat--brand > * { position: relative; z-index: 1; }
+.ck-stat--brand .ck-stat__icon { color: var(--on-brand-muted); }
+.ck-stat--brand .ck-stat__label { color: var(--on-brand-muted); }
+.ck-stat--brand .ck-stat__trend { color: var(--on-brand); }
+
+/* ---------- ProgressBar ---------- */
+.ck-progress { display: grid; gap: var(--space-2); font-family: var(--font-sans); }
+.ck-progress__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.ck-progress__label { font: 600 17px/22px var(--font-sans); color: var(--label-primary); }
+.ck-progress__caption { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); font-variant-numeric: tabular-nums; }
+.ck-progress__track { height: 8px; border-radius: var(--radius-full); background: var(--fill-primary); overflow: hidden; }
+.ck-progress__fill { display: block; height: 100%; border-radius: var(--radius-full); background: var(--highlight-text); transition: width .4s cubic-bezier(.3,.7,.4,1); }
+
+/* ---------- Banner ---------- */
+.ck-banner {
+  display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg);
+  background: var(--grouped-secondary); color: var(--label-primary); font-family: var(--font-sans);
+  box-shadow: inset 0 0 0 1px var(--separator-translucent);
+}
+.ck-banner__icon { flex: none; padding-top: 1px; }
+.ck-banner--info .ck-banner__icon { color: var(--tint-text); }
+.ck-banner--secure .ck-banner__icon { color: var(--success); }
+.ck-banner--success .ck-banner__icon { color: var(--success); }
+.ck-banner--warning .ck-banner__icon { color: var(--warning); }
+.ck-banner--danger .ck-banner__icon { color: var(--danger); }
+.ck-banner__text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.ck-banner__title { font: 600 15px/20px var(--font-sans); }
+.ck-banner__msg { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.ck-banner__action { justify-self: start; margin-top: var(--space-1); min-height: 32px; padding: 0; border: 0; background: none; cursor: pointer; font: 600 15px/20px var(--font-sans); color: var(--tint-text); }
+.ck-banner__close { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin: -2px -6px 0 0; padding: 0; border: 0; border-radius: var(--radius-full); background: var(--fill-tertiary); color: var(--label-secondary); cursor: pointer; }
+.ck-banner__action:focus-visible, .ck-banner__close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ---------- EmptyState ---------- */
+.ck-empty { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-8) var(--space-6); text-align: center; font-family: var(--font-sans); }
+.ck-empty__icon { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: var(--space-2); border-radius: var(--radius-full); background: var(--fill-tertiary); color: var(--tint-text); }
+.ck-empty__title { margin: 0; font: 600 20px/25px var(--font-sans); color: var(--label-primary); }
+.ck-empty__msg { margin: 0 0 var(--space-3); max-width: 300px; font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+
+/* ---------- PartnerBadge ---------- */
+.ck-partner {
+  display: inline-flex; align-items: center; gap: var(--space-2); min-height: 28px; padding: 0 var(--space-3); border-radius: var(--radius-full);
+  background: var(--fill-tertiary); font: 400 13px/18px var(--font-sans); color: var(--label-primary);
+}
+.ck-partner strong { font-weight: 600; color: var(--label-primary); }
+.ck-partner__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--partner); }
