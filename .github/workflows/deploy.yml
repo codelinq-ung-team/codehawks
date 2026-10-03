@@ -7,7 +7,6 @@ on:
       - 'infra/config.json'
       - 'scripts/**'
       - 'app/**'
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
       verify_only:
