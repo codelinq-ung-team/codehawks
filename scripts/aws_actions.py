@@ -10,6 +10,7 @@ import time
 
 from cloudflare_dns import delete_acm_validation, delete_owned_cname, ensure_acm_validation
 from validate_repo import CONFIG, ROOT, validate_app
+from bedrock_config import from_environment, validate_model_settings
 
 
 def aws(*args, json_output=True):
@@ -96,18 +97,27 @@ def ensure_site_certificate():
     raise TimeoutError("ACM certificate did not validate within 25 minutes; check Cloudflare DNS and rerun deploy")
 
 
-def bootstrap_oac_id():
+def bootstrap_settings(model, arns):
     stacks = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])["Stacks"]
     outputs = {item["OutputKey"]: item["OutputValue"] for item in stacks[0].get("Outputs", [])}
-    value = outputs.get("CloudFrontOriginAccessControlId")
-    if not value:
-        raise RuntimeError("Bootstrap stack has no CloudFront OAC yet; run the bootstrap update first")
-    return value
+    parameters = {item["ParameterKey"]: item["ParameterValue"] for item in stacks[0].get("Parameters", [])}
+    configured = validate_model_settings(parameters.get("BedrockModelId", ""),
+                                        parameters.get("BedrockModelArns", "").split(","))
+    if configured != (model, arns):
+        raise ValueError("Bedrock settings differ from the deployed runtime boundary; update bootstrap first.")
+    oac = outputs.get("CloudFrontOriginAccessControlId")
+    chat_oac = outputs.get("ChatOriginAccessControlId")
+    if not oac or not chat_oac:
+        raise RuntimeError("Bootstrap stack needs both site and chat OACs; run the bootstrap update first.")
+    return oac, chat_oac
 
 
 def deploy():
     validate_app(json.loads((ROOT / "infra/app.json").read_text()))
-    oac = bootstrap_oac_id()
+    model, arns = from_environment()
+    oac, chat_oac = bootstrap_settings(model, arns)
+    if not (ROOT / "build/backend.zip").is_file():
+        raise ValueError("Build the backend artifact before deploying.")
     certificate = ensure_site_certificate()
     revision = os.environ["GITHUB_SHA"]
     with tempfile.TemporaryDirectory() as directory:
@@ -122,6 +132,7 @@ def deploy():
             "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides",
             f"RuntimePermissionsBoundaryArn={CONFIG['runtime_boundary']}",
             f"SiteCertificateArn={certificate}", f"CloudFrontOriginAccessControlId={oac}",
+            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}",
             "--tags", f"Project={CONFIG['prefix']}", "Owner=Israel Jauregui", "Lifecycle=ephemeral", "ManagedBy=CloudFormation",
             "--no-fail-on-empty-changeset", json_output=False)
     stack = describe_app()
@@ -134,15 +145,17 @@ def deploy():
 
 
 def update_bootstrap():
+    model, arns = from_environment()
     revision = os.environ["GITHUB_RUN_NUMBER"]
     assert revision.isdecimal() and len(revision) <= 12, "Unexpected GitHub Actions run number"
     template = ROOT / "infra/bootstrap.json"
     assert template.stat().st_size <= 51200, "Bootstrap template exceeds CloudFormation's inline template limit"
     change_set = f"codelinq-hackathon-bootstrap-{revision}"
+    parameters = bootstrap_parameters(json.loads(template.read_text()), revision, model, arns)
     aws("cloudformation", "create-change-set", "--stack-name", CONFIG["bootstrap_stack"],
         "--change-set-name", change_set, "--change-set-type", "UPDATE",
         "--template-body", f"file://{template}", "--capabilities", "CAPABILITY_NAMED_IAM",
-        "--parameters", f"ParameterKey=BootstrapRevision,ParameterValue={revision}",
+        "--parameters", json.dumps(parameters),
         "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
         "--description", "Update isolated codelinq hackathon bootstrap")
 
@@ -172,6 +185,14 @@ def update_bootstrap():
         raise TimeoutError("Bootstrap stack update did not complete within 30 minutes")
     result = aws("cloudformation", "describe-stacks", "--stack-name", CONFIG["bootstrap_stack"])
     print(json.dumps(result["Stacks"][0].get("Outputs", []), indent=2))
+
+
+def bootstrap_parameters(template, revision, model, arns):
+    """Preserve existing account/trust settings while explicitly updating model access."""
+    updates = {"BootstrapRevision": revision, "BedrockModelId": model, "BedrockModelArns": ",".join(arns)}
+    return [{"ParameterKey": name, "ParameterValue": updates[name]} if name in updates
+            else {"ParameterKey": name, "UsePreviousValue": True}
+            for name in template["Parameters"]]
 
 
 def owned_resources(stack):
