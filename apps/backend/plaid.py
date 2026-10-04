@@ -7,17 +7,24 @@ access token is never stored.
 import json
 import os
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+
 
 PLAID_BASE_URL = "https://sandbox.plaid.com"
 MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024
 MAX_ACCOUNTS = 200
 SAFE_VALUE = re.compile(r"^[a-z0-9 _-]{1,40}$")
+CREDENTIAL_SECONDS = 300    # how long a function instance keeps the keys before reading the secret again
+_stored = ("", "", 0.0)
 
 
 class PlaidError(Exception):
@@ -27,12 +34,36 @@ class PlaidError(Exception):
         self.message = message
 
 
+def _stored_credentials():
+    """The stack's Secrets Manager secret: {"client_id": ..., "secret": ...}, or "unset" placeholders."""
+    global _stored
+    arn = os.environ.get("PLAID_CREDENTIALS_SECRET", "").strip()
+    if not arn:
+        return "", ""
+    client_id, secret, read = _stored
+    if not (client_id and secret) or time.monotonic() - read > CREDENTIAL_SECONDS:
+        try:
+            client = boto3.client("secretsmanager", config=Config(
+                connect_timeout=2, read_timeout=3, retries={"mode": "standard", "total_max_attempts": 2}))
+            value = json.loads(client.get_secret_value(SecretId=arn).get("SecretString", ""))
+            client_id, secret = str(value["client_id"]).strip(), str(value["secret"]).strip()
+        except (BotoCoreError, ClientError, ValueError, KeyError, TypeError):
+            raise PlaidError(503, "Plaid is not available right now. Try again later.") from None
+        if "unset" in (client_id, secret):
+            return "", ""
+        _stored = (client_id, secret, time.monotonic())
+    return client_id, secret
+
+
 def _credentials():
-    client_id = os.environ.get("PLAID_CLIENT_ID", "").strip()
-    secret = os.environ.get("PLAID_SECRET", "").strip()
     environment = os.environ.get("PLAID_ENV", "sandbox").strip().lower()
     if environment != "sandbox":
         raise PlaidError(503, "This demo is configured for Plaid Sandbox only.")
+    # PLAID_CLIENT_ID and PLAID_SECRET on a developer's computer; the stack's secret on Lambda.
+    client_id = os.environ.get("PLAID_CLIENT_ID", "").strip()
+    secret = os.environ.get("PLAID_SECRET", "").strip()
+    if not client_id or not secret:
+        client_id, secret = _stored_credentials()
     if not client_id or not secret:
         raise PlaidError(503, "Plaid is not configured on this server.")
     return client_id, secret

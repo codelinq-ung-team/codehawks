@@ -232,10 +232,26 @@ person to check (`apps/backend/plaid.py`, `apps/web/src/intake/plaidFill.ts`). S
 category, type, subtype, balances and currency only. Names, masks, account and institution ids
 never leave the backend, and the access token is not stored.
 
-Set `PLAID_CLIENT_ID` and `PLAID_SECRET` (Sandbox keys from the Plaid dashboard) in the
+Locally, set `PLAID_CLIENT_ID` and `PLAID_SECRET` (Sandbox keys from the Plaid dashboard) in the
 environment; `PLAID_ENV` must be `sandbox`. Without them the routes return 503, and the site
 offers clearly labeled sample accounts instead. In Link, sign in with `user_good` / `pass_good`.
-The deployed stack does not set these variables yet.
+
+On AWS the keys live in the Secrets Manager secret `codelinc-hackathon-app-plaid`, which the app
+stack creates. The function's environment holds only its ARN (`PLAID_CREDENTIALS_SECRET`), plus
+`PLAID_ENV=sandbox` and `PLAID_CLIENT_NAME`; it reads the keys on the first request and keeps them for
+five minutes. Israel sets `PLAID_CLIENT_ID` and `PLAID_SECRET` as secrets and `PLAID_ENV` and
+`PLAID_CLIENT_NAME` as variables of the GitHub `hackathon` environment, then runs **Deploy hackathon**
+on `main`:
+
+```sh
+gh secret set PLAID_CLIENT_ID --env hackathon --repo codelinq-ung-team/codehawks
+gh secret set PLAID_SECRET --env hackathon --repo codelinq-ung-team/codehawks
+gh variable set PLAID_CLIENT_NAME --env hackathon --repo codelinq-ung-team/codehawks --body "<name Link shows>"
+```
+
+The deploy passes the keys to the stack as hidden (`NoEcho`) parameters, refuses any `PLAID_ENV` other
+than `sandbox`, and a deploy without the secrets keeps the keys the stack already has. Sandbox keys
+are test credentials, but treat them as secrets anyway: never commit them. After a deploy the smoke check requests a Link token.
 
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider

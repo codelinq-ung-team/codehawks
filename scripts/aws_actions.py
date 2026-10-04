@@ -143,6 +143,12 @@ def deploy():
     # Abe's voice. Without the Actions secret the stack keeps the key it already has ("unset" at first).
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     voice = [f"OpenAiApiKey={key}"] if key else []
+    # Plaid Sandbox keys, the same way. Only Sandbox is supported, so refuse anything else.
+    if os.environ.get("PLAID_ENV", "sandbox").strip().lower() != "sandbox":
+        raise ValueError("PLAID_ENV must be sandbox; this site does not support Plaid production.")
+    plaid = [f"{parameter}={value}" for name, parameter in (
+        ("PLAID_CLIENT_ID", "PlaidClientId"), ("PLAID_SECRET", "PlaidSecret"), ("PLAID_CLIENT_NAME", "PlaidClientName"))
+        if (value := os.environ.get(name, "").strip())]
     with tempfile.TemporaryDirectory() as directory:
         packaged = Path(directory) / "packaged.json"
         aws("cloudformation", "package", "--template-file", str(ROOT / "infra/app.json"),
@@ -155,7 +161,7 @@ def deploy():
             "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides",
             f"RuntimePermissionsBoundaryArn={CONFIG['runtime_boundary']}",
             f"SiteCertificateArn={certificate}", f"CloudFrontOriginAccessControlId={oac}",
-            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}", *voice,
+            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}", *voice, *plaid,
             "--tags", f"Project={CONFIG['prefix']}", "Owner=Israel Jauregui", "Lifecycle=ephemeral", "ManagedBy=CloudFormation",
             "--no-fail-on-empty-changeset", json_output=False)
     stack = describe_app()

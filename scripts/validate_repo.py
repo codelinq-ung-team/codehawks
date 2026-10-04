@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline ownership checks, in addition to cfn-lint's AWS schema checks."""
 import json
+import re
 from pathlib import Path
 from bedrock_config import ADAPTER_LAYER, ARN_PATTERN, BEDROCK_ACTIONS, MODEL_PATTERN
 
@@ -120,7 +121,18 @@ def validate_chat(template):
     assert secret["Properties"]["SecretString"] == {"Ref": "OpenAiApiKey"}
     key = template["Parameters"]["OpenAiApiKey"]
     assert key["NoEcho"] is True and key["Default"] == "unset", "The key is hidden, and voice is off until it is supplied"
-    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "PAIRING_TABLE", "OPENAI_API_KEY_SECRET", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+    # Plaid Sandbox credentials follow the same rule: hidden parameters, a secret, and only its ARN in the environment.
+    assert variables["PLAID_CREDENTIALS_SECRET"] == {"Ref": "PlaidCredentialsSecret"}
+    assert variables["PLAID_ENV"] == "sandbox" and variables["PLAID_CLIENT_NAME"] == {"Ref": "PlaidClientName"}
+    plaid = resources["PlaidCredentialsSecret"]
+    assert plaid["Type"] == "AWS::SecretsManager::Secret"
+    assert plaid["Properties"]["Name"] == "codelinc-hackathon-app-plaid"
+    assert set(re.findall(r"\$\{(\w+)\}", plaid["Properties"]["SecretString"]["Fn::Sub"])) == {"PlaidClientId", "PlaidSecret"}
+    for name in ("PlaidClientId", "PlaidSecret"):
+        parameter = template["Parameters"][name]
+        assert parameter["NoEcho"] is True and parameter["Default"] == "unset", "Plaid keys are hidden, and Plaid is off until they are supplied"
+    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "PAIRING_TABLE", "OPENAI_API_KEY_SECRET", "PLAID_CREDENTIALS_SECRET",
+                              "PLAID_ENV", "PLAID_CLIENT_NAME", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
                               "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
                               "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
     url = resources["ChatFunctionUrl"]["Properties"]
@@ -151,7 +163,7 @@ def validate_chat(template):
     assert pairing["Properties"]["TimeToLiveSpecification"] == {"AttributeName": "expires", "Enabled": True}
     assert pairing["Properties"]["AttributeDefinitions"] == [{"AttributeName": "id", "AttributeType": "S"}]
     assert pairing["Properties"]["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
-    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable", "PairingTable", "VoiceApiKeySecret"):
+    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable", "PairingTable", "VoiceApiKeySecret", "PlaidCredentialsSecret"):
         tags = {tag["Key"]: tag["Value"] for tag in resources[name]["Properties"]["Tags"]}
         assert tags == {"Project": CONFIG["prefix"], "Owner": "Israel Jauregui",
                         "Lifecycle": "ephemeral", "ManagedBy": "CloudFormation"}
@@ -161,7 +173,7 @@ def validate_chat(template):
     assert len(statements) == 5, "Chat needs only scoped inference, admission control, pairing, logging, and its one secret"
     reading = [s for s in statements if s["Action"] == "secretsmanager:GetSecretValue"]
     assert reading == [{"Effect": "Allow", "Action": "secretsmanager:GetSecretValue",
-                        "Resource": {"Ref": "VoiceApiKeySecret"}}], "Chat may read only the voice key"
+                        "Resource": [{"Ref": "VoiceApiKeySecret"}, {"Ref": "PlaidCredentialsSecret"}]}], "Chat may read only the voice and Plaid keys"
     limiter = [s for s in statements if s["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem"]]
     assert limiter == [{"Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
                         "Resource": {"Fn::GetAtt": ["ChatRateLimitTable", "Arn"]}}], "Admission control may access only its own table"
