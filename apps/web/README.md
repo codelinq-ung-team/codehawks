@@ -26,9 +26,28 @@ shows general education, never a mocked recommendation presented as live AI.
 After the Basics form the site asks how to talk with Abe (`src/intake/Mode.tsx`): text chat
 here, or voice in the Quest app. For VR, `src/intake/Vr.tsx` saves the answers so far through
 `POST /api/pair`, shows the pairing as a QR code with a six-digit code under it and a short
-guide to the headset, and polls until the headset hands the answers back; then it opens
-Review. The [backend guide](../backend/README.md) has the API, and
+guide to the headset, and polls while the wearer talks with Abe and then looks at their results
+in the headset. When they choose to continue on the computer there, or take the headset off
+on their results, it opens Results here (Review, if they had not confirmed their answers), so
+the summary can be copied and explored. The [backend guide](../backend/README.md) has the API, and
 [the Unity guide](../advisor3d-unity/README.md) the headset's side.
+
+## Looking ahead
+
+The estimate is a snapshot of today, and people early in life noticed. So the chat ends with
+two optional, one-tap questions about the next ten years (`src/intake/script.ts`): which
+changes they expect (kids, a home, a partner; stored as one number, see `PLANS`) and where
+they expect their income to be. Nothing earlier in the chat moves, and neither answer changes
+the estimate. `outlook()` in `src/domain/calculator.ts` turns them into a second figure, what
+the need could grow into, from rules the assessment already states: support keeps its share
+of income, kids or a partner mean at least 70% of income (with the what-if step's child: 18
+years of support and an education fund), and a home is a mortgage of three times income.
+The site uses it in three places and adds no screen for it: the summary text (so Copy
+Summary and Ask Abe carry it), Abe's written answer about the future, and the what-if step,
+which opens with "Another child someday" switched on for someone who expects kids. The Quest
+app draws it in the room. `apps/backend/recommendations.py` holds the same rule, to tell the
+model the need may grow without ever sizing a recommendation to it; the three copies share
+test cases.
 
 ## Development
 

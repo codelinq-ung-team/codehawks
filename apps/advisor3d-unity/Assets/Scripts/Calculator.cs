@@ -4,6 +4,8 @@
 //   additional = max(0, support × years + mortgage + other debts + final expenses + education
 //                       − existing coverage − savings)
 // It leaves out inflation, investment returns, taxes and Social Security.
+// That estimate is a snapshot of today. Outlook() adds a second, clearly separate figure:
+// what the need could grow into in about ten years, from the changes the person expects.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -68,6 +70,18 @@ namespace Advisor3D
         public List<string> leftOut = new List<string>();
     }
 
+    // One expected change and what it adds to the total (see Calc.Outlook).
+    public class Driver { public string id, label, detail; public long delta; }
+
+    public class Outlook
+    {
+        public bool ready;
+        public int inYears;
+        public long? income;
+        public long support, years, mortgage, totalNeeds, additional, change;
+        public List<Driver> drivers = new List<Driver>();
+    }
+
     public class ParsedAmount { public string kind; public long value; public string period; }
     public class ParsedCount { public string kind; public long value; }
 
@@ -80,6 +94,7 @@ namespace Advisor3D
             ("debts", "Debts and final costs"),
             ("future", "Future goals"),
             ("resources", "What you already have"),
+            ("ahead", "Looking ahead ten years"),
         };
 
         static FieldDef F(string id, string group, string label, string kind, string role) => new FieldDef { id = id, group = group, label = label, kind = kind, role = role };
@@ -97,6 +112,9 @@ namespace Advisor3D
             F("education", "future", "Education or other future costs", "money", "optional"),
             F("existing", "resources", "Life insurance you already have", "money", "required"),
             F("savings", "resources", "Savings your family could use", "money", "optional"),
+            // plans: what the person expects in the next ten years, kept as one number (see PLANS).
+            F("plans", "ahead", "Changes you expect", "plans", "optional"),
+            F("futureIncome", "ahead", "Yearly income you expect", "money", "optional"),
         };
 
         public static readonly Dictionary<string, FieldDef> FIELD = FIELDS.ToDictionary(f => f.id);
@@ -115,6 +133,21 @@ namespace Advisor3D
         {
             foreach (var (k, label) in HOUSEHOLD) if (k == key) return label;
             return "";
+        }
+
+        // What someone may expect in the next ten years. A plans answer is the sum of the bits that
+        // apply, so it travels as a plain number like every other answer; 0 is "none of these".
+        public static readonly (string id, long bit, string label)[] PLANS = { ("kids", 1, "Kids"), ("home", 2, "A home"), ("partner", 4, "A partner") };
+        public const long PLANS_MAX = 7;
+        public const string NO_PLANS = "None of these";
+        public static bool HasPlan(long value, string id) => PLANS.Any(p => p.id == id && (value & p.bit) != 0);
+
+        // "Kids and a home"
+        public static string FormatPlans(long value)
+        {
+            var labels = PLANS.Where(p => (value & p.bit) != 0).Select((p, i) => i > 0 ? p.label.ToLowerInvariant() : p.label).ToList();
+            if (labels.Count == 0) return NO_PLANS;
+            return labels.Count < 2 ? labels[0] : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[labels.Count - 1]}";
         }
 
         public static Profile EmptyProfile()
@@ -176,6 +209,18 @@ namespace Advisor3D
         public static string Grouped(long n) => n.ToString("N0", CultureInfo.InvariantCulture);
         public static string FormatMoney(long n) => "$" + Grouped(n);
 
+        // part / whole as a percent. Something above zero never reads "0%", and short of the whole
+        // never reads "100%": those ends get a decimal (0.4%, 99.6%), or "under 0.1%" / "over 99.9%".
+        public static string FormatPercent(long part, long whole)
+        {
+            var p = whole > 0 ? Math.Min(100, Math.Max(0, (double)part / whole * 100)) : 0;
+            if (p == 0 || p == 100) return $"{p:0}%";
+            if (p < 0.1) return "under 0.1%";
+            if (p > 99.9) return "over 99.9%";
+            if (p < 1 || p > 99) return p.ToString("0.0", CultureInfo.InvariantCulture) + "%";
+            return Round(p) + "%";
+        }
+
         public static string FormatField(string id, Field field)
         {
             if (field == null || field.status == Status.Empty) return "";
@@ -184,6 +229,7 @@ namespace Advisor3D
             var def = FIELD[id];
             if (def.kind == "choice") return HouseholdLabel(field.choice);
             var n = field.Number;
+            if (def.kind == "plans") return FormatPlans(n);
             if (def.kind == "money") return FormatMoney(n);
             if (def.kind == "years") return n + (n == 1 ? " year" : " years");
             return n + (n == 1 ? " year old" : " years old");
@@ -220,6 +266,76 @@ namespace Advisor3D
             e.additional = Math.Max(0, e.totalNeeds - e.totalResources);
             e.leftOut = e.needs.Concat(e.resources).Where(t => !t.included).Select(t => t.label).ToList();
             return e;
+        }
+
+        // ---------- looking ahead ----------
+        // The estimate above is today's. This is what it could grow into in about ten years, from the
+        // changes the person said they expect. Every rule is one the assessment already states:
+        //   - yearly support keeps the share of income it has today;
+        //   - kids or a partner mean support of at least 70% of income (the chat's own starting point);
+        //     with kids it runs until a child arriving in two years is 18, plus an education fund (the
+        //     same child as the site's what-if step), and with a partner ten years;
+        //   - buying a home means a mortgage of about three times yearly income.
+        // Debts, savings and coverage stay as they are today. It is an illustration, never a
+        // prediction, and it never changes the estimate.
+        public const int OUTLOOK_YEARS = 10;
+        const long KIDS_YEARS = 2 + 18, KIDS_EDUCATION = 50_000, PARTNER_YEARS = 10;
+
+        public static Outlook Outlook(Profile profile, Estimate result)
+        {
+            var plansKnown = profile["plans"].HasValue;
+            var incomeKnown = profile["futureIncome"].HasValue;
+            if (!result.ready || (!plansKnown && !incomeKnown)) return new Outlook();
+            var plans = plansKnown ? profile["plans"].Number : 0;
+            var now = Amount(profile, "income");
+            var then = incomeKnown ? Amount(profile, "futureIncome") : now;
+            var support = Amount(profile, "support");
+            var years = Amount(profile, "years");
+            var mortgage = Amount(profile, "mortgage");
+            var rest = result.totalNeeds - support * years - mortgage;
+            long education = 0;
+            var needs = result.totalNeeds;
+            var o = new Outlook { ready = true, inYears = OUTLOOK_YEARS, income = incomeKnown ? then : (long?)null };
+            // Each change is applied in turn; its amount is what it adds to the total on top of the ones before.
+            void Apply(string id, string label, string detail)
+            {
+                var next = rest + support * years + mortgage + education;
+                if (next != needs) o.drivers.Add(new Driver { id = id, label = label, detail = detail, delta = next - needs });
+                needs = next;
+            }
+            var share = Round(then * 0.7 / 100) * 100;
+            string Years(long n) => $"{n} {(n == 1 ? "year" : "years")}";
+
+            if (incomeKnown && now > 0 && support > 0)
+            {
+                support = Round((double)support * then / now / 100) * 100;
+                Apply("income", then > now ? "A higher income" : "A lower income", $"Support keeps its share of {FormatMoney(then)} a year: {FormatMoney(support)}");
+            }
+            if (HasPlan(plans, "kids"))
+            {
+                years = Math.Max(years, KIDS_YEARS);
+                support = Math.Max(support, share);
+                education = KIDS_EDUCATION;
+                Apply("kids", "Kids", $"{FormatMoney(support)} a year for {Years(years)}, plus {FormatMoney(education)} for education");
+            }
+            if (HasPlan(plans, "partner"))
+            {
+                years = Math.Max(years, PARTNER_YEARS);
+                support = Math.Max(support, share);
+                Apply("partner", "A partner", $"{FormatMoney(support)} a year for {Years(years)}");
+            }
+            if (HasPlan(plans, "home"))
+            {
+                mortgage = Math.Max(mortgage, Round(then * 3.0 / 1000) * 1000);
+                Apply("home", "A home", $"A mortgage of about {FormatMoney(mortgage)}, three times yearly income");
+            }
+            o.support = support;
+            o.years = years;
+            o.mortgage = mortgage;
+            o.totalNeeds = needs;
+            o.additional = Math.Max(0, needs - result.totalResources);
+            o.change = o.additional - result.additional;
+            return o;
         }
 
         public static string SummaryText(Profile profile, Estimate result)

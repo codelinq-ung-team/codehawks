@@ -38,6 +38,10 @@ WHAT YOU NEED TO LEARN (in roughly this order, but follow the conversation)
 - education: education or other big future costs, in total. Optional.
 - existing: life insurance they already have, in total. 0 if none.
 - savings: savings or investments the family could use. Optional.
+Then two light questions about the next ten years. Today's answers are a snapshot, and these let the app show what the need could grow into. They are optional, and they never change today's numbers, so keep them easy and don't press:
+- plans: which of these they expect in the next ten years or so: kids (a first child or another one), home (buying a home), partner (getting married, or a partner coming to rely on them). Any number of them, or none. ""Maybe someday"" counts.
+- futureIncome: roughly what they expect to earn a year in about ten years. Ask it against what they earn now. ""About the same"" means their current income; ""double"" means twice it: work that out and say the figure back in passing. Only if you know their income.
+If they bring up the future on their own earlier (a baby on the way, house hunting, finishing school, a promotion), react to it like a person would and save it then: don't make them repeat it at the end.
 Messages that start with [app] come from the app, not the user. They tell you what is already known and what to ask about next. Use them, but never read them aloud.
 
 SAVING WHAT YOU HEAR
@@ -53,7 +57,7 @@ OTHER THINGS
 - If they ask why you need something, or a general question about life insurance, answer in two or three plain sentences, then pick the conversation back up. This is education, not advice: don't recommend a product, an insurer or an amount. For personal advice, point to a licensed professional.
 - Don't state the final estimate or do its math. The app shows the numbers.
 - If you didn't catch something, say so simply and ask again.
-- When the result says everything is collected, wrap up warmly in a sentence or two, tell them their answers are on screen to look over, and stop.";
+- When the result says everything is collected, wrap up warmly in a sentence or two, tell them to look over their answers on screen and that you'll then show them what it adds up to, and stop.";
 
         // The one tool. JSON for the Realtime API's session.update.
         public const string TOOLS = @"[{
@@ -74,6 +78,8 @@ OTHER THINGS
       ""education"": { ""type"": ""number"", ""description"": ""Education or other future costs in total, in dollars."" },
       ""existing"": { ""type"": ""number"", ""description"": ""Life insurance already in place in total, in dollars. 0 if none."" },
       ""savings"": { ""type"": ""number"", ""description"": ""Savings or investments the family could use, in dollars."" },
+      ""plans"": { ""type"": ""array"", ""items"": { ""type"": ""string"", ""enum"": [""kids"", ""home"", ""partner""] }, ""description"": ""Everything they expect in the next ten years or so. An empty list when they expect none of these."" },
+      ""futureIncome"": { ""type"": ""number"", ""description"": ""Yearly income they expect in about ten years, in dollars."" },
       ""unsure"": { ""type"": ""array"", ""items"": { ""type"": ""string"" }, ""description"": ""Names of the things above the user doesn't know."" },
       ""skip"": { ""type"": ""array"", ""items"": { ""type"": ""string"" }, ""description"": ""Names of optional things the user wants to leave out."" }
     }
@@ -96,7 +102,7 @@ OTHER THINGS
         static string Next(AppState state)
         {
             var step = Script.NextStep(state);
-            if (step == null) return "Everything is collected. Wrap up warmly in a sentence or two, tell them their answers are on screen to look over, and stop. Do not ask anything else.";
+            if (step == null) return "Everything is collected. Wrap up warmly in a sentence or two, tell them to look over their answers on screen and that you'll then show them what it adds up to, and stop. Do not ask anything else.";
             return $"Next, find out: {Calc.FIELD[step].label} ({step}). The written chat asks it like this, as a guide only: \"{Script.Ask(step, state).text}\" Ask it your own way, briefly.";
         }
 
@@ -148,6 +154,12 @@ OTHER THINGS
             foreach (var f in Calc.FIELDS)
             {
                 if (f.kind == "choice" || amounts == null || !amounts.TryGetValue(f.id, out var value)) continue;
+                if (f.id == "futureIncome" && !(work.profile["income"].HasValue && work.profile["income"].Number > 0))
+                {
+                    // It is read against today's income, which comes first.
+                    problems.Add("Expected income (find out what they earn now first, then ask this again)");
+                    continue;
+                }
                 if (f.id == "youngestAge" && value > GROWN)
                 {
                     // Grown children: nothing to plan around, and nothing wrong with the answer.

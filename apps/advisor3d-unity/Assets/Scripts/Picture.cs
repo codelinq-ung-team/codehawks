@@ -35,8 +35,10 @@ namespace Advisor3D
         class Block { public string id; public Transform mesh; public Sign sign; public float h, target; }
         class Sign { public Panel panel; public El el; public string title = "", value = "", shown; public Color? color; }
 
-        // What the year posts show: "low" (one small post a year), "up" (the cost adding up), "down" (the years still ahead).
+        // What the year posts show: "low" (one small post a year), "up" (the cost adding up), "down" (the years
+        // still ahead), "ahead" (the years of support there could be in ten years, from Ahead).
         public static string Years = "low";
+        public static Outlook Ahead;
         public static bool ShowBlocks = true;
 
         readonly Transform group, front, back;
@@ -136,6 +138,10 @@ namespace Advisor3D
             long Value(string id) => p[id].HasValue ? p[id].Number : 0;
             var years = p["years"].HasValue ? (int)Mathf.Clamp(p["years"].Number, 0, MAX_YEARS) : 0;
             var support = Value("support");
+            // The look-ahead slide: as many posts as there would be years of support by then.
+            var ahead = Years == "ahead" && Ahead != null && Ahead.ready ? Ahead : null;
+            var today = years;
+            if (ahead != null) years = (int)Mathf.Clamp(ahead.years, 0, MAX_YEARS);
 
             // ---------- blocks ----------
             if (front.gameObject.activeSelf != ShowBlocks) front.gameObject.SetActive(ShowBlocks);
@@ -177,6 +183,8 @@ namespace Advisor3D
                 if (!active) { postH[i] = 0; continue; }
                 var target = Years == "up" ? POST_MAX * (i + 1) / years
                     : Years == "down" ? POST_MAX * (years - i) / years
+                    // Each post is a year of support at what it would cost by then; today's is the low mark.
+                    : ahead != null ? POST_MAX * 0.7f * (i < today ? 1 : 0.82f)
                     : POST_LOW;
                 // The posts rise one after another round the ring, like the bars on the site's charts.
                 var lag = Mathf.Clamp01(k * (1.4f - 0.8f * i / years));
@@ -192,12 +200,20 @@ namespace Advisor3D
             var age = p["youngestAge"].HasValue && household != null && household != "none" ? p["youngestAge"].Number : (long?)null;
             Place(first, FRONT + gap * 0.5f, R - 0.25f, 0.03f, 50);
             Place(last, FRONT + gap * (years - 0.5f), R - 0.25f, 0.03f, 50);
-            Write(first, age != null ? $"Now (age {age})" : "Now", "Year 1");
-            Write(last, age != null ? $"Age {age + years}" : "The last year", $"Year {years}");
+            if (ahead != null)
+            {
+                Write(first, "A year of support by then", Calc.FormatMoney(ahead.support));
+                Write(last, years > today ? $"{years - today} more {(years - today == 1 ? "year" : "years")} of it" : "For as long as today", $"{years} {(years == 1 ? "year" : "years")}");
+            }
+            else
+            {
+                Write(first, age != null ? $"Now (age {age})" : "Now", "Year 1");
+                Write(last, age != null ? $"Age {age + years}" : "The last year", $"Year {years}");
+            }
             last.panel.group.gameObject.SetActive(years > 1);
 
             // The total rides on top of the tallest post while the staircase is up.
-            var stairs = Years != "low" && support > 0;
+            var stairs = (Years == "up" || Years == "down") && support > 0;
             total.panel.group.gameObject.SetActive(stairs);
             if (!stairs) return;
             var at = Years == "up" ? years - 1 : 0;

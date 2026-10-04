@@ -217,7 +217,7 @@ namespace Advisor3D.EditorTools
             Shot("2-basics");
             Store.Set(s =>
             {
-                s.form = new Form { income = 85000, marital = "married", dependents = 2, debt = 280000, coverage = true };
+                s.form = new Form { age = 34, income = 85000, marital = "married", dependents = 2, debt = 280000, coverage = true };
                 Script.ApplyForm(s);
                 s.started = true;
             });
@@ -272,7 +272,22 @@ namespace Advisor3D.EditorTools
             cam.fieldOfView = 50;
             From(new Vector3(0, App.EYE - 0.08f, -0.75f), App.FOCUS);
             Screens.TurnTo(6);
-            Shot("9-results-try");
+            Shot("9-results-ahead");
+            cam.fieldOfView = 80;
+            From(eye, new Vector3(0, 0.75f, 1.3f));
+            Shot("9b-results-ahead-stacks");
+            From(eye, new Vector3(1.5f, 0.7f, -0.2f));
+            Shot("9c-results-ahead-years");
+            cam.fieldOfView = 50;
+            From(new Vector3(0, App.EYE - 0.08f, -0.75f), App.FOCUS);
+            Screens.TurnTo(7);
+            Shot("10-results-try");
+            Screens.Jump("handoff");
+            Shot("11-handoff");
+            // The review screen with the look-ahead answers being changed.
+            Screens.Jump("review");
+            Screens.EditOnReview("plans");
+            Shot("4b-review-plans");
 
             cam.targetTexture = null;
             target.Release();

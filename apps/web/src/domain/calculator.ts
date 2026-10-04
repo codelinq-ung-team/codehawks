@@ -3,12 +3,15 @@
 //   additional = max(0, support × years + mortgage + other debts + final expenses + education
 //                       − existing coverage − savings)
 // It leaves out inflation, investment returns, taxes and Social Security.
+// That estimate is a snapshot of today. outlook() adds a second, clearly separate figure:
+// what the need could grow into in about ten years, from the changes the person expects.
 
-export type GroupId = 'household' | 'income' | 'debts' | 'future' | 'resources'
+export type GroupId = 'household' | 'income' | 'debts' | 'future' | 'resources' | 'ahead'
 export type FieldId =
   | 'household' | 'youngestAge' | 'income' | 'support' | 'years' | 'mortgage'
-  | 'otherDebts' | 'finalExpenses' | 'education' | 'existing' | 'savings'
-export type FieldKind = 'choice' | 'age' | 'money' | 'years'
+  | 'otherDebts' | 'finalExpenses' | 'education' | 'existing' | 'savings' | 'plans' | 'futureIncome'
+// plans: what the person expects in the next ten years, kept as one number (see PLANS).
+export type FieldKind = 'choice' | 'age' | 'money' | 'years' | 'plans'
 // required: must be known before we estimate. optional: can be left out of the math.
 // context: shown to the user but never used in the math.
 export type FieldRole = 'context' | 'required' | 'optional'
@@ -27,6 +30,7 @@ export const GROUPS: { id: GroupId; title: string }[] = [
   { id: 'debts', title: 'Debts and final costs' },
   { id: 'future', title: 'Future goals' },
   { id: 'resources', title: 'What you already have' },
+  { id: 'ahead', title: 'Looking ahead ten years' },
 ]
 
 export const FIELDS: FieldDef[] = [
@@ -41,6 +45,8 @@ export const FIELDS: FieldDef[] = [
   { id: 'education', group: 'future', label: 'Education or other future costs', kind: 'money', role: 'optional' },
   { id: 'existing', group: 'resources', label: 'Life insurance you already have', kind: 'money', role: 'required' },
   { id: 'savings', group: 'resources', label: 'Savings your family could use', kind: 'money', role: 'optional' },
+  { id: 'plans', group: 'ahead', label: 'Changes you expect', kind: 'plans', role: 'optional' },
+  { id: 'futureIncome', group: 'ahead', label: 'Yearly income you expect', kind: 'money', role: 'optional' },
 ]
 
 export const FIELD = Object.fromEntries(FIELDS.map((f) => [f.id, f])) as Record<FieldId, FieldDef>
@@ -51,6 +57,25 @@ export const HOUSEHOLD: Record<Household, string> = {
   kids: 'My kids',
   others: 'Parents or other family',
   none: 'No one right now',
+}
+
+// What someone may expect in the next ten years. A plans answer is the sum of the bits that
+// apply, so it travels as a plain number like every other answer; 0 is "none of these".
+export type PlanId = 'kids' | 'home' | 'partner'
+export const PLANS: { id: PlanId; bit: number; label: string }[] = [
+  { id: 'kids', bit: 1, label: 'Kids' },
+  { id: 'home', bit: 2, label: 'A home' },
+  { id: 'partner', bit: 4, label: 'A partner' },
+]
+export const PLANS_MAX = 7
+export const NO_PLANS = 'None of these'
+export const hasPlan = (value: number, id: PlanId) => (value & PLANS.find((p) => p.id === id)!.bit) !== 0
+const listJoin = (items: string[]) =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+// "Kids and a home"
+export function formatPlans(value: number) {
+  const labels = PLANS.filter((p) => value & p.bit).map((p, i) => (i ? p.label.toLowerCase() : p.label))
+  return labels.length ? listJoin(labels) : NO_PLANS
 }
 
 export function emptyProfile(): Profile {
@@ -126,6 +151,7 @@ export function formatField(id: FieldId, field: Field | undefined) {
   const def = FIELD[id]
   if (def.kind === 'choice') return HOUSEHOLD[field.value as Household] ?? ''
   const n = Number(field.value)
+  if (def.kind === 'plans') return formatPlans(n)
   if (def.kind === 'money') return formatMoney(n)
   if (def.kind === 'years') return n + (n === 1 ? ' year' : ' years')
   return n + (n === 1 ? ' year old' : ' years old')
@@ -152,6 +178,8 @@ export type Ready = Extract<Estimate, { ready: true }>
 //   inflation: everyday costs rise by this much each year (0.03 = 3%).
 export type Scenario = { newChild?: { inYears: number; education: number }; inflation?: number }
 export const CHILD_SUPPORT_YEARS = 18
+// The child the what-if step starts from, and the one the look-ahead assumes.
+export const NEW_CHILD = { inYears: 2, education: 50_000 }
 
 // `support` a year for `years`, each year costing (1 + rate) times the year before.
 export function supportTotal(support: number, years: number, rate = 0) {
@@ -198,6 +226,76 @@ export function calculate(profile: Profile, scenario: Scenario = {}): Estimate {
   }
 }
 
+// ---------- looking ahead ----------
+// The estimate above is today's. This is what it could grow into in about ten years, from the
+// changes the person said they expect. Every rule is one the assessment already states:
+//   - yearly support keeps the share of income it has today;
+//   - kids or a partner mean support of at least 70% of income (the chat's own starting point);
+//     with kids it runs until a child arriving in two years is 18, plus an education fund (the
+//     same child as the results page's what-if step, NEW_CHILD), and with a partner ten years;
+//   - buying a home means a mortgage of about three times yearly income.
+// Debts, savings and coverage stay as they are today. It is an illustration, never a prediction,
+// and it never changes the estimate.
+export const OUTLOOK_YEARS = 10
+const PARTNER_YEARS = 10, SUPPORT_SHARE = 0.7, HOME_MULTIPLE = 3
+export type DriverId = 'income' | PlanId
+export type Driver = { id: DriverId; label: string; detail: string; delta: number }
+export type Outlook =
+  | { ready: false }
+  | {
+    ready: true; inYears: number; income: number | null; support: number; years: number; mortgage: number
+    drivers: Driver[]; totalNeeds: number; additional: number; change: number
+  }
+
+export function outlook(profile: Profile, result: Estimate): Outlook {
+  const plansKnown = hasValue(profile.plans)
+  const incomeKnown = hasValue(profile.futureIncome)
+  if (!result.ready || (!plansKnown && !incomeKnown)) return { ready: false }
+  const plans = plansKnown ? Number(profile.plans.value) : 0
+  const now = amount(profile, 'income')
+  const then = incomeKnown ? amount(profile, 'futureIncome') : now
+  const fixed = result.totalNeeds - amount(profile, 'support') * amount(profile, 'years') - amount(profile, 'mortgage')
+  let support = amount(profile, 'support')
+  let years = amount(profile, 'years')
+  let mortgage = amount(profile, 'mortgage')
+  let education = 0
+  let needs = result.totalNeeds
+  const drivers: Driver[] = []
+  // Each change is applied in turn; its amount is what it adds to the total on top of the ones before.
+  const apply = (id: DriverId, label: string, detail: string) => {
+    const next = fixed + support * years + mortgage + education
+    if (next !== needs) drivers.push({ id, label, detail, delta: next - needs })
+    needs = next
+  }
+  const share = Math.round(then * SUPPORT_SHARE / 100) * 100
+  const yearsText = (n: number) => `${n} ${n === 1 ? 'year' : 'years'}`
+
+  if (incomeKnown && now > 0 && support > 0) {
+    support = Math.round(support * then / now / 100) * 100
+    apply('income', then > now ? 'A higher income' : 'A lower income', `Support keeps its share of ${formatMoney(then)} a year: ${formatMoney(support)}`)
+  }
+  if (hasPlan(plans, 'kids')) {
+    years = Math.max(years, NEW_CHILD.inYears + CHILD_SUPPORT_YEARS)
+    support = Math.max(support, share)
+    education = NEW_CHILD.education
+    apply('kids', 'Kids', `${formatMoney(support)} a year for ${yearsText(years)}, plus ${formatMoney(education)} for education`)
+  }
+  if (hasPlan(plans, 'partner')) {
+    years = Math.max(years, PARTNER_YEARS)
+    support = Math.max(support, share)
+    apply('partner', 'A partner', `${formatMoney(support)} a year for ${yearsText(years)}`)
+  }
+  if (hasPlan(plans, 'home')) {
+    mortgage = Math.max(mortgage, Math.round(then * HOME_MULTIPLE / 1000) * 1000)
+    apply('home', 'A home', `A mortgage of about ${formatMoney(mortgage)}, three times yearly income`)
+  }
+  const additional = Math.max(0, needs - result.totalResources)
+  return {
+    ready: true, inYears: OUTLOOK_YEARS, income: incomeKnown ? then : null, support, years, mortgage,
+    drivers, totalNeeds: needs, additional, change: additional - result.additional,
+  }
+}
+
 export type ScenarioChange = { id: 'years' | 'inflation' | 'education'; label: string; value: number }
 export type ScenarioResult = { base: Ready; next: Ready; years: number; nextYears: number; changes: ScenarioChange[] }
 
@@ -234,6 +332,15 @@ export function summaryText(profile: Profile, result: Estimate) {
   result.resources.filter((t) => t.included).forEach((t) => lines.push(`- ${t.label}: ${formatMoney(t.value)}`))
   lines.push(`= Estimated additional coverage: ${formatMoney(result.additional)}`)
   if (result.leftOut.length) lines.push(`Left out: ${result.leftOut.join(', ')}.`)
+  const ahead = outlook(profile, result)
+  if (ahead.ready) {
+    lines.push('', `Looking ahead (about ${ahead.inYears} years, if the changes I expect happen)`)
+    ahead.drivers.forEach((d) => lines.push(`${d.delta < 0 ? '-' : '+'} ${d.label} (${d.detail}): ${formatMoney(Math.abs(d.delta))}`))
+    lines.push(ahead.change === 0
+      ? `= Coverage to consider by then: ${formatMoney(ahead.additional)}, the same as today`
+      : `= Coverage to consider by then: ${formatMoney(ahead.additional)} (${formatMoney(result.additional)} today)`)
+    lines.push('This is an illustration from rules of thumb, not a prediction. Debts, savings and coverage are held at today’s amounts.')
+  }
   lines.push('')
   lines.push('This is a coverage needs estimate, not a quote. Any educational policy recommendation requires professional confirmation. It does not account for inflation, investment returns, taxes or Social Security.')
   return lines.join('\n')

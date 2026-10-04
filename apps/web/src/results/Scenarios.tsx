@@ -1,10 +1,9 @@
 // The "what if" step: try a life change and see how the number moves. Scenarios only change
 // the math for this step (compareScenario); the saved answers, the summary and the plans stay put.
 import { Button } from '../kit/Kit.tsx'
-import { formatMoney, type Scenario, type ScenarioResult } from '../domain/calculator.ts'
+import { NEW_CHILD, formatMoney, type Scenario, type ScenarioResult } from '../domain/calculator.ts'
 import { yearsText } from './ask.ts'
 
-const NEW_CHILD = { inYears: 2, education: 50_000 }
 const RATES = [
   { value: 0, label: 'Off' },
   { value: 0.02, label: '2%' },

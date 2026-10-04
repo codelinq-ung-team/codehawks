@@ -1,7 +1,9 @@
 // Keeps the headset and a paired browser on the same answers. Joining loads the Basics answers
-// the browser saved and opens the chat; after that every change to the answers is saved back,
-// and when the conversation ends the pairing is marked done, which is the browser's cue to
-// carry on at its Review screen. Pairing.cs has the shapes; apps/backend/pairing.py the server.
+// the browser saved and opens the chat; after that every change to the answers is saved back.
+// When the conversation ends the pairing is marked done, and the browser says so while the
+// wearer goes on to their results here. On the last screen (or when the headset comes off on
+// the results) it is marked handoff, which is the browser's cue to open those same results.
+// Pairing.cs has the shapes; apps/backend/pairing.py the server.
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -14,14 +16,15 @@ namespace Advisor3D
         public static string Status { get; private set; } = "off"; // off | joining | paired | failed
         public static bool Paired => Status == "paired";
 
-        public const string HANDED_OVER = "Your answers are on your computer now. Take the headset off to check them there, or review them here.";
+        // The browser has everything, results included: there is nothing left on its way.
+        public static bool Delivered => id != null && handed && !dirty && !sending && sentHandoff;
         const float SETTLE = 0.4f; // seconds to let a burst of changes finish before saving
         const float RETRY = 3;     // seconds before trying again after a save that did not get through
         const float COOL = 5;      // seconds a failed code is reported, and before the same QR code is tried again
 
         static string id, failedId, sent;
         static AppState paired; // the answers this pairing loaded; a fresh start replaces them and ends it
-        static bool dirty, sending, done, told;
+        static bool dirty, sending, done, handed, sentHandoff;
         static float wait, cool;
 
         // Called once the store is ready (App.Build). The editor keeps statics between plays.
@@ -36,7 +39,7 @@ namespace Advisor3D
         {
             id = failedId = sent = null;
             paired = null;
-            dirty = sending = done = told = false;
+            dirty = sending = done = handed = sentHandoff = false;
             Status = "off";
         }
 
@@ -80,7 +83,7 @@ namespace Advisor3D
                 id = pairing;
                 paired = state;
                 sent = null;
-                done = told = false;
+                done = handed = sentHandoff = false;
                 Status = "paired";
                 Store.Load(state);
                 Mark(); // tells the browser the headset has joined
@@ -106,7 +109,7 @@ namespace Advisor3D
             var marital = (string)form["marital"];
             state.form = new Form
             {
-                income = Whole(form["income"]), dependents = Whole(form["dependents"]), debt = Whole(form["debt"]),
+                age = Whole(form["age"]), income = Whole(form["income"]), dependents = Whole(form["dependents"]), debt = Whole(form["debt"]),
                 marital = marital == "single" || marital == "married" ? marital : null,
                 coverage = form["coverage"]?.Type == JTokenType.Boolean ? (bool?)form["coverage"] : null,
             };
@@ -117,7 +120,7 @@ namespace Advisor3D
         // The conversation is over once Abe has said his closing words, or the wearer has moved on to Review.
         static bool Finished(AppState s)
         {
-            if (Store.Route == "review" || Store.Route == "results") return true;
+            if (Store.Route == "review" || Store.Route == "results" || Store.Route == "handoff") return true;
             return Store.Route == "chat" && !s.typing && s.messages.Count > 0 && s.messages[s.messages.Count - 1].done;
         }
 
@@ -133,19 +136,24 @@ namespace Advisor3D
             if (wait <= 0) Save();
         }
 
-        // Taking the headset off: save now rather than after the usual pause.
+        // Taking the headset off: save now rather than after the usual pause. Taking it off on the
+        // results is the wearer going back to their computer, so the browser opens them too.
         public static void Flush()
         {
-            if (id != null && Store.State == paired && dirty && !sending) Save();
+            if (id == null || Store.State != paired) return;
+            if (Store.Route == "results" && !handed) { handed = true; dirty = true; }
+            if (dirty && !sending) Save();
         }
 
         static void Save()
         {
             var s = Store.State;
             done |= Finished(s);
+            handed |= Store.Route == "handoff";
+            var handoff = handed;
             var body = new JObject
             {
-                ["status"] = done ? "done" : "joined",
+                ["status"] = handoff ? "handoff" : done ? "done" : "joined",
                 ["profile"] = JObject.FromObject(Pairing.Wire(s.profile)),
                 ["form"] = JObject.FromObject(Pairing.Wire(s.form)),
             };
@@ -158,15 +166,7 @@ namespace Advisor3D
             {
                 if (to != id) return; // started over while this was on its way
                 sending = false;
-                if (status == 200)
-                {
-                    sent = text;
-                    if (done && !told && Store.Route == "chat")
-                    {
-                        told = true;
-                        Store.Set(st => st.messages.Add(new Message { role = "bot", text = HANDED_OVER, done = true }));
-                    }
-                }
+                if (status == 200) { sent = text; sentHandoff = handoff; }
                 else if (status == 404) Leave(); // the pairing expired; the headset carries on by itself
                 else { dirty = true; wait = RETRY; }
             });

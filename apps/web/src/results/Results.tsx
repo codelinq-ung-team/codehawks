@@ -7,7 +7,7 @@ import { Page } from '../lib/Chrome.tsx'
 import { go, useStore } from '../lib/store.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
-import { FIELDS, calculate, compareScenario, formatMoney, formatPercent, summaryText, type Profile, type Scenario } from '../domain/calculator.ts'
+import { FIELDS, NEW_CHILD, calculate, compareScenario, formatMoney, formatPercent, hasPlan, summaryText, type Profile, type Scenario } from '../domain/calculator.ts'
 import { CoverageChart, NeedsChart, ScenarioChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
 import { AskAbe, type AskHandle } from './AskAbe.tsx'
 import { Plans } from './Plans.tsx'
@@ -67,7 +67,8 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
   }))
   const covered = formatPercent(r.totalResources, r.totalNeeds)
   const gap = r.additional > 0
-  const [scenario, setScenario] = useState<Scenario>({})
+  // Someone who told Abe they expect kids finds that change already switched on in the what-if step.
+  const [scenario, setScenario] = useState<Scenario>(() => (p.plans.status === 'confirmed' && hasPlan(Number(p.plans.value), 'kids') ? { newChild: NEW_CHILD } : {}))
   const whatIf = compareScenario(p, scenario)
 
   const steps: Step[] = [

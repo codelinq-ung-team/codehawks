@@ -31,6 +31,30 @@ class IntakeTests(unittest.TestCase):
     def post(self, **values):
         return self.http.post("/api/intake", json={**ASK, **values})
 
+    def test_expected_income_is_a_field_with_its_own_rules(self):
+        self.aws.converse.return_value = tool(intent="answer", value=160000, say="")
+        response = self.post(step="futureIncome", question="Where do you expect your income to be in ten years?",
+                             answer="probably double", known={"income": 80000})
+        self.assertEqual((response.status_code, response.json["value"]), (200, 160000))
+        self.assertIn("futureIncome", INTAKE_PROMPT)
+        self.assertIn("futureIncome", TOOL["toolSpec"]["inputSchema"]["json"]["properties"]["extra"]["properties"])
+        # A figure about the future, given while answering something else, is kept apart from the answer.
+        self.aws.converse.return_value = tool(intent="answer", value=13000, extra={"futureIncome": 70000}, say="")
+        mixed = self.post(answer="13k now but I'll make 70k once I graduate")
+        self.assertEqual((mixed.json["value"], mixed.json["extra"]), (13000, {"futureIncome": 70000}))
+
+    def test_plans_are_read_as_a_set_and_sent_as_one_number(self):
+        ask = dict(step="plans", question="Looking ahead ten years, do you expect any of these?")
+        self.aws.converse.return_value = tool(intent="answer", plans=["home", "kids", "kids"], say="")
+        self.assertEqual(self.post(**ask, answer="we want a baby and a house").json["value"], 3)
+        self.aws.converse.return_value = tool(intent="answer", plans=[], say="")
+        none = self.post(**ask, answer="nothing really")
+        self.assertEqual((none.json["intent"], none.json["value"]), ("answer", 0))
+        self.aws.converse.return_value = tool(intent="answer", plans=["a boat"], say="")
+        self.assertEqual(self.post(**ask, answer="a boat").json["intent"], "unclear")
+        self.aws.converse.return_value = tool(intent="answer", value=3, say="")
+        self.assertEqual(self.post(**ask, answer="the first two").json["intent"], "unclear")
+
     def test_answer_and_model_request(self):
         response = self.post(known={"household": "kids", "youngestAge": 4, "totalDebt": 180000})
         self.assertEqual(response.status_code, 200)

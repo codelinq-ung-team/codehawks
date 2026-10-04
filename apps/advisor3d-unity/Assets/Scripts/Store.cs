@@ -9,7 +9,7 @@ namespace Advisor3D
     // Answers from the short form before the chat. null means not answered yet (never zero).
     public class Form
     {
-        public long? income, dependents, debt;
+        public long? age, income, dependents, debt;
         public string marital; // "single" | "married"
         public bool? coverage;
     }
@@ -35,7 +35,8 @@ namespace Advisor3D
     public static class Store
     {
         // The app opens on "connect", looking for a browser to pair with; "home" is the headset on its own.
-        public static readonly string[] ROUTES = { "connect", "home", "prepare", "chat", "review", "results" };
+        // "handoff" is the last screen: the way back to the site, where the summary can be copied.
+        public static readonly string[] ROUTES = { "connect", "home", "prepare", "chat", "review", "results", "handoff" };
 
         public static AppState State { get; private set; } = new AppState();
         public static string Route { get; private set; } = "connect";
@@ -77,12 +78,14 @@ namespace Advisor3D
             State = new AppState
             {
                 started = true,
-                form = new Form { income = 85000, marital = "married", dependents = 2, debt = 280000, coverage = true },
+                form = new Form { age = 34, income = 85000, marital = "married", dependents = 2, debt = 280000, coverage = true },
                 profile = new Profile
                 {
                     ["household"] = Field.Of(Status.Confirmed, "both"), ["youngestAge"] = V(4), ["income"] = V(85000),
                     ["support"] = V(60000), ["years"] = V(18), ["mortgage"] = V(240000), ["otherDebts"] = V(40000),
                     ["finalExpenses"] = V(12000), ["education"] = V(50000), ["existing"] = V(150000), ["savings"] = V(60000),
+                    // Looking ahead: a bigger home, and a raise.
+                    ["plans"] = V(2), ["futureIncome"] = V(120000),
                 },
             };
             Changed?.Invoke();

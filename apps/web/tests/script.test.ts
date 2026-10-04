@@ -160,3 +160,77 @@ test('the support suggestion never offers the same figure twice', () => {
   assert.match(usual.text, /about \$63,000 to \$72,000\.$/)
   assert.deepEqual(usual.replies, ['$63,000', '$72,000', 'Not sure', WHY])
 })
+
+// ---------- looking ahead ----------
+function answered(form: Partial<Form> = {}): AppState {
+  const s = state({ income: 13000, ...form })
+  for (const id of ['household', 'support', 'years', 'mortgage', 'otherDebts', 'finalExpenses', 'education', 'existing', 'savings'] as const) {
+    s.profile[id] = { status: 'proposed', value: id === 'household' ? 'none' : 0 }
+  }
+  return s
+}
+
+test('the two look-ahead questions come last, and only after everything about today', () => {
+  const s = answered()
+  assert.equal(nextStep(s), 'plans')
+  s.profile.plans = { status: 'proposed', value: 0 }
+  assert.equal(nextStep(s), 'futureIncome')
+  assert.match(question('futureIncome', s).text, /^Last one\./)
+  s.profile.futureIncome = { status: 'skipped', value: null }
+  assert.equal(nextStep(s), null)
+})
+
+test('expected income is not asked when today’s income is unknown', () => {
+  const s = answered({ income: null })
+  s.profile.income = { status: 'unknown', value: null }
+  s.profile.plans = { status: 'skipped', value: null }
+  assert.equal(nextStep(s), null)
+})
+
+test('plans are read from taps and from plain words, and a ruled-out plan is not counted', () => {
+  const s = answered()
+  const plans = (text: string) => respond('plans', text, s).updates?.plans
+  assert.equal(plans('Kids')?.value, 1)
+  assert.equal(plans('Buying a home')?.value, 2)
+  assert.equal(plans('Kids and a home')?.value, 3)
+  assert.equal(plans('Getting married')?.value, 4)
+  assert.equal(plans('None of these')?.value, 0)
+  assert.equal(plans('we want a baby, a house, and the wedding is in June')?.value, 7)
+  assert.equal(plans('no kids but we are buying a house')?.value, 2)
+  assert.equal(plans('no more kids')?.value, 0)
+  assert.equal(plans('Skip this')?.status, 'skipped')
+  assert.equal(plans('not sure')?.status, 'unknown')
+  assert.equal(respond('plans', 'a boat', s).updates, undefined)
+  // Every suggestion is one the reader takes.
+  for (const chip of question('plans', s).replies.filter((r) => r !== WHY)) assert.ok(respond('plans', chip, s).updates, chip)
+})
+
+test('expected income takes a figure, or a phrase read against today’s income', () => {
+  const s = answered()
+  const future = (text: string) => respond('futureIncome', text, s).updates?.futureIncome?.value
+  assert.equal(future('About the same'), 13000)
+  assert.equal(future('probably double'), 26000)
+  assert.equal(future('60k once I graduate'), 60000)
+  assert.equal(future('about the same, maybe 15k'), 15000)
+  assert.equal(respond('futureIncome', 'a lot more', s).updates, undefined)
+  for (const chip of question('futureIncome', s).replies.filter((r) => r !== WHY)) assert.ok(respond('futureIncome', chip, s).updates, chip)
+})
+
+test('income suggestions fit the person: bigger steps early in a career', () => {
+  assert.deepEqual(question('futureIncome', answered({ age: 21 })).replies.slice(0, 3), ['About the same', '$26,000', '$52,000'])
+  assert.deepEqual(question('futureIncome', answered({ age: 45, income: 80000 })).replies.slice(0, 3), ['About the same', '$100,000', '$120,000'])
+})
+
+test('the AI’s reading of plans and expected income goes through the script’s readers', () => {
+  const s = answered()
+  assert.equal(interpret('plans', reading({ value: 3 }), s).updates?.plans?.value, 3)
+  assert.equal(interpret('plans', reading({ value: 0 }), s).updates?.plans?.value, 0)
+  assert.equal(interpret('futureIncome', reading({ value: 70000 }), s).updates?.futureIncome?.value, 70000)
+  // What the AI could not read, the script still can.
+  assert.equal(interpret('futureIncome', reading({ intent: 'unclear', say: 'One number, please.' }), s, 'double').updates?.futureIncome?.value, 26000)
+  assert.equal(interpret('plans', reading({ intent: 'unclear' }), s, 'a boat').updates, undefined)
+  // A figure about the future, mentioned while answering about today, is kept as the future one.
+  const mixed = interpret('income', reading({ value: 13000, extra: { futureIncome: 70000 } }), state(), '13k now, 70k after school')
+  assert.equal(mixed.updates?.income?.value, 13000)
+  assert.equal(mixed.updates?.futureIncome?.value, 70000)
+})

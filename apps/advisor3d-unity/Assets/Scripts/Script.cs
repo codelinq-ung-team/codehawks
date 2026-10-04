@@ -51,6 +51,11 @@ namespace Advisor3D
             public Func<Val, AppState, string> ack;
             // Other fields this answer settles, like the debts left once the mortgage is known.
             public Func<Val, AppState, Dictionary<string, Field>> also;
+            // The AI's number as words this step's reader takes, when the number alone would not do.
+            public Func<long, string> words;
+            // The reader also takes plain phrases ("double", "kids and a house"), so it gets a try at
+            // an answer the AI could not read.
+            public bool phrases;
         }
 
         static bool Has(Profile p, string id) => p[id].status != Status.Empty;
@@ -81,6 +86,35 @@ namespace Advisor3D
         };
 
         static long Thousands(double v) => (long)Math.Floor(v / 1000 + 0.5) * 1000;
+        static long RoundTo(double v, long unit) => (long)Math.Floor(v / unit + 0.5) * unit;
+
+        // What someone expects in the next ten years, from their own words. A plan they rule out
+        // ("no kids, but a house") is not counted.
+        static readonly Dictionary<string, Regex> PLAN_WORDS = new Dictionary<string, Regex>
+        {
+            ["kids"] = new Regex(@"\b(kids?|child(ren)?|bab(y|ies)|son|daughter|pregnan\w*|expecting|start(ing)? a family|grow(ing)? (the|our|my) family)\b"),
+            ["home"] = new Regex(@"\b(homes?|houses?|condo|mortgage|property|place of (my|our) own)\b"),
+            ["partner"] = new Regex(@"\b(marr\w*|wedding|engaged|fianc\w*|partner|spouse|husband|wife)\b"),
+        };
+        static readonly Regex RULED_OUT = new Regex(@"\b(no|not|never|don'?t (want|plan on|expect))\s+((more|any|having|getting|buying|a|to have|to buy|to get)\s+)*(kids?|child(ren)?|bab(y|ies)|homes?|houses?|married|marr\w*)");
+        static readonly Regex NO_CHANGES = new Regex(@"^(none|no|nope|nah|nothing)\b|\bnone of (these|those|them)\b|\b(no|not any|nothing) (big )?(changes?|plans?|planned)\b|\bnot really\b");
+        static readonly Regex SAME = new Regex(@"\b(same|no change|unchanged|stay(s|ing)? (put|flat|where it is)|about that|not much (more|different))\b");
+        static readonly (Regex re, double k)[] TIMES =
+        {
+            (new Regex(@"\b(doubl\w*|twice|two times|2x)\b"), 2), (new Regex(@"\b(tripl\w*|three times|3x)\b"), 3), (new Regex(@"\bhalf again\b"), 1.5),
+        };
+
+        static Read ReadPlans(string text, AppState s)
+        {
+            var said = text.ToLowerInvariant().Trim();
+            var t = RULED_OUT.Replace(said, " ");
+            long value = 0;
+            foreach (var p in Calc.PLANS) if (PLAN_WORDS[p.id].IsMatch(t)) value += p.bit;
+            if (value > 0) return Value(value);
+            // Nothing left once the ruled-out plans are gone ("no kids"), or a plain "none of these".
+            if (NO_CHANGES.IsMatch(said) || t != said) return Value(0);
+            return Retry("Which of these do you expect in the next ten years or so: kids, buying a home, getting married, or none of them?");
+        }
 
         static readonly Step[] STEPS =
         {
@@ -255,11 +289,58 @@ namespace Advisor3D
             new Step
             {
                 id = "savings",
-                ask = s => Q("Last one. Do you have savings or investments your family could use? This one is optional.", "None", "Skip this"),
+                ask = s => Q("Do you have savings or investments your family could use? This one is optional.", "None", "Skip this"),
                 why = "Savings your family could draw on lowers how much insurance they’d need. Leave out retirement money you’d want them to keep.",
                 optional = true,
                 read = MoneyReader(),
                 ack = (v, s) => v.N == 0 ? "Okay, no savings counted." : $"Thanks, {Money(v)} in savings.",
+            },
+            // Two quick questions about tomorrow. They never change today's estimate: they add a second
+            // figure beside it (Calc.Outlook), so both are optional and both are one tap.
+            new Step
+            {
+                id = "plans",
+                ask = s => Q("That’s today covered. Life doesn’t stand still, though, so two quick ones about tomorrow. In the next ten years or so, do you expect any of these?",
+                    "Kids", "Buying a home", "Kids and a home", "Getting married", Calc.NO_PLANS, "Skip this"),
+                why = "Everything so far is a snapshot of your life today. A first child, a home or a marriage can change what your family would need, so I’ll show that next to today’s number. It never changes today’s estimate, and you can skip it.",
+                optional = true,
+                phrases = true,
+                read = ReadPlans,
+                words = v => Calc.FormatPlans(Math.Min(Calc.PLANS_MAX, Math.Max(0, v))),
+                ack = (v, s) => v.N == 0 ? "Got it, no big changes on the horizon." : $"Got it: {Calc.FormatPlans(v.N).ToLowerInvariant()}. I’ll show what that could mean next to today’s number.",
+            },
+            new Step
+            {
+                id = "futureIncome",
+                // Asked only when today's income is known: the answer is read against it.
+                when = s => Known(s.profile, "income")?.num > 0,
+                ask = s =>
+                {
+                    var income = Known(s.profile, "income").Number;
+                    // Someone early in a career, or on a small income, is likelier to expect a big change.
+                    var early = s.form.age < 30 || income < 30000;
+                    var unit = income < 20000 ? 1000 : 5000;
+                    var (a, b) = early ? (2.0, 4.0) : (1.25, 1.5);
+                    return Q($"Last one. You earn about {Calc.FormatMoney(income)} a year now. Where do you expect that to be in ten years? A rough guess is fine.",
+                        "About the same", Calc.FormatMoney(RoundTo(income * a, unit)), Calc.FormatMoney(RoundTo(income * b, unit)), "Skip this");
+                },
+                why = "Today’s estimate uses what you earn now. If you expect to earn more, your family would come to rely on more, so I’ll also show the coverage you may grow into. It never changes today’s estimate, and you can skip it.",
+                optional = true,
+                phrases = true,
+                read = (text, s) =>
+                {
+                    var income = Known(s.profile, "income")?.Number ?? 0;
+                    var t = text.ToLowerInvariant();
+                    var r = Calc.ParseAmount(text);
+                    // A stated figure wins: "about the same, maybe 60k" is 60,000.
+                    if (income > 0 && (r.kind != "amount" || r.value == 0))
+                    {
+                        if (SAME.IsMatch(t)) return Value(income);
+                        foreach (var (re, k) in TIMES) if (re.IsMatch(t)) return Value(RoundTo(income * k, 100));
+                    }
+                    return MoneyReader(monthlyCheck: true)(text, s);
+                },
+                ack = (v, s) => v.N == (Known(s.profile, "income")?.Number ?? -1) ? "Got it, about the same as today." : $"Got it, about {Money(v)} a year by then.",
             },
         };
 
@@ -414,11 +495,22 @@ namespace Advisor3D
             }
             if (reading.intent == "unsure") return Respond(stepId, "not sure", state, true);
             if (reading.intent == "skip") return Respond(stepId, step.optional ? "skip" : "not sure", state, true);
-            if (reading.intent != "answer") { var r = Say(said != "" ? said : AGAIN); r.replies = replies; return r; }
+            if (reading.intent != "answer")
+            {
+                // "Double", "kids and a house": plain phrases the step's own reader takes.
+                if (reading.intent == "unclear" && step.phrases)
+                {
+                    var loose = step.read(typed.Trim(), state);
+                    if (loose.ok) return Settle(step, loose, state);
+                }
+                var r = Say(said != "" ? said : AGAIN);
+                r.replies = replies;
+                return r;
+            }
 
             string text = null;
             if (stepId == "household") { var label = Calc.HouseholdLabel(reading.household); text = label == "" ? null : label; }
-            else if (reading.value != null) text = reading.value.Value + (reading.period == "month" ? " a month" : "");
+            else if (reading.value != null) text = step.words != null ? step.words(reading.value.Value) : reading.value.Value + (reading.period == "month" ? " a month" : "");
             if (text == null) { var r = Say(AGAIN); r.replies = replies; return r; }
 
             var reply = Settle(step, step.read(text, state), state);
@@ -428,7 +520,7 @@ namespace Advisor3D
             var noted = new List<string>();
             foreach (var kv in reading.extra)
             {
-                if (!STEP.TryGetValue(kv.Key, out var other) || other.id == "household") continue;
+                if (!STEP.TryGetValue(kv.Key, out var other) || other.id == "household" || other.id == "plans") continue;
                 if (state.profile[other.id].status != Status.Empty || reply.updates.ContainsKey(other.id)) continue;
                 var read = other.read(kv.Value.ToString(), state);
                 if (!read.ok) continue;

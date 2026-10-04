@@ -57,11 +57,33 @@ each one takes it back. With voice off, a number pad on the right takes amounts.
 
 Look down in the chat and there is a ring around you, like a low round table (`Picture.cs`).
 In front, each amount you give becomes a block that rises as you answer; round to the sides and
-behind you is one post for every year of support. On Results, Abe takes the estimate a slide at
+behind you is one post for every year of support. Results takes the estimate a slide at
 a time, as the site's results deck does: two stacks on a tray in front of you build up to the
 gap, and the posts around you become a staircase of the cost adding up, then stepping down as
-the years pass. While the ring is up the panels give you about six seconds to look around
+the years pass. Each slide says where to look in the room. While the ring is up the panels give you about six seconds to look around
 before they come round to face you; tapping B or Y brings them at once.
+
+## The end: a summary, then back to the site
+
+The headset shows the estimate; the site is where it can be copied, questioned and compared.
+So the last two screens are a summary and not a conversation. **Not yet tried on a headset.**
+
+- When Abe has said his closing words the chat moves on to Review by itself, about two and a
+  half seconds after he goes quiet. Coming back to a finished chat from the step bar stays put.
+- On Results, Abe's chat card on the left gives way to **At a glance**: a meter of how much of
+  the need is already in place, today's estimate, and the look-ahead under it. There is no Copy
+  Summary: a headset has nowhere to paste one.
+- **Looking ahead** is one more slide, shown when the wearer answered either of the chat's
+  two closing questions (what they expect in the next ten years, and where their income will
+  be). `Calc.Outlook` is the site's `outlook()`. The first stack grows by a lighter block, what
+  those changes add; the gap grows with it; the ring becomes the years of support there would
+  be by then; and the list beside the slide turns into a waterfall from today's total to the
+  one in ten years, one bar per change. It never replaces today's number.
+- The arrow past the last slide, and **Continue on Your Computer**, open the handoff
+  (`Screens.Handoff`): take the headset off, and your results are already open on the site.
+  `Sync.cs` marks the pairing `handoff` there, or when the headset comes off on Results, and
+  the site opens its results page. A headset used on its own is told how to start from the
+  site next time, since it has no browser to hand its answers to.
 
 ## Starting on the site
 
@@ -71,7 +93,8 @@ screen, in passthrough so the wearer can see their computer, with a live picture
 headset's cameras see. Look at the computer's screen and the app loads those answers, skips
 its own Basics form, and opens the chat. **Use the Headset on Its Own** goes to the Home
 screen instead, and Start Over comes back to the connect screen. Each answer Abe hears is saved back, the site lists them as they
-arrive, and when Abe has said his closing words the site moves on to its Review screen. **Not
+arrive, and when the wearer reaches the handoff screen the site opens its results page
+(see [the end](#the-end-a-summary-then-back-to-the-site)). **Not
 yet tried on a headset**: the camera, the permission prompt and the scan are unconfirmed there.
 
 - `Scanner.cs` reads the headset's passthrough cameras as a webcam and hands a frame to ZXing
@@ -165,7 +188,7 @@ The logic files are ports of the site's, and keep its order, so the two can be r
 | `Backend.cs` | `intake/ai.ts` |
 | `Store.cs` | `lib/store.ts` |
 | `Guide.cs` | `guide/Avatar.tsx` |
-| `Screens.cs` | nothing for the connect screen; `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
+| `Screens.cs` | nothing for the connect and handoff screens; `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
 | `Voice.cs`, `VoiceScript.cs` | nothing: the site has no voice |
 | `Pairing.cs`, `Sync.cs`, `Scanner.cs` | `intake/pair.ts`, `intake/Vr.tsx` (the other end of the pairing) |
 | `Picture.cs` | `results/charts.tsx` (the year charts), as posts around the wearer |
@@ -189,8 +212,10 @@ What is different from the site:
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
 - Your hands are drawn as a faint, see-through glove (`Hands.cs`); a hand that holds a
   controller shows a faint closed glove. In passthrough you see your real hands.
-- Results is the site's seven-slide deck, with the charts built in the room (`Picture.cs` and
-  the stacks) in place of the easel. Abe's poses for each slide are not here.
+- Results is the site's slide deck, with the charts built in the room (`Picture.cs` and
+  the stacks) in place of the easel, and a look-ahead slide the site does not have. Abe's poses
+  for each slide are not here, and neither is the site's what-if step for a child or rising prices.
+- The handoff screen has no counterpart on the site: it is the way back to it.
 
 ## Tests
 

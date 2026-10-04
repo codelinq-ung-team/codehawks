@@ -1,14 +1,14 @@
 // Questions for Abe after the results. They go to the AI (POST /api/chat); when it can't be
 // reached, Abe falls back on written answers that use the user's own numbers. Abe never works out new amounts: every number
 // he quotes comes from calculate(), and what-ifs go to the "Try it yourself" step.
-import { formatMoney, summaryText, type Estimate, type Profile } from '../domain/calculator.ts'
+import { formatMoney, outlook, summaryText, type Estimate, type Profile } from '../domain/calculator.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { sha256 } from '../intake/ai.ts'
 import { recommendationSummary, type Recommendation } from './recommendations.ts'
 
 export type Ready = Extract<Estimate, { ready: true }>
 export type Said = { role: 'user' | 'assistant'; text: string }
-export type TopicId = 'term' | 'years' | 'leftOut' | 'next'
+export type TopicId = 'term' | 'years' | 'leftOut' | 'next' | 'future'
 export type Sent = { role: Said['role']; content: string }
 
 export const listJoin = (items: string[]) =>
@@ -16,7 +16,7 @@ export const listJoin = (items: string[]) =>
 export const yearsText = (n: number) => `${n} ${n === 1 ? 'year' : 'years'}`
 
 export const GREETING = 'Anything you’d like me to explain? Ask me about your estimate, or about life insurance in general.'
-export const OFFLINE = 'I can’t look that up right now. For the moment I can explain term vs. permanent coverage, your years of support, what this estimate leaves out, or what to do next. For anything else, a licensed insurance professional can help, and your summary has all your numbers.'
+export const OFFLINE = 'I can’t look that up right now. For the moment I can explain term vs. permanent coverage, your years of support, how your needs may change over time, what this estimate leaves out, or what to do next. For anything else, a licensed insurance professional can help, and your summary has all your numbers.'
 
 // Abe's written answer on one topic, using the user's own numbers.
 export function written(id: TopicId, p: Profile, r: Ready): string {
@@ -53,6 +53,23 @@ export function written(id: TopicId, p: Profile, r: Ready): string {
         r.leftOut.length ? `You also didn’t give amounts for ${listJoin(r.leftOut.map((l) => l.toLowerCase()))}, so they aren’t counted.` : '',
         'A licensed professional can factor these in for you.',
       ].filter(Boolean).join('\n\n')
+    case 'future': {
+      const ahead = outlook(p, r)
+      if (!ahead.ready) {
+        return [
+          `Your estimate, ${formatMoney(r.additional)}, is a snapshot of your life today. It doesn’t guess at what comes next.`,
+          'If you expect changes in the next ten years, like kids, a home, a marriage or a bigger paycheck, add them under **Looking ahead ten years** on the Check your answers screen. I’ll then show what your family might need by then, next to today’s number.',
+          'Either way, it’s worth running this again after any big change.',
+        ].join('\n\n')
+      }
+      return [
+        `Today’s estimate is ${formatMoney(r.additional)}. From the changes you expect, it could be about ${formatMoney(ahead.additional)} in ${ahead.inYears} years.`,
+        ahead.drivers.length
+          ? ahead.drivers.map((d) => `- **${d.label}**: ${d.delta < 0 ? '−' : '+'}${formatMoney(Math.abs(d.delta))}. ${d.detail}.`).join('\n')
+          : 'Nothing you expect would change what your family would need.',
+        'That second number is an illustration from rules of thumb, not a prediction, and it keeps your debts, savings and coverage at today’s amounts. You don’t need it today: it’s a reason to check again when those changes happen. Some term policies can be converted or added to later, which a licensed professional can confirm.',
+      ].join('\n\n')
+    }
     case 'next':
       return [
         'Nothing here needs a decision today. When you’re ready:',
@@ -70,6 +87,7 @@ export function topicFor(text: string): TopicId | null {
   const t = text.toLowerCase()
   if (/\b(term|permanent|whole life|universal|cash value)\b/.test(t)) return 'term'
   if (/\b(leave|left|missing|inflation|tax|taxes|social security|invest\w*)\b/.test(t)) return 'leftOut'
+  if (/\b(future|ahead|later on|down the (road|line)|grow\w*|raise|promotion|career|kids?|child(ren)?|baby|married|marriage|wedding|house|home|change[sd]?)\b/.test(t)) return 'future'
   if (/\b(next|agent|professional|advisor|quotes?|buy|apply)\b/.test(t)) return 'next'
   if (/\b(years?|how long)\b/.test(t)) return 'years'
   return null

@@ -4,7 +4,7 @@ import { Banner, Button, ListRow, ListSection, Sheet, TextField } from '../kit/K
 import { Page, Title } from '../lib/Chrome.tsx'
 import { go, setField, setState, useStore } from '../lib/store.ts'
 import {
-  FIELD, FIELDS, GROUPS, HOUSEHOLD, formatField, missingRequired, parseAmount, parseCount,
+  FIELD, FIELDS, GROUPS, HOUSEHOLD, PLANS, formatField, missingRequired, parseAmount, parseCount,
   type Field, type FieldId, type Household,
 } from '../domain/calculator.ts'
 
@@ -19,6 +19,7 @@ const HINT: Partial<Record<FieldId, string>> = {
   education: 'Education or another big future cost, in total.',
   existing: 'Through work or on your own. Enter 0 for none.',
   savings: 'Savings or investments your family could use.',
+  futureIncome: 'A rough guess at your yearly income in about ten years. It never changes today’s estimate.',
 }
 
 const listJoin = (items: string[]) =>
@@ -120,6 +121,8 @@ function Editor({ id, field, onClose }: { id: FieldId; field: Field; onClose: ()
     )
   }
 
+  if (def.kind === 'plans') return <PlansEditor field={field} title={def.label} onClose={onClose} save={save} />
+
   return (
     <Sheet title={def.label} onClose={onClose} action={{ label: 'Save', onClick: saveText }}>
       <form className="editor" onSubmit={(e) => { e.preventDefault(); saveText() }}>
@@ -136,6 +139,27 @@ function Editor({ id, field, onClose }: { id: FieldId; field: Field; onClose: ()
           {def.role === 'optional' && <Button variant="bordered" onClick={() => save({ status: 'skipped', value: null })}>Leave It Out</Button>}
         </div>
       </form>
+    </Sheet>
+  )
+}
+
+// What the person expects in the next ten years: any of them, or none.
+function PlansEditor({ field, title, onClose, save }: { field: Field; title: string; onClose: () => void; save: (next: Field) => void }) {
+  const [value, setValue] = useState(typeof field.value === 'number' ? field.value : 0)
+  const done = () => save({ status: 'confirmed', value })
+  return (
+    <Sheet title={title} onClose={onClose} action={{ label: 'Save', onClick: done }}>
+      <ListSection footer="Pick any that fit, or none. This never changes today’s estimate.">
+        {PLANS.map((p) => (
+          <ListRow key={p.id} title={p.label} accessory="check" checked={(value & p.bit) !== 0} onClick={() => setValue(value ^ p.bit)} />
+        ))}
+      </ListSection>
+      <div className="editor">
+        <Button size="large" fullWidth onClick={done}>Save</Button>
+        <div className="editor__alt">
+          <Button variant="bordered" onClick={() => save({ status: 'skipped', value: null })}>Leave It Out</Button>
+        </div>
+      </div>
     </Sheet>
   )
 }
