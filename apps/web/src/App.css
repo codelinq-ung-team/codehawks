@@ -135,6 +135,63 @@ h1, h2, h3, p { margin: 0; }
 }
 
 /* ---------- Chat ---------- */
+/* ---------- Mode: text chat or VR, chosen after the form ---------- */
+.mode__body { width: min(100%, 720px); margin: auto; padding: var(--space-6) 0; }
+.mode__guide { display: block; flex: none; width: 96px; height: 96px; }
+.mode__cards { display: grid; gap: var(--space-4); margin-top: var(--space-6); }
+.mode__card {
+  display: grid; gap: var(--space-2); align-content: start; justify-items: start; padding: var(--space-5);
+  border: 0; border-radius: var(--radius-lg); background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--card-edge);
+  color: var(--label-primary); font: 400 15px/21px var(--font-sans); text-align: left; cursor: pointer; transition: box-shadow .15s ease, background .15s ease, transform .15s ease;
+}
+.mode__card:hover { background: #fbf3f5; box-shadow: inset 0 0 0 2px var(--tint); transform: translateY(-2px); }
+.mode__card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.mode__icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--tint); color: var(--on-tint); }
+.mode__title { margin-top: var(--space-2); font: 700 22px/28px var(--font-sans); letter-spacing: -0.01em; color: var(--brand-tyrian); }
+.mode__text { color: var(--label-secondary); font-size: 17px; line-height: 24px; }
+.mode__points { display: grid; gap: var(--space-1); margin: var(--space-1) 0 0; padding: 0; list-style: none; color: var(--label-secondary); }
+.mode__points li { display: flex; align-items: center; gap: var(--space-2); }
+.mode__points .ck-icon { flex: none; color: var(--highlight-text); }
+.mode__go { display: inline-flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); color: var(--tint-text); font-weight: 600; font-size: 17px; }
+.mode__actions { width: min(100%, 720px); justify-content: flex-start; }
+@media (min-width: 720px) { .mode__cards { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .mode__card { transition: none; } .mode__card:hover { transform: none; } }
+
+/* ---------- VR: the code the headset scans, and how to use the headset ---------- */
+.vr__grid { display: grid; gap: var(--space-6); align-items: start; }
+.vr__pair {
+  display: grid; gap: var(--space-4); justify-items: center; padding: var(--space-6); border-radius: 24px; text-align: center;
+  background: var(--grouped-secondary); box-shadow: 0 0 0 1px var(--card-edge), 0 18px 48px rgba(60, 20, 30, .08);
+}
+/* Black on white whatever the theme, and large: the headset's camera reads it from the screen. */
+.vr__qr { display: block; width: min(100%, 380px); height: auto; border-radius: var(--radius-md); background: #fff; box-shadow: 0 0 0 1px var(--card-edge); }
+.vr__code { display: grid; gap: 2px; }
+.vr__code strong { font: 700 34px/40px var(--font-mono); letter-spacing: .08em; color: var(--brand-tyrian); }
+.vr__status { display: flex; align-items: center; gap: var(--space-2); color: var(--label-secondary); font: 500 15px/20px var(--font-sans); }
+.vr__pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--highlight); animation: vr-pulse 1.4s ease-in-out infinite; }
+@keyframes vr-pulse { 50% { opacity: .25; transform: scale(.7); } }
+.vr__how { display: grid; gap: var(--space-4); justify-items: start; }
+.vr__how h2 { font: 700 22px/28px var(--font-sans); color: var(--brand-tyrian); }
+.vr__steps { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.vr__steps li { display: flex; align-items: flex-start; gap: var(--space-3); }
+.vr__steps li > div { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.vr__steps strong { font: 600 17px/22px var(--font-sans); }
+.vr__steps span { color: var(--label-secondary); font: 400 15px/21px var(--font-sans); }
+.vr__num { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 10px; background: #f3e3e8; color: var(--tint-text) !important; font: 700 14px/1 var(--font-sans) !important; }
+.vr__pinch { flex: none; width: 56px; height: 56px; color: var(--tint-text); }
+.vr__note { display: flex; align-items: flex-start; gap: var(--space-2); max-width: 34em; }
+.vr__note .ck-icon { flex: none; margin-top: 1px; }
+.vr__side { display: grid; gap: var(--space-4); align-content: start; }
+/* What Abe knows, on its own here: shown at every width, and as tall as its answers. */
+.knows.knows--live { display: flex; flex-direction: column; gap: var(--space-4); width: auto; }
+.knows--live .knows__list { overflow: visible; }
+.knows--live .knows__abe { width: 120px; height: 120px; }
+@media (min-width: 900px) {
+  .vr__grid { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: var(--space-8); }
+  .vr__grid--live { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+@media (prefers-reduced-motion: reduce) { .vr__pulse { animation: none; } }
+
 .chat-screen { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: var(--space-4); }
 /* The chat fills the window below the header; only the messages scroll. */
 /* The chat card, plus "What Abe knows" beside it on wide screens. */

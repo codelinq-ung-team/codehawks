@@ -15,6 +15,8 @@ export type AppState = {
   typing: boolean
   // True after a typed answer couldn't reach the AI and the script read it instead.
   offline?: boolean
+  // Set while this browser is paired with the Quest app (see intake/pair.ts).
+  vr?: { id: string; code: string; codeUntil: number } | null
 }
 
 const KEY = 'linclife:v1'
@@ -68,9 +70,9 @@ export function useStore() {
   )
 }
 
-// Hash routes: #/, #/prepare, #/chat, #/review, #/results
-export type Route = 'home' | 'prepare' | 'chat' | 'review' | 'results'
-const ROUTES: Route[] = ['home', 'prepare', 'chat', 'review', 'results']
+// Hash routes: #/, #/prepare, #/mode, #/chat, #/vr, #/review, #/results
+export type Route = 'home' | 'prepare' | 'mode' | 'chat' | 'vr' | 'review' | 'results'
+const ROUTES: Route[] = ['home', 'prepare', 'mode', 'chat', 'vr', 'review', 'results']
 
 function readRoute(): Route {
   const r = (location.hash.replace(/^#\/?/, '') || 'home').split('?')[0]
