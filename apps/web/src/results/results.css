@@ -96,8 +96,10 @@
 .deck-nav__arrow {
   position: absolute; top: 50%; display: grid; place-items: center; width: 52px; height: 52px; margin-top: -26px; padding: 0; border: 0;
   border-radius: var(--radius-full); background: var(--bg-primary); color: var(--tint-text); cursor: pointer;
-  box-shadow: inset 0 0 0 1px var(--card-edge), 0 6px 16px rgba(60, 30, 20, .12); transition: transform .12s ease, opacity .2s;
+  box-shadow: inset 0 0 0 1px var(--card-edge), 0 6px 16px rgba(60, 30, 20, .12);
+  transition: transform .18s ease, opacity .2s, background-color .18s ease, box-shadow .18s ease;
 }
+.deck-nav__arrow .ck-icon { transition: transform .18s ease; }
 .deck-nav__arrow--prev { left: -26px; }
 .deck-nav__arrow--next { right: -26px; background: var(--tint); color: var(--on-tint); box-shadow: 0 6px 16px rgba(101, 0, 48, .25); }
 .deck-nav__arrow:active:not(:disabled) { transform: scale(.95); }
@@ -111,6 +113,23 @@
 }
 .deck-nav__dot.is-past::before { background: var(--gray-1); }
 .deck-nav__dot.is-on::before { width: 22px; background: var(--tint); }
+/* Hover feedback matches the app's "lift" buttons: the next arrow darkens, the back arrow warms up,
+   both rise a little and nudge their chevron; a dot you could jump to grows and darkens. */
+@media (hover: hover) and (pointer: fine) {
+  .deck-nav__arrow--next:hover:not(:disabled):not(:active) {
+    background: color-mix(in srgb, var(--tint) 85%, black); box-shadow: 0 14px 28px rgba(101, 0, 48, .25);
+  }
+  .deck-nav__arrow--prev:hover:not(:disabled):not(:active) {
+    background: color-mix(in srgb, var(--tint) 10%, var(--bg-primary));
+    box-shadow: inset 0 0 0 1px var(--card-edge), 0 10px 20px rgba(101, 0, 48, .14);
+  }
+  .deck-nav__dot:not(.is-on):hover::before { width: 12px; background: color-mix(in srgb, var(--tint) 55%, var(--gray-1)); }
+  @media (prefers-reduced-motion: no-preference) {
+    .deck-nav__arrow:hover:not(:disabled):not(:active) { transform: translateY(-2px); }
+    .deck-nav__arrow--next:hover:not(:disabled):not(:active) .ck-icon { transform: translateX(2px); }
+    .deck-nav__arrow--prev:hover:not(:disabled):not(:active) .ck-icon { transform: translateX(-2px); }
+  }
+}
 
 /* ---------- Charts ---------- */
 .viz-axis { display: flex; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-2); border-top: 1px solid var(--viz-grid); font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
