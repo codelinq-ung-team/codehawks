@@ -146,8 +146,8 @@ Nothing is stored or logged. Errors use the same statuses as `/api/chat`.
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
 failures return 502; provider timeouts return 504. Error details are sanitized.
-Production delegates origin authorization to CloudFront and IAM. The local harness
-rejects foreign browser origins with 403. Direct Function URL access requires AWS IAM
+Production delegates origin authorization to CloudFront and IAM.
+Direct Function URL access requires AWS IAM
 authorization and grants CloudFront access only for this distribution.
 
 `GET /health` is the adapter readiness endpoint. `GET /api/health` exposes the
@@ -161,19 +161,19 @@ Requires Python 3.12+. From the repository root:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
-python -m unittest discover -s backend/tests -v
 python -m unittest discover -s scripts/tests -v
 cfn-lint infra/bootstrap.json infra/app.json
 python scripts/validate_repo.py
 python scripts/build_backend.py
 ```
 
-Tests stub Bedrock and do not use credentials or spend model tokens. The build
+The retained deployment tests in `scripts/tests/` run offline without credentials
+or model calls. Backend unit tests are no longer included. The build
 downloads pinned Linux-compatible wheels and produces ignored `build/backend.zip`
 with an executable LF-terminated launcher and the reviewed reference files.
 
-Gunicorn serves `backend.app:app` in production. The Lambda ZIP excludes the
-standard-library HTTP server and local environment loader.
+Gunicorn serves `backend.app:app` in production. The Lambda ZIP contains only
+the production modules, reference, launcher, and dependencies.
 
 To run the website against the API locally, start the production app and the
 site's dev server, which proxies `/api` to port 8000:
@@ -185,18 +185,14 @@ cd codelinq_frontend && npm ci && npm run dev
 
 Without AWS credentials the API returns 503 and the chat falls back to its script.
 
-The optional local harness remains `python -m backend.server` on localhost.
-Copy `.env.example` to `backend/.env` for nonsecret `MODEL_ID`,
-`AWS_DEFAULT_REGION`, optional `AWS_PROFILE`, and `PORT`; shell variables win.
-Production ignores `.env`. Local mode can serve the existing demo assets, but no
-frontend files are packaged or modified. Consult Israel before making live model
-calls in the shared account; otherwise use the offline tests. Local AWS use
-remains read-only, and deployments run through Actions.
+Configure local settings through environment variables; the backend does not
+load `.env` files. Consult Israel before making live model calls in the shared
+account. Local AWS use remains read-only, and deployments run through Actions.
 
 CloudFormation sets `CHAT_RATE_LIMIT_TABLE` on Lambda. Missing table configuration
-fails closed whenever `AWS_LAMBDA_FUNCTION_NAME` is present. The local harness
+fails closed whenever `AWS_LAMBDA_FUNCTION_NAME` is present. Local development
 bypasses the limiter only when neither variable is present; setting a table name
-enables the shared limiter locally too. Offline tests stub DynamoDB and Bedrock.
+enables the shared limiter locally too.
 
 The prompt and `references/lincoln_calculator.md` retain the life insurance
 education rules and reviewed CalcXML guidance. There are no policy uploads, live
