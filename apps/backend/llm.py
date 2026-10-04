@@ -10,6 +10,7 @@ from botocore.exceptions import (
     PartialCredentialsError, ReadTimeoutError,
 )
 
+from .grounding import Gate, LEFT_OUT, allowed, keep_grounded
 from .prompts import SYSTEM_PROMPT
 from .rate_limit import AdmissionError, admit
 
@@ -40,16 +41,36 @@ def get_client():
     ))
 
 
-def chat(payload, emit=None):
-    result = generate_reply(payload, emit)
+REFERENCE_TERMS = ("how much", "calculator", "enough coverage", "coverage needs")
+REFERENCE_URL = "calcxml.com/calculators/life-insurance-calculator"
+REFERENCE = "\n\nCoverage planning reference: [Lincoln Financial's life insurance calculator](https://calcxml.com/calculators/life-insurance-calculator?skn=458&r=1)."
+
+
+def stated(payload):
+    """Amounts a reply may quote: the user's own, which on the site include the calculator's
+    summary of their estimate, and one step of arithmetic from them."""
+    return allowed([m["content"] for m in payload["messages"] if m["role"] == "user"])
+
+
+def needs_reference(payload, reply):
     latest = payload["messages"][-1]["content"].lower()
-    needs_reference = any(term in latest for term in ("how much", "calculator", "enough coverage", "coverage needs"))
-    if needs_reference and "calcxml.com/calculators/life-insurance-calculator" not in result["reply"]:
-        reference = "\n\nCoverage planning reference: [Lincoln Financial's life insurance calculator](https://calcxml.com/calculators/life-insurance-calculator?skn=458&r=1)."
-        result["reply"] += reference
-        if emit is not None:
-            emit({"delta": reference})
-    return result
+    return any(term in latest for term in REFERENCE_TERMS) and REFERENCE_URL not in reply
+
+
+def chat(payload, emit=None):
+    if emit is not None:
+        parts = []
+        for event in iter_chat_events(payload):
+            if "delta" in event:
+                parts.append(event["delta"])
+                emit(event)
+        return {"reply": "".join(parts)}
+    reply, dropped = keep_grounded(generate_reply(payload)["reply"], stated(payload))
+    if dropped:
+        reply = reply.lstrip() + LEFT_OUT
+    if needs_reference(payload, reply):
+        reply += REFERENCE
+    return {"reply": reply}
 
 
 def validate_messages(payload):
@@ -150,17 +171,26 @@ def iter_reply_events(payload):
 
 
 def iter_chat_events(payload):
+    """The reply a checked sentence at a time: see grounding.Gate."""
     events = iter_reply_events(payload)
-    parts = []
+    gate, parts = None, []
     try:
         for event in events:
-            parts.append(event["delta"])
-            yield event
+            gate = gate or Gate(stated(payload))  # the first event means the payload was valid
+            text = gate.feed(event["delta"])
+            text = text if parts else text.lstrip()  # no blank opening when the first sentence was left out
+            if text:
+                parts.append(text)
+                yield {"delta": text}
     finally:
         events.close()
-    latest = payload["messages"][-1]["content"].lower()
-    if any(term in latest for term in ("how much", "calculator", "enough coverage", "coverage needs")) and "calcxml.com/calculators/life-insurance-calculator" not in "".join(parts):
-        yield {"delta": "\n\nCoverage planning reference: [Lincoln Financial's life insurance calculator](https://calcxml.com/calculators/life-insurance-calculator?skn=458&r=1)."}
+    rest = gate.close()
+    rest = (rest if parts else rest.lstrip()) + (LEFT_OUT if gate.dropped else "")
+    if rest:
+        parts.append(rest)
+        yield {"delta": rest}
+    if needs_reference(payload, "".join(parts)):
+        yield {"delta": REFERENCE}
     yield {"done": True}
 
 
