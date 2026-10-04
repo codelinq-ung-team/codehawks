@@ -80,6 +80,10 @@ The migration and normal workflows share the `hackathon-aws` concurrency group.
 
 ## Recovery and final teardown
 
+If a cutover fails, run **Deploy hackathon → verify_only** to report the app's
+failed CloudFormation resource events without deploying or making model calls.
+Use the reported failure reason to fix the cause before retrying cutover.
+
 Before legacy cleanup, **rollback** releases the old alias from the new distribution,
 restores it to the old distribution, and restores the exact CNAME target. The new
 hostname stays available. Rerun cutover after resolving the failure. If a phase
