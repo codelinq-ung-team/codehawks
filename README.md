@@ -16,7 +16,7 @@ fallback when the AI is unavailable.
 | [`apps/advisor3d-unity/`](apps/advisor3d-unity/README.md) | Native Unity Quest application |
 | [`infra/`](infra/) | CloudFormation templates and namespace configuration |
 | [`scripts/`](scripts/) | Build, validation, publishing, and migration tools; tests in `scripts/tests/` |
-| [`docs/`](docs/) | Operational guides; historical plans and notes in `docs/planning/` |
+| [`docs/`](docs/) | [Design principles](docs/design-principles.md) and operational guides; historical plans and notes in `docs/planning/` |
 | `.github/workflows/` | Validation and manual deployment workflows |
 | `build/` | Ignored output: combined website in `build/site/`, Lambda ZIP in `build/backend.zip` |
 
@@ -53,7 +53,8 @@ npm run dev
 
 The website proxies `/api` to localhost port 8000. Without model credentials, the
 API returns an unavailable response and the website uses its scripted fallback.
-The backend reads environment variables, not `.env` files. See the
+The backend reads environment variables, not `.env` files; [`.env.example`](.env.example)
+lists their names and how to load them. See the
 [backend guide](apps/backend/README.md) for configuration and HTTP contracts.
 Consult Israel before making live model calls in the shared AWS account.
 

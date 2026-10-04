@@ -2,6 +2,15 @@
 
 For humans and AI agents building under a hackathon deadline. Ship a demo people can understand, keep teammates moving, and use these guidelines with judgment. Keep coordination lightweight.
 
+## Know the design rules
+
+Read [the design principles](docs/design-principles.md) before changing the calculator, a prompt, a model call, or anything that stores or sends what a user typed. In short:
+
+- The calculator owns every number. The model reads answers and explains; it never supplies an amount, and `apps/backend/grounding.py` removes any sentence that tries.
+- A failed call never costs the user their answers: every call has a timeout, a plain message, and a labeled fallback or retry.
+- A change to the math changes its tests, and the website, server and Quest copies together.
+- Keys come from the environment (names in `.env.example`). What a user types is never logged, and anything stored has a stated lifetime.
+
 ## Build for the demo
 
 - Skim the README and relevant repo guidance, then get building.
