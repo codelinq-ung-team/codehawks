@@ -84,8 +84,8 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
   const failed = message ?? (linkError ? 'Plaid Link couldn’t load. Check your connection and try again.' : null)
 
   return (
-    <Page className="qform-screen">
-      <section className="qform" aria-labelledby="plaid-heading">
+    <Page className="qform-screen plaid-screen">
+      <section className="qform plaid-connect" aria-labelledby="plaid-heading">
         <div className="qform__meta"><span>Basics · Optional bank connection</span></div>
         <div className="qform__body" data-side="left">
           <div className="qform__head">
@@ -93,12 +93,12 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
             <GuidePose name={plaid ? 'cheer' : 'wave'} className="qform__guide" />
           </div>
           <h1 id="plaid-heading" className="qform__prompt">
-            {plaid ? 'Your Plaid data is in.' : 'Want to fill some of this in from your bank?'}
+            {plaid ? 'Your bank details are ready.' : 'Fill a few answers from your bank'}
           </h1>
           <p className="qform__helper">
             {plaid
-              ? `${GUIDE_NAME} filled in what your income report and balances can answer. You can change any of it as you go.`
-              : 'Connect accounts with Plaid and it can estimate yearly income and fill in debts and savings. You can change anything before the math.'}
+              ? `${GUIDE_NAME} filled what your income report and balances can answer. You can change every answer.`
+              : 'Use Plaid Sandbox to estimate yearly income and fill debts and savings. It is optional, and every answer stays editable.'}
           </p>
 
           {plaid && fill ? (
@@ -114,14 +114,19 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
                 {fill.debt != null && <li className="is-sub"><span>Other debts</span><strong>{formatMoney(fill.otherDebts)}</strong></li>}
                 <li><span>Savings your family could use</span><strong>{fill.savings == null ? 'No bank accounts' : formatMoney(fill.savings)}</strong></li>
               </ul>
-              <p className="plaid-note"><Icon name="info" size={16} />Yearly income is estimated from the income deposits you approved. Check it against your gross income; family and insurance are still questions.</p>
+              <p className="plaid-note"><Icon name="info" size={16} />Income is estimated from approved deposits. Check it against your gross yearly income.</p>
             </div>
           ) : (
             <div className="plaid-card">
-              <p className="plaid-note">
-                <Icon name="info" size={16} />
-                <span><strong>Sandbox only.</strong> Pick any test bank and sign in with <strong>user_good</strong> / <strong>pass_good</strong>. Never enter a real bank login.</span>
-              </p>
+              <div className="plaid-card__top">
+                <strong>Sandbox login</strong>
+                <span className="plaid-badge is-sample">Test data</span>
+              </div>
+              <dl className="plaid-login">
+                <div><dt>Username</dt><dd><code>user_bank_income</code></dd></div>
+                <div><dt>Password</dt><dd><code>{'{}'}</code></dd></div>
+              </dl>
+              <p className="plaid-note"><Icon name="shield" size={16} />Pick any test bank and use these credentials to load Plaid’s Bank Income sample. Never enter a real bank login.</p>
               {failed && (
                 <div className="plaid-error" role="alert">
                   <p><Icon name="exclamation" size={16} />{failed}</p>
