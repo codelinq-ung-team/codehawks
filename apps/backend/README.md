@@ -312,6 +312,14 @@ rewrites 403/404 errors into a successful HTML response.
 
 ## Local development and offline checks
 
+`POST /api/recommendations` requires an adult age in whole years from 18–120;
+missing or underage adult ages return 400 before inference. This assessment boundary
+does not apply to the youngest dependent's age. Valid answers with no eligible
+shortlist candidates return 200 with null policy options and an explanatory reason,
+without inference. The recommendation tool schema uses Nova's supported top-level
+fields (`type`, `properties`, `required`); the server still rejects unexpected
+model fields and ineligible selections.
+
 Requires Python 3.12+. From the repository root:
 
 ```powershell

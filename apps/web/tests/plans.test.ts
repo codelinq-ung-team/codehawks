@@ -8,7 +8,7 @@ import { createServer, type ViteDevServer } from 'vite'
 import type { Plans } from '../src/results/Plans.tsx'
 import { calculate, emptyProfile, type FieldId } from '../src/domain/calculator.ts'
 import { DEFAULT_POLICIES } from '../src/results/defaultPolicies.ts'
-import { CATALOG_VERSION, recommendationSummary, type PolicyOption, type Recommendation } from '../src/results/recommendations.ts'
+import { CATALOG_VERSION, recommendationSummary, type PolicyOption, type Recommendation, type RecommendationFailure } from '../src/results/recommendations.ts'
 
 let server: ViteDevServer
 let plans: typeof Plans
@@ -29,7 +29,7 @@ function recommendation(recommendedType: Recommendation['recommendedType']): Rec
   return { catalogVersion: CATALOG_VERSION, amount: 500000, recommendedType,
     term: option('term'), permanent: option('permanent'), reason: 'Selected recommendation reason' }
 }
-function render(result: Recommendation | null, state: { loading?: boolean; failed?: boolean } = {}) {
+function render(result: Recommendation | null, state: { loading?: boolean; failed?: boolean; needsAge?: boolean; failure?: RecommendationFailure } = {}) {
   const p = emptyProfile()
   for (const [id, value] of Object.entries({ support: 40000, years: 10, mortgage: 150000, otherDebts: 0, existing: 50000 })) {
     p[id as FieldId] = { status: 'confirmed', value }
@@ -79,9 +79,24 @@ test('a missing alternative uses only its category default', () => {
     const rendered = cards(html)
     assertExample(rendered[missing === 'term' ? 0 : 1], missing)
     assert.ok(html.includes(`Selected ${preferred} policy`))
+    assert.equal((html.match(/>Recommended</g) ?? []).length, 1)
     const summary = recommendationSummary(result)
     assert.ok(!summary.includes(DEFAULT_POLICIES[missing].name))
     assert.equal(result[missing], null)
+  }
+})
+
+test('age correction and request errors explain how to recover without a recommendation banner', () => {
+  const age = render(null, { needsAge: true })
+  assert.ok(age.includes('This assessment is for adults'))
+  assert.ok(age.includes('Your estimate is still available'))
+  assert.ok(age.includes('Edit Age in Review'))
+  assert.ok(!age.includes('Try Again'))
+  assert.ok(!age.includes('>Recommended<'))
+  for (const failure of ['input', 'busy', 'timeout', 'invalid', 'unavailable'] as const) {
+    const html = render(null, { failed: true, failure })
+    assert.ok(html.includes(failure === 'input' ? 'Review Answers' : 'Try Again'))
+    assert.ok(!html.includes('>Recommended<'))
   }
 })
 

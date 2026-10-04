@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { calculate, emptyProfile, type FieldId } from '../src/domain/calculator.ts'
-import { CATALOG_VERSION, checkedRecommendation, emptyPreferences, recommendationInput, recommendationKey, recommendationSummary, requestRecommendation, type Recommendation } from '../src/results/recommendations.ts'
+import { CATALOG_VERSION, checkedRecommendation, emptyPreferences, recommendationInput, recommendationKey, recommendationSummary, requestRecommendation, RecommendationError, type Recommendation } from '../src/results/recommendations.ts'
+import { validAdultAge } from '../src/intake/adultAge.ts'
 import { payload } from '../src/results/ask.ts'
 
 const profile = () => {
@@ -56,6 +57,7 @@ test('only complete matching responses can put a banner on a card', () => {
   assert.equal(checkedRecommendation({ ...result(), catalogVersion: 'old' }, 500000), null)
   assert.equal(checkedRecommendation({ ...result(), term: null }, 500000), null)
   assert.equal(checkedRecommendation({ ...result(), recommendedType: 'both' }, 500000), null)
+  assert.equal(checkedRecommendation({ ...result(), recommendedType: null }, 500000), null)
   for (const changes of [{ source: 'javascript:alert(1)' }, { source: 'https://fake.example/quote' },
     { policyId: 'made-up' }, { category: 'permanent' }, { termYears: 70 }, { points: 'not a list' }, { amount: 1 }]) {
     const r = result()
@@ -63,6 +65,47 @@ test('only complete matching responses can put a banner on a card', () => {
     assert.equal(checkedRecommendation(r, 500000), null)
   }
   assert.ok(checkedRecommendation({ catalogVersion: CATALOG_VERSION, amount: 0, term: null, permanent: null, recommendedType: null, reason: 'Already covered.' }, 0))
+})
+
+test('adult age is required before sending a comparison; no-match adult ages remain valid', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json(result()))
+  for (const age of [null, -1, 0, 17, 18.5, 121, NaN]) {
+    assert.equal(validAdultAge(age), false)
+    await assert.rejects(requestRecommendation(recommendationInput(profile(), age, emptyPreferences()), 500000, new AbortController().signal),
+      (error: unknown) => error instanceof RecommendationError && error.kind === 'input')
+  }
+  assert.equal(fetch.mock.callCount(), 0, 'Invalid ages must never contact the API')
+  for (const age of [18, 80, 81, 120]) assert.equal(validAdultAge(age), true)
+  assert.equal(validAdultAge('35'), false)
+  assert.equal(validAdultAge(true), false)
+})
+
+test('single-category and no-match responses are valid; unavailable alternatives need no banner', () => {
+  for (const category of ['term', 'permanent'] as const) {
+    const r = result()
+    r.recommendedType = category
+    r[category === 'term' ? 'permanent' : 'term'] = null
+    assert.ok(checkedRecommendation(r, 500000))
+  }
+  assert.ok(checkedRecommendation({ ...result(), term: null, permanent: null, recommendedType: null }, 500000))
+})
+
+test('comparison errors distinguish input, busy, timeout, unavailable and invalid replies', async (t) => {
+  const input = recommendationInput(profile(), 35, emptyPreferences())
+  for (const [status, kind] of [[400, 'input'], [429, 'busy'], [504, 'timeout'], [502, 'unavailable']] as const) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ error: 'sanitized server error' }, { status }))
+    await assert.rejects(requestRecommendation(input, 500000, new AbortController().signal),
+      (error: unknown) => error instanceof RecommendationError && error.kind === kind)
+  }
+  for (const reply of [Response.json({ recommendedType: 'term' }), new Response('not json')]) {
+    t.mock.method(globalThis, 'fetch', async () => reply)
+    await assert.rejects(requestRecommendation(input, 500000, new AbortController().signal),
+      (error: unknown) => error instanceof RecommendationError && error.kind === 'invalid')
+  }
+  const ctrl = new AbortController()
+  t.mock.method(globalThis, 'fetch', async () => { ctrl.abort(); throw new DOMException('Aborted', 'AbortError') })
+  await assert.rejects(requestRecommendation(input, 500000, ctrl.signal),
+    (error: unknown) => error instanceof RecommendationError && error.kind === 'timeout')
 })
 
 test('summary and Ask Abe carry the same policy recommendation and qualifications', () => {

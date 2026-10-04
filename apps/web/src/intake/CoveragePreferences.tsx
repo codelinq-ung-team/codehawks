@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ListSection } from '../kit/Kit.tsx'
 import { setState, useStore } from '../lib/store.ts'
 import type { CoveragePreferences as Preferences } from '../results/recommendations.ts'
+import { ADULT_AGE_ERROR, validAdultAge } from './adultAge.ts'
 
 const STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ')
 
@@ -27,15 +28,17 @@ function Choice<K extends keyof Preferences>({ id, label, hint, blank, options }
 export function CoveragePreferences() {
   const { form } = useStore()
   return (
-    <ListSection header="Coverage preferences" footer="Optional. These help Abe compare policies and note what underwriting may weigh. They don’t change how much coverage you need, and only underwriting can set a real premium.">
+    <ListSection header="Coverage preferences" footer="Age is required; other answers are optional. These help Abe compare policies and note what underwriting may weigh. They don’t change how much coverage you need, and only underwriting can set a real premium.">
       <div className="coverage-preferences">
-        <label>Age
-          <input type="number" min={0} max={120} step={1} value={form.age ?? ''} placeholder="Not provided"
+        <label>Age (required)
+          <input id="coverage-age" type="number" min={18} max={120} step={1} required value={form.age ?? ''} placeholder="Your age"
+            aria-invalid={!validAdultAge(form.age)} aria-describedby={!validAdultAge(form.age) ? 'coverage-age-error' : undefined}
             onChange={(e) => {
               const age = e.target.value === '' ? null : Number(e.target.value)
-              if (age === null || Number.isInteger(age) && age >= 0 && age <= 120) setState((s) => ({ form: { ...s.form, age } }))
+              setState((s) => ({ form: { ...s.form, age } }))
             }} />
         </label>
+        {!validAdultAge(form.age) && <p id="coverage-age-error" role="alert">{ADULT_AGE_ERROR}</p>}
         <Choice id="state" label="Which state do you live in?" blank="Not provided" options={STATES.map((s) => [s, s])} />
         <Choice id="tobacco" label="Have you used tobacco or nicotine in the past 12 months?" blank="Not sure / prefer to skip" options={[['no', 'No'], ['yes', 'Yes']]}
           hint="Cigarettes, vapes, cigars, chewing tobacco, and nicotine pouches or gum all count." />

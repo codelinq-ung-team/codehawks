@@ -4,6 +4,7 @@ import { Banner, Button, ListRow, ListSection, Sheet, TextField } from '../kit/K
 import { Page, Title } from '../lib/Chrome.tsx'
 import { go, setField, setState, useStore } from '../lib/store.ts'
 import { CoveragePreferences } from './CoveragePreferences.tsx'
+import { ADULT_AGE_ERROR, validAdultAge } from './adultAge.ts'
 import {
   FIELD, FIELDS, GROUPS, HOUSEHOLD, PLANS, SUPPORT_ERROR, validSupport, formatField, missingRequired, parseAmount, parseCount,
   type Field, type FieldId, type Household,
@@ -27,12 +28,14 @@ const listJoin = (items: string[]) =>
   items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 
 export function Review() {
-  const { profile } = useStore()
+  const { profile, form } = useStore()
   const [editing, setEditing] = useState<FieldId | null>(null)
   const missing = missingRequired(profile)
+  const ageInvalid = !validAdultAge(form.age)
   const showAge = ['kids', 'both'].includes(String(profile.household.value)) || profile.youngestAge.status !== 'empty'
 
   function confirmAll() {
+    if (missing.length || ageInvalid) return
     setState((s) => {
       const next = { ...s.profile }
       FIELDS.forEach((f) => {
@@ -81,8 +84,9 @@ export function Review() {
                 action={{ label: `Fill In ${FIELD[missing[0]].label}`, onClick: () => setEditing(missing[0]) }}
               />
             )
+            : ageInvalid ? <Banner tone="warning" title="Check your age" message={ADULT_AGE_ERROR} action={{ label: 'Edit Age', onClick: () => document.getElementById('coverage-age')?.focus() }} />
             : <Banner tone="success" title="Everything we need is here" message="Optional answers you leave blank won’t be counted." />}
-          <Button size="large" fullWidth disabled={missing.length > 0} onClick={confirmAll} className="lift">Confirm & See Results</Button>
+          <Button size="large" fullWidth disabled={missing.length > 0 || ageInvalid} onClick={confirmAll} className="lift">Confirm & See Results</Button>
           <Button variant="bordered" fullWidth icon="chevron-left" onClick={() => go('chat')} className="lift lift--back">Back to Chat</Button>
         </aside>
       </div>

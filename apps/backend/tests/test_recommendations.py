@@ -75,6 +75,10 @@ class RecommendationsTests(unittest.TestCase):
         self.admit.assert_called_once()
         sent = self.model.converse.call_args.kwargs
         self.assertEqual(sent["toolConfig"]["tools"], [TOOL])
+        # Nova accepts only these top-level tool schema fields. A mocked response
+        # otherwise hides provider-side rejection of unsupported JSON Schema.
+        self.assertEqual(set(sent["toolConfig"]["tools"][0]["toolSpec"]["inputSchema"]["json"]),
+                         {"type", "properties", "required"})
         self.assertIn(PROMPT, sent["system"][0]["text"])
         self.assertIn("Lincoln TermAccel Level Term", sent["system"][0]["text"])
         facts = json.loads(sent["messages"][0]["content"][0]["text"])
@@ -179,7 +183,7 @@ class RecommendationsTests(unittest.TestCase):
             payload = body()
             payload["profile"]["support"] = field
             inputs.append(payload)
-        inputs.extend([dict(body(), age=True), dict(body(), age=121), dict(body(), age=35.5)])
+        inputs.extend(dict(body(), age=age) for age in (None, -1, 0, 17, True, 121, 35.5))
         for payload in inputs:
             with self.subTest(payload):
                 self.assertEqual(self.post(payload).status_code, 400)
@@ -191,7 +195,6 @@ class RecommendationsTests(unittest.TestCase):
             self.assertEqual(self.post().status_code, 503)
             self.admit.assert_not_called()
         payload = body()
-        payload["age"] = None
         payload["preferences"] = {key:None for key in PREFERENCES}
         result = self.post(payload)
         self.assertEqual(result.status_code, 200)
@@ -231,6 +234,44 @@ class RecommendationsTests(unittest.TestCase):
         result = self.post(payload)
         self.assertEqual(result.status_code, 200)
         self.assertIsNone(result.json["recommendedType"])
+
+    def test_adult_age_boundaries_and_no_match_do_not_change_the_estimate(self):
+        for age in (18, 80, 81, 120):
+            with self.subTest(age=age):
+                payload = dict(body(), age=age)
+                self.model.reset_mock()
+                self.admit.reset_mock()
+                self.model.converse.return_value = response(reading(termId="lifeelements"))
+                result = self.post(payload)
+                self.assertEqual(result.status_code, 200)
+                self.assertEqual(result.json["amount"], 500000)
+                if age > 80:
+                    self.assertIsNone(result.json["recommendedType"])
+                    self.assertIsNone(result.json["term"])
+                    self.assertIsNone(result.json["permanent"])
+                    self.model.converse.assert_not_called()
+                    self.admit.assert_not_called()
+                else:
+                    self.assertEqual(result.json["recommendedType"], "term")
+
+    def test_dependent_child_age_is_not_subject_to_the_adult_age_gate(self):
+        payload = dict(body(), age=18)
+        payload["profile"]["youngestAge"] = dict(status="confirmed", value=0)
+        result = self.post(payload)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json["amount"], 500000)
+
+    def test_single_category_shortlist_can_select_permanent(self):
+        # Fixture for a permanent-only shortlist: test the response contract
+        # without claiming the current adult catalog produces this combination.
+        candidates = [p for p in eligible(35, PREFERENCES, 500000) if p["category"] == "permanent"]
+        self.model.converse.return_value = response(reading(termId=None, termYears=None, recommendedType="permanent"))
+        with patch("backend.recommendations.eligible", return_value=candidates):
+            result = self.post()
+        self.assertEqual(result.status_code, 200)
+        self.assertIsNone(result.json["term"])
+        self.assertEqual(result.json["recommendedType"], "permanent")
+        self.assertEqual(result.json["permanent"]["policyId"], "wealthprotector")
 
 
 if __name__ == "__main__":
