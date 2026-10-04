@@ -1,0 +1,19 @@
+# Unity writes these; none of it is source.
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Bb]uilds/
+/.utmp/
+/Shots~/
+/Tests~/bin/
+/Tests~/obj/
+*.csproj
+!/Tests~/Tests.csproj
+*.sln
+*.apk
+*.aab
+.vs/
+.idea/
+.DS_Store
