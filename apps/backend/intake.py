@@ -9,7 +9,7 @@ import os
 import re
 from itertools import combinations
 
-from .grounding import allowed, figures, keep_grounded
+from .grounding import ACCOUNTS, ANY, SCALE, allowed, figures, keep_grounded
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .prompts import INTAKE_PROMPT
 
@@ -73,6 +73,58 @@ def stated_amounts(answer, value):
     if re.search(r"\b(each|apiece|per (kid|child|person))\b", answer.lower()):
         allowed |= {figure * count for figure in typed for count in range(2, 7)}
     return allowed
+
+
+# Yearly questions that people often answer by the month. The site asks before it multiplies.
+MONTHLY_STEPS = ("income", "support", "futureIncome")
+SAYS_MONTH = re.compile(r"\b(a|per|each|every)\s*(month|mo)\b|\bmonthly\b|/\s?(month|mo)\b")
+SAYS_YEAR = re.compile(r"\b(a|per|each|every)\s*(year|yr)\b|\b(yearly|annual(ly)?)\b|/\s?(year|yr)\b")
+
+
+def monthly_amounts(answer):
+    """What the monthly amount can be, worked out from the digits the user typed: each
+    figure, or the midpoint of a range. A unit covers the whole range ("5 or 6k"), and a
+    lone small number is thousands ("like 7 a month")."""
+    found = ANY.findall(ACCOUNTS.sub(" ", answer.lower()))
+    if not 1 <= len(found) <= 2:
+        return set()
+    units = {unit for _, unit in found if unit}
+    scale = SCALE[units.pop()] if len(units) == 1 else 1
+    amounts = []
+    for digits, unit in found:
+        amount = float(digits.replace(",", ""))
+        thousands = scale if len(found) == 2 else 1000 if amount < 100 else 1
+        amounts.append(round(amount * (SCALE[unit] if unit else thousands if amount < 1000 else 1)))
+    # Two figures are a range only when they are close; otherwise one belongs to another field.
+    return {*amounts, round(sum(amounts) / len(amounts))} if max(amounts) <= 2 * min(amounts) else set(amounts)
+
+
+def monthly(answer, value, period):
+    """Hold a monthly answer to the user's own figure, as a monthly amount.
+
+    The model reads the words; the arithmetic is checked here. Asked for a yearly amount
+    and told "6k a month", it may return 6,000 a month, 72,000 a year, or a slip such as
+    120,000. The site confirms a monthly amount before multiplying it, so the reading goes
+    back as the monthly figure: the model's when it is the typed figure or twelve times
+    it, and otherwise the typed figure itself.
+    """
+    text = answer.lower()
+    if not SAYS_MONTH.search(text) or SAYS_YEAR.search(text):
+        return value, period
+    typed = monthly_amounts(answer)
+    if value in typed:
+        return value, "month"
+    if value % 12 == 0 and value // 12 in typed:
+        return value // 12, "month"
+    if len(typed) in (1, 3):  # one figure, or a range and its midpoint
+        return sorted(typed)[len(typed) // 2], "month"
+    if typed:
+        return value, period
+    # Spelled out ("five grand a month"), so there is no typed figure to hold it to. A
+    # reading marked monthly stands; one large enough to be a year's worth is divided back.
+    if period != "month" and value >= 12_000 and value % 12 == 0:
+        return value // 12, "month"
+    return value, "month"
 
 
 def validate_request(payload):
@@ -142,6 +194,8 @@ def clean(reading, step, answer):
         result["value"] = round(max(-1, min(value, 10 ** 12)))
         if reading.get("period") in ("month", "year"):
             result["period"] = reading["period"]
+        if step in MONTHLY_STEPS and result["value"] > 0:
+            result["value"], result["period"] = monthly(answer, result["value"], result["period"])
     result["extra"] = extras(reading, step, answer, result["value"])
     return result
 

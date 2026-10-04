@@ -29,6 +29,9 @@ The model has three jobs, and each one is fenced by code:
   `85000`. The server range-checks it, a figure for another field is kept only if it is one
   the user typed (`stated_amounts()` in `intake.py`), and the site shows every reading back
   on the review screen, where the user confirms or changes it before anything is calculated.
+  A monthly answer to a yearly question ("6k a month") is held to the typed figure by
+  `monthly()` in `intake.py`, whatever arithmetic the model did, and the site asks before
+  multiplying it by twelve.
 - **Choosing between policies** (`/api/recommendations`). The model picks policy IDs from a
   server-supplied shortlist and writes a short reason. The server sets the amount (the gap it
   computed) and the term length, and the site rejects a response whose amount differs from
