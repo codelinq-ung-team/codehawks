@@ -42,8 +42,8 @@ test('resources above needs remain available and no additional coverage is added
   assert.equal(f.remainingSupport, 888883)
 })
 
-test('zero costs and zero support reconcile without negative balances', () => {
-  for (const support of [0, 69000]) {
+test('zero costs and positive support reconcile without negative balances', () => {
+  for (const support of [1, 69000]) {
     const r = calculate(sample({ support, mortgage: 0, otherDebts: 0, finalExpenses: 0, education: 0, existing: 0, savings: 0 }))
     assert.ok(r.ready)
     const f = fundsAfterCosts(r)

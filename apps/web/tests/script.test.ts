@@ -1,7 +1,7 @@
 // Form answers → chat: what gets prefilled, and how total debt splits into mortgage + other debts.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyProfile } from '../src/domain/calculator.ts'
+import { emptyProfile, SUPPORT_ERROR } from '../src/domain/calculator.ts'
 import type { AppState, Form } from '../src/lib/store.ts'
 import { WHY, applyForm, interpret, known, nextStep, question, respond, type Reading } from '../src/intake/script.ts'
 import { intakePayload } from '../src/intake/ai.ts'
@@ -253,4 +253,47 @@ test('a monthly range the AI read is checked as monthly, using its figure', () =
   const r = interpret('support', reading({ value: 5500, period: 'month' }), state(), 'probably 5 or 6k a month')
   assert.deepEqual(r.pending, { value: 5500 })
   assert.match(r.say[0], /\$5,500 a month/)
+})
+
+test('zero support is rejected by scripted and AI intake before monthly clarification', () => {
+  for (const text of ['0', '$0', 'zero', 'none', '0.4', '0 a month', '-1']) {
+    const r = respond('support', text, state())
+    assert.equal(r.updates, undefined, text)
+    assert.equal(r.pending, undefined, text)
+    assert.ok(r.replies?.includes(WHY))
+  }
+  for (const period of [null, 'month', 'year'] as const) {
+    const r = interpret('support', reading({ value: 0, period }), state())
+    assert.equal(r.updates, undefined)
+    assert.deepEqual(r.say, [SUPPORT_ERROR])
+  }
+  assert.equal(respond('support', '1', state()).updates?.support?.value, 1)
+  assert.equal(respond('support', 'not sure', state()).updates?.support?.status, 'unknown')
+})
+
+test('out-of-turn zero support is ignored while other valid answers are retained', () => {
+  for (const intent of ['answer', 'unclear'] as const) {
+    const r = interpret('income', reading({ intent, value: 50000, extra: { support: 0, education: 20000 } }), state())
+    assert.equal(r.updates?.support, undefined)
+    assert.equal(r.updates?.education?.value, 20000)
+  }
+})
+
+test('restored pending support cannot confirm zero and valid monthly amounts still convert', () => {
+  for (const text of ['Yes, monthly', 'No, yearly']) {
+    const r = respond('support', text, { ...state(), pending: { value: 0 } })
+    assert.equal(r.updates, undefined)
+    assert.equal(r.pending, null)
+    assert.deepEqual(r.say, [SUPPORT_ERROR])
+    assert.ok(r.replies?.includes(WHY))
+  }
+  const r = respond('support', 'Yes, monthly', { ...state(), pending: { value: 5000 } })
+  assert.equal(r.updates?.support?.value, 60000)
+  assert.equal(r.pending, null)
+})
+
+test('zero remains valid in other monetary fields', () => {
+  for (const id of ['income', 'mortgage', 'otherDebts', 'finalExpenses', 'education', 'existing', 'savings', 'futureIncome'] as const) {
+    assert.equal(respond(id, '0', state()).updates?.[id]?.value, 0, id)
+  }
 })

@@ -4,13 +4,13 @@ import { Banner, Button, ListRow, ListSection, Sheet, TextField } from '../kit/K
 import { Page, Title } from '../lib/Chrome.tsx'
 import { go, setField, setState, useStore } from '../lib/store.ts'
 import {
-  FIELD, FIELDS, GROUPS, HOUSEHOLD, PLANS, formatField, missingRequired, parseAmount, parseCount,
+  FIELD, FIELDS, GROUPS, HOUSEHOLD, PLANS, SUPPORT_ERROR, validSupport, formatField, missingRequired, parseAmount, parseCount,
   type Field, type FieldId, type Household,
 } from '../domain/calculator.ts'
 
 const HINT: Partial<Record<FieldId, string>> = {
   income: 'Yearly, before taxes.',
-  support: 'Yearly amount your family would need. Many people use 70–80% of income.',
+  support: 'Enter at least $1 per year. Many people use 70–80% of income.',
   years: 'How long the support should last, from 1 to 70 years.',
   youngestAge: 'In years. Use 0 for a baby.',
   mortgage: 'What’s left to pay. Enter 0 if you don’t have one.',
@@ -59,7 +59,7 @@ export function Review() {
                   <ListRow
                     key={f.id}
                     title={f.label}
-                    subtitle={f.role === 'optional' ? 'Optional' : f.role === 'context' ? 'Helps us ask better questions' : undefined}
+                    subtitle={f.id === 'support' && flagged && field.value != null ? SUPPORT_ERROR : f.role === 'optional' ? 'Optional' : f.role === 'context' ? 'Helps us ask better questions' : undefined}
                     value={<span className={flagged ? 'warn' : field.status === 'empty' ? 'tint-text' : ''}>{field.status === 'empty' ? 'Add' : formatField(f.id, field)}</span>}
                     onClick={() => setEditing(f.id)}
                   />
@@ -101,6 +101,7 @@ function Editor({ id, field, onClose }: { id: FieldId; field: Field; onClose: ()
     if (def.kind === 'money') {
       const r = parseAmount(text)
       if (r.kind !== 'amount') return setError(r.kind === 'negative' ? 'Amounts can’t be negative.' : 'Enter an amount, like 75,000 or 75k.')
+      if (id === 'support' && !validSupport(r.value)) return setError(SUPPORT_ERROR)
       return save({ status: 'confirmed', value: r.value })
     }
     const [min, max] = def.kind === 'years' ? [1, 70] : [0, 30]
@@ -129,7 +130,7 @@ function Editor({ id, field, onClose }: { id: FieldId; field: Field; onClose: ()
         <TextField
           label={def.label} value={text} autoFocus
           inputMode={def.kind === 'money' ? 'decimal' : 'numeric'}
-          placeholder={def.kind === 'money' ? '$0' : '0'}
+          placeholder={id === 'support' ? '$40,000' : def.kind === 'money' ? '$0' : '0'}
           helper={error ? undefined : HINT[id]} error={error || undefined}
           onChange={(v) => { setText(v); setError('') }}
         />
