@@ -1,5 +1,5 @@
 // Guided conversation: what to ask next, why we ask it, and how to read the answer.
-// A C# port of the site's codelinc_frontend/src/intake/script.ts; keep the two in step.
+// A C# port of the site's apps/web/src/intake/script.ts; keep the two in step.
 // Respond() reads an answer with fixed rules: it handles tapped suggestions and is the
 // fallback when the AI can't be reached. Interpret() takes the AI's reading of a spoken or
 // typed answer and puts it through the same checks, so both return the same Reply.

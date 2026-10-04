@@ -1,4 +1,4 @@
-// Pip, the guide: the frontend's 32×32 pixel art (codelinc_frontend/src/guide/Avatar.tsx),
+// Pip, the guide: the frontend's 32×32 pixel art (apps/web/src/guide/Avatar.tsx),
 // drawn flat for chat bubbles and raised into a little relief sculpture for the room.
 import * as THREE from 'three';
 

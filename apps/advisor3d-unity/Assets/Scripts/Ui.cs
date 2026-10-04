@@ -1,5 +1,5 @@
 // A small UI kit for the headset, drawn to look like the 2D frontend's App Kit
-// (codelinc_frontend/src/kit). It mirrors advisor3d/src/xr/ui.js: layout is in design px,
+// (apps/web/src/kit). It mirrors apps/advisor3d-web/src/xr/ui.js: layout is in design px,
 // like CSS, and PX converts to meters. Each element draws itself with a Ctx (rounded
 // rectangles, text, icons), so the screens read almost line for line like the WebXR ones.
 using System;

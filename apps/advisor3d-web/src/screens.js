@@ -1,6 +1,6 @@
 // The five screens of the 2D frontend (Home → Basics → Chat with Pip → Review → Results),
 // laid out for a headset: one main card in front, Pip on the left, the number pad or
-// side actions on the right. Copy and flow follow codelinc_frontend; the logic is shared.
+// side actions on the right. Copy and flow follow apps/web; the logic is shared.
 import * as THREE from 'three';
 import { FIELD, FIELDS, GROUPS, HOUSEHOLD, calculate, formatField, formatMoney, missingRequired, summaryText } from './domain/calculator.ts';
 import { GUIDE_NAME } from './guide/guide.ts';

@@ -1,5 +1,5 @@
 // The LincLife site's AI backend. Asks POST /api/intake to read one spoken or typed answer,
-// exactly as the website does (codelinc_frontend/src/intake/ai.ts). Hands back null when the
+// exactly as the website does (apps/web/src/intake/ai.ts). Hands back null when the
 // AI can't be reached, so the chat falls back to the script.
 using System;
 using System.Collections;

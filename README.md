@@ -1,30 +1,105 @@
-# Codelinc hackathon
+# LincLife
 
-The application is now **LincLife**, with canonical domain `https://codelinc.codehawks.org`.
-Existing AWS resources need the staged [namespace migration](docs/rename-migration.md)
-before the renamed deploy workflows can run. Deployment remains on hold until Israel's
-configuration confirmation and explicit go-ahead. The GitHub organization stays unchanged.
+LincLife is the Codelinc hackathon team's conversational life-insurance assessment,
+served at https://codelinc.codehawks.org. The website and native Quest app use a
+Python API to interpret answers; the applications validate those answers and
+calculate educational coverage estimates. The website has a labeled scripted
+fallback when the AI is unavailable.
 
-This repository is the hackathon team's **infrastructure-as-code home**. Following the one-time bootstrap, AWS changes go through CloudFormation in GitHub Actions, authenticated using short-lived GitHub OIDC credentials. Any collaborator with repository write access can run the main-branch workflows; the GitHub environments have no required-reviewer approval gates. Local AWS CLI use is reserved for Israel Jauregui's read-only inspections. Never commit AWS keys or use personal AWS credentials for deploys.
+## Repository layout
 
-Start with [the guide for agents](docs/agent-aws.md). It explains account boundaries, safe resource naming, deployment to `https://codelinc.codehawks.org`, how to add app infrastructure and build steps, and how to remove hackathon resources.
+| Path | Purpose |
+| --- | --- |
+| [`apps/web/`](apps/web/README.md) | React and TypeScript website |
+| [`apps/backend/`](apps/backend/README.md) | Flask API for intake, streaming chat, and voice sessions |
+| [`apps/advisor3d-web/`](docs/advisor3d.md) | WebXR prototype served at `/advisor3d/index.html` |
+| [`apps/advisor3d-unity/`](apps/advisor3d-unity/README.md) | Native Unity Quest application |
+| [`infra/`](infra/) | CloudFormation templates and namespace configuration |
+| [`scripts/`](scripts/) | Build, validation, publishing, and migration tools; tests in `scripts/tests/` |
+| [`docs/`](docs/) | Operational guides; historical plans and notes in `docs/planning/` |
+| `.github/workflows/` | Validation and manual deployment workflows |
+| `build/` | Ignored output: combined website in `build/site/`, Lambda ZIP in `build/backend.zip` |
 
-The LincLife website lives in [`codelinc_frontend/`](codelinc_frontend/) and is served at the
-site root. Its chat with Abe sends each typed answer to `POST /api/intake`, where Nova Pro
-reads it into a structured field; the site checks that reading, keeps the question order, and
-does all the math itself. If the AI can't be reached, the chat carries on with its built-in
-script and says so. `scripts/build-app.sh` builds the website and Advisor3D into `app/public/`
-during deploy; that folder is not committed.
+Each application owns its dependencies and tests. Browser applications retain
+independent npm lockfiles. Unity retains its standard `Assets/`, `Packages/`, and
+`ProjectSettings/` directories. No generated deployment assets are committed.
 
-The backend uses a shared limit of 30 Bedrock calls per rolling 60 seconds instead of Lambda
-reserved concurrency, which failed under this account's quota. Deployment remains on hold
-until Israel gives the go-ahead. See [the backend guide](backend/README.md) for the failure
-report and the API contract.
+## Local development
 
-A life insurance chatbot lives in [`backend/`](backend/README.md). It uses Amazon Bedrock through Lambda's IAM role, accepts conversation messages at `POST /api/chat`, and streams NDJSON replies. CloudFormation and GitHub Actions provision its private streaming Lambda origin behind CloudFront. Israel approved Nova Pro (`amazon.nova-pro-v1:0`), replacing Nova Lite, and owns arranging the documented model variables in both protected environments. After merge, wait for his configuration confirmation and explicit deployment go-ahead; then update the bootstrap successfully before deploying from `main`. Deployment and its three billable smoke calls remain on hold until that confirmation. See its guide for offline deployment checks, local development, and the required deployed POST payload-hash header.
+Use Python 3.12+ and Node 24, matching the CI Node version. Shell build scripts
+require Bash (Git Bash works on Windows). Unity development requires Unity
+6000.3.25f1 with Android Build Support; its standalone logic tests use .NET 9+.
 
-`infra/bootstrap.json` creates hackathon-only roles, a runtime permissions boundary, a temporary artifact bucket, and the CloudFront origin access control. `infra/app.json` serves a starter page from a private S3 bucket through CloudFront with ACM HTTPS. GitHub Actions writes the DNS-only `codelinc.codehawks.org` record in Cloudflare. Pull requests and pushes run CloudFormation lint and ownership checks. Deployments run manually from **Actions → Deploy hackathon** on `main`. The teardown workflow requires the typed account-specific confirmation `DELETE codelinc-hackathon 394270749442`; any collaborator with repository write access can run it without a separate approval.
+Install Python development dependencies from the repository root:
 
-The `codelinc-hackathon` namespace and its independent bootstrap protect the Codehawks website infrastructure. At the end of the event, run **Tear down hackathon** in GitHub Actions; then Israel deletes the bootstrap stack, its retained role, and both retained OACs. AWS CLI commands shown in the agent guide inspect state only.
+```sh
+python -m pip install -r requirements-dev.txt
+```
 
-A Quest 3S WebXR prototype of the assessment lives in [`advisor3d/`](advisor3d/) and is served at `/advisor3d/index.html`. Anything that builds or cleans `app/public/` must read [the Advisor3D guide](docs/advisor3d.md) first.
+Start the API from `apps/`, which exposes the existing `backend` Python package:
+
+```sh
+cd apps
+python -m flask --app backend.app run --port 8000
+```
+
+In a separate terminal, start the website from the repository root:
+
+```sh
+cd apps/web
+npm ci
+npm run dev
+```
+
+The website proxies `/api` to localhost port 8000. Without model credentials, the
+API returns an unavailable response and the website uses its scripted fallback.
+The backend reads environment variables, not `.env` files. See the
+[backend guide](apps/backend/README.md) for configuration and HTTP contracts.
+Consult Israel before making live model calls in the shared AWS account.
+
+For WebXR, run `npm ci` and `npm run dev` in `apps/advisor3d-web/`.
+For native Quest builds and headset setup, follow the
+[Unity guide](apps/advisor3d-unity/README.md).
+
+## Validation and builds
+
+From the repository root, run these commands in Bash:
+
+```sh
+(cd apps && python -m unittest discover -s backend/tests -v)
+python -m unittest discover -s scripts/tests -v
+cfn-lint infra/bootstrap.json infra/app.json
+python scripts/validate_repo.py
+python scripts/check_branding.py
+bash scripts/build-app.sh
+(cd apps/web && npm test && npm run lint)
+(cd apps/advisor3d-web && npm test)
+node --test scripts/tests/legacy_redirect.test.cjs
+python scripts/build_backend.py
+dotnet run --project apps/advisor3d-unity/Tests~
+```
+
+Python tests stub providers and run without paid inference. The builds install
+locked npm dependencies and pinned Linux-compatible Python wheels. The combined
+site build puts the website at `build/site/` and WebXR at
+`build/site/advisor3d/`. Read the [Advisor3D guide](docs/advisor3d.md) before
+changing build cleanup: publishing synchronizes the complete output with deletion.
+Standalone .NET tests do not replace Unity editor or headset checks.
+
+## Deployment and account boundaries
+
+**Deployment remains on hold until Israel confirms configuration and explicitly
+gives the go-ahead.** Existing AWS resources also require the staged
+[namespace migration](docs/rename-migration.md) before renamed workflows run.
+The backend uses approved Nova Pro and a shared limit of 30 Bedrock calls per
+rolling 60 seconds. Deployment smoke checks include three billable model calls.
+
+Read [AGENTS.md](AGENTS.md) and the [AWS guide](docs/agent-aws.md) before changing
+infrastructure or deployment workflows. AWS changes run through reviewed
+CloudFormation and manual GitHub Actions on `main`, using short-lived OIDC
+credentials. Local AWS CLI use is read-only. Never commit credentials.
+
+The repository owns the `codelinc-hackathon` namespace and only the exact legacy
+resources documented for migration. Codehawks production infrastructure shares
+the account and must remain untouched. The AWS guide covers bootstrap, deployment,
+DNS, and teardown, including the required account-specific deletion confirmation.

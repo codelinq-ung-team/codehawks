@@ -79,7 +79,7 @@ The smoke requests use the same limiter; do not bypass the limit or retry model
 calls automatically when the allowance is exhausted.
 `verify_only` skips backend packaging, deployment, and inference. Live smoke checks
 run only through the main-branch deployment workflow. See
-[the AWS guide](../docs/agent-aws.md) for account boundaries and teardown.
+[the AWS guide](../../docs/agent-aws.md) for account boundaries and teardown.
 
 ## HTTP contract
 
@@ -99,7 +99,7 @@ hex SHA-256 digest of the exact UTF-8 request body bytes.** CloudFront signs ori
 requests using its OAC, but Lambda requires a signed payload hash. This header is
 not an API key. Hash and send the same serialized bytes. The backend deployment
 client in `scripts/smoke_backend.py` demonstrates this, and the website does the
-same in `codelinc_frontend/src/intake/ai.ts`.
+same in `apps/web/src/intake/ai.ts`.
 [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html)
 
 Streaming is the default. The response is `application/x-ndjson`, with each event
@@ -150,7 +150,7 @@ Nothing is stored or logged. Errors use the same statuses as `/api/chat`.
 
 ### Voice session for the Quest app
 
-The Unity app (`advisor3d-unity`) talks with Abe through OpenAI's Realtime API. The
+The Unity app (`apps/advisor3d-unity`) talks with Abe through OpenAI's Realtime API. The
 headset connects to OpenAI directly; this server only issues the credential. Send
 `POST /api/voice/session` with the same headers as above and the body `{}`:
 
@@ -160,7 +160,7 @@ headset connects to OpenAI directly; this server only issues the credential. Sen
 ```
 
 `clientSecret` expires 60 seconds after it is issued and is sent as the WebSocket's
-`Authorization: Bearer` header. The session it opens is fixed in `backend/voice.py`:
+`Authorization: Bearer` header. The session it opens is fixed in `apps/backend/voice.py`:
 the model, the `ash` voice, Abe's spoken instructions and the `record_answer` tool.
 Each session counts against the shared admission limit. The route needs
 an OpenAI key (below). Without one it returns 503 and the app keeps its tapped and
@@ -185,7 +185,7 @@ namespace. The deployment smoke check does not start a voice session.
 
 The route is unauthenticated like the others, so anyone who can reach it can start
 sessions on the key: set a spend limit on the OpenAI project. For local work, set
-`OPENAI_API_KEY` in the environment instead; `advisor3d-unity/README.md` has the steps.
+`OPENAI_API_KEY` in the environment instead; `apps/advisor3d-unity/README.md` has the steps.
 
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
@@ -205,7 +205,9 @@ Requires Python 3.12+. From the repository root:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
+Push-Location apps
 python -m unittest discover -s backend/tests -v
+Pop-Location
 python -m unittest discover -s scripts/tests -v
 cfn-lint infra/bootstrap.json infra/app.json
 python scripts/validate_repo.py
@@ -224,8 +226,12 @@ To run the website against the API locally, start the production app and the
 site's dev server, which proxies `/api` to port 8000:
 
 ```sh
+# Terminal 1, from the repository root
+cd apps
 MODEL_ID=amazon.nova-pro-v1:0 AWS_DEFAULT_REGION=us-east-1 python -m flask --app backend.app run --port 8000
-cd codelinc_frontend && npm ci && npm run dev
+
+# Terminal 2, from the repository root
+cd apps/web && npm ci && npm run dev
 ```
 
 Without AWS credentials the API returns 503 and the chat falls back to its script.
