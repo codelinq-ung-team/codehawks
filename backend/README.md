@@ -14,8 +14,13 @@ same **GitHub environment variables** in `hackathon-admin` and `hackathon`
 
 | GitHub variable | Value |
 | --- | --- |
-| `BEDROCK_MODEL_ID` | `amazon.nova-lite-v1:0` |
-| `BEDROCK_MODEL_ARNS` | `["arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0"]` |
+| `BEDROCK_MODEL_ID` | `amazon.nova-pro-v1:0` |
+| `BEDROCK_MODEL_ARNS` | `["arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"]` |
+
+Nova Pro replaced Nova Lite on 2026-10-03. On 14 hard chat answers Nova Lite
+invented values for fields the user had not mentioned four times and recorded a
+question as "not sure"; Nova Pro did neither, at about 0.8s per reply instead of
+0.6s. Earlier notes below that mention Nova Lite describe the first deployment.
 
 In his [PR #7 review reply](https://github.com/codelinq-ung-team/codehawks/pull/7#issuecomment-5974178108),
 Israel reported this model as `AUTHORIZED` and `AVAILABLE` in account
@@ -179,7 +184,7 @@ To run the website against the API locally, start the production app and the
 site's dev server, which proxies `/api` to port 8000:
 
 ```sh
-MODEL_ID=amazon.nova-lite-v1:0 AWS_DEFAULT_REGION=us-east-1 python -m flask --app backend.app run --port 8000
+MODEL_ID=amazon.nova-pro-v1:0 AWS_DEFAULT_REGION=us-east-1 python -m flask --app backend.app run --port 8000
 cd codelinq_frontend && npm ci && npm run dev
 ```
 
