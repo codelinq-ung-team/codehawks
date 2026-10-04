@@ -49,16 +49,24 @@ speak. That answer goes to the site's AI (`POST /api/intake`, see `Assets/Script
 which reads it into a field; the app checks the reading and does all the math itself. Tapped
 suggestions and number-pad answers are read by the built-in script, and so is everything when
 the AI can't be reached. That is the fallback, though: the chat opens by talking (see
-[Talking with Abe](#talking-with-abe)). Abe stands in the middle of the card, the transcript is
-on the left, and **What Abe knows** on the right lists the answers so far; the x beside each one
-takes it back. With voice off, the number pad takes that side for questions that want a number.
+[Talking with Abe](#talking-with-abe)). Abe stands at the top of the card with the conversation
+running under him, and **What Abe knows** on the left lists the answers so far; the x beside
+each one takes it back. With voice off, a number pad on the right takes amounts.
+
+Look down in the chat and there is a ring around you, like a low round table (`Picture.cs`).
+In front, each amount you give becomes a block that rises as you answer; round to the sides and
+behind you is one post for every year of support. On Results, Abe takes the estimate a slide at
+a time, as the site's results deck does: two stacks on a tray in front of you build up to the
+gap, and the posts around you become a staircase of the cost adding up, then stepping down as
+the years pass. While the ring is up the panels stay put when you turn to look; tap B or Y to
+bring them round.
 
 ## Talking with Abe
 
 The Basics form is tapped; the chat is spoken. Opening the chat starts a voice conversation:
-Abe, in the middle of the card, greets you and asks the open question out loud, his mouth
-moving as he speaks, and you just answer. Each answer fills the same profile the tapped and
-typed ones fill, and everything said is written to the transcript on the left. **Stop Talking**
+Abe, at the top of the card, greets you and asks the open question out loud, his mouth
+moving as he speaks, and you just answer. His words appear under him as he says them, and yours
+once they are heard. Each answer fills the same profile the tapped and typed ones fill. **Stop Talking**
 and **Talk to Abe**, at the top of the card, turn voice off and on. If voice can't start, Abe's
 written opening lines appear and the chat works by tapping and typing, as on the site. It uses
 OpenAI's Realtime API (`gpt-realtime-2.1`, voice `ash`). **Not yet tried with a real API key,
@@ -117,6 +125,8 @@ The logic files are ports of the site's, and keep its order, so the two can be r
 | `Guide.cs` | `guide/Avatar.tsx` |
 | `Screens.cs` | `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
 | `Voice.cs`, `VoiceScript.cs` | nothing: the site has no voice |
+| `Picture.cs` | `results/charts.tsx` (the year charts), as posts around the wearer |
+| `Hands.cs` | nothing |
 | `Ui.cs`, `App.cs`, `MeshGen.cs`, `Resources/Shaders/` | the headset UI kit and room (from `advisor3d/src/xr/`) |
 
 When the site changes the calculator or the script, change these copies too.
@@ -134,9 +144,10 @@ What is different from the site:
   moves to the middle for the chat.
 - The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
-- Your hands are drawn as a soft pad for the palm and a dot on each fingertip, in the app's
-  colors (`Hands.cs`); a hand that holds a controller shows the pad only. In passthrough you
-  see your real hands.
+- Your hands are drawn as white cartoon gloves with a burgundy cuff (`Hands.cs`); a hand that
+  holds a controller shows a closed glove. In passthrough you see your real hands.
+- Results is the site's seven-slide deck, with the charts built in the room (`Picture.cs` and
+  the stacks) in place of the easel. Abe's poses for each slide are not here.
 
 ## Tests
 
@@ -158,6 +169,8 @@ scripted chat and what the voice model is told (`VoiceScript.cs`).
   on the device (the same request works from a computer).
 - Passthrough ("Show My Real Room"). It showed no camera view on the headset; the OpenXR
   composition layers feature it needs was off and is now on, but the fix has not been tried.
-- The drawn hands (`Hands.cs`).
+- The drawn hands (`Hands.cs`): the glove shape has only been checked by compiling.
+- The ring and the results deck (`Picture.cs`): seen in the editor's screenshots, not in a headset.
+- The live captions under Abe, and the number pad staying away while voice is on.
 - Recentering (tap B or Y, or turn away from the panels) and starting over (hold B or Y, or
   leave the headset off for ten seconds). The thresholds are constants at the top of `App.cs`.

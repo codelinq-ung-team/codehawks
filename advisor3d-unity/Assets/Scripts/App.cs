@@ -21,6 +21,9 @@ namespace Advisor3D
         public static Transform rig; // panels hang off the rig; in a headset it moves to the wearer
         public static Camera cam;
         public static bool Passthrough { get; private set; }
+        // Whether the panels come round when the wearer looks away from them. Off while there is
+        // something around the wearer worth turning to look at (Picture.cs).
+        public static bool FollowGaze = true;
 
         GameObject environment;
         ARCameraManager arCamera;
@@ -405,7 +408,7 @@ namespace Advisor3D
             var looking = Vector3.ProjectOnPlane(head.forward, Vector3.up);
             // How far the wearer has moved from the spot the layout was built around, sitting or standing included.
             var moved = head.position - (rig.position + Vector3.up * EYE);
-            var away = (looking.sqrMagnitude > 0.01f && Vector3.Angle(looking, toPanels) > AWAY_ANGLE) || moved.magnitude > AWAY_STEP;
+            var away = (FollowGaze && looking.sqrMagnitude > 0.01f && Vector3.Angle(looking, toPanels) > AWAY_ANGLE) || moved.magnitude > AWAY_STEP;
             astray = away ? astray + dt : 0;
             if (astray >= AWAY_SECONDS) { astray = 0; Recenter(); }
         }

@@ -38,6 +38,8 @@ namespace Advisor3D
         public static bool On => Status == "on";
         public static bool Speaking { get; private set; }
         public static float Level => Speaking ? level : 0;         // 0..1, how loud Abe is right now
+        public static string Caption { get; private set; } = "";   // what Abe is saying right now, as it arrives
+        public static bool Hearing { get; private set; }           // the user is talking, or just was and it is being written down
 
         // One connection. A new one is made for every session, so late events from an old one are never read.
         class Link
@@ -101,7 +103,8 @@ namespace Advisor3D
             if (speaker) speaker.Stop();
             lock (gate) { playing.Clear(); playHead = 0; queued = 0; }
             level = 0;
-            Speaking = responding = wrapUp = false;
+            Speaking = responding = wrapUp = Hearing = false;
+            Caption = "";
             if (Status != "off" || error != Error) Set("off", error);
         }
 
@@ -274,21 +277,35 @@ namespace Advisor3D
             {
                 case "response.created":
                     responding = true;
+                    if (Hearing) { Hearing = false; Version++; } // he is answering, so the user's turn is over
                     break;
                 case "response.output_audio.delta":
                 case "response.audio.delta":
                     Play(Convert.FromBase64String((string)e["delta"]));
                     break;
+                case "response.output_audio_transcript.delta":
+                case "response.audio_transcript.delta":
+                    Caption += (string)e["delta"] ?? ""; // the chat screen polls this; a redraw per word is too much
+                    break;
                 case "response.output_audio_transcript.done":
                 case "response.audio_transcript.done":
+                    Caption = "";
                     AbeSaid(((string)e["transcript"] ?? "").Trim());
                     break;
+                case "input_audio_buffer.speech_started":
+                    Hearing = true;
+                    Version++;
+                    break;
                 case "conversation.item.input_audio_transcription.completed":
+                case "conversation.item.input_audio_transcription.failed":
+                    Hearing = false;
                     var heard = ((string)e["transcript"] ?? "").Trim();
                     if (heard != "") Store.Set(s => s.messages.Add(new Message { role = "user", text = heard }));
+                    else Version++;
                     break;
                 case "response.done":
                     responding = false;
+                    if (Caption != "") { Caption = ""; Version++; } // cut off before his words were complete
                     Finished(e["response"] as JObject);
                     break;
                 case "error":
