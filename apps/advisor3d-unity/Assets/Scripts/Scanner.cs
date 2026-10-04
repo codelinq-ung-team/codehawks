@@ -29,6 +29,11 @@ namespace Advisor3D
 
         static WebCamTexture camera;
         static bool seen; // the first frame has arrived (logged once)
+        static bool complained; // the reader's failure has been logged (once)
+        static string[] cameras; // by name, the ones facing out first
+        static int at;           // which of them is open
+        static int dark;         // frames in a row with nothing in them
+        const int DARK_FRAMES = 8; // this many black frames in a row and the next camera is tried
         static Color32[] pixels;
         static Task<string> reading;
         static float wait;
@@ -84,12 +89,26 @@ namespace Advisor3D
                 Status = "unavailable";
                 yield break;
             }
-            camera = new WebCamTexture(WebCamTexture.devices[0].name, WIDTH, HEIGHT, 30);
+            // A Quest lists its avatar (selfie) camera as well, facing the wearer and showing nothing
+            // useful. The passthrough cameras face out, so those are tried first.
+            var devices = WebCamTexture.devices;
+            Debug.Log("Advisor3D: cameras: " + string.Join(", ", devices.Select(d => $"\"{d.name}\"{(d.isFrontFacing ? " (facing the wearer)" : "")}")));
+            cameras = devices.OrderBy(d => d.isFrontFacing).Select(d => d.name).ToArray();
+            Status = "looking";
+            Open(0);
+        }
+
+        static void Open(int index)
+        {
+            if (camera) { camera.Stop(); UnityEngine.Object.Destroy(camera); }
+            at = index % cameras.Length;
+            camera = new WebCamTexture(cameras[at], WIDTH, HEIGHT, 30);
             camera.Play();
             wait = 0;
+            dark = 0;
             seen = false;
-            Status = "looking";
-            Debug.Log($"Advisor3D: looking for a pairing code with the camera \"{camera.deviceName}\".");
+            reading = null;
+            Debug.Log($"Advisor3D: looking for a pairing code with the camera \"{cameras[at]}\".");
         }
 
         public static void Tick(float dt)
@@ -99,6 +118,11 @@ namespace Advisor3D
             {
                 if (!reading.IsCompleted) return;
                 var text = reading.Status == TaskStatus.RanToCompletion ? reading.Result : null;
+                if (reading.IsFaulted && !complained)
+                {
+                    complained = true;
+                    Debug.LogWarning("Advisor3D: the QR reader failed: " + reading.Exception?.GetBaseException());
+                }
                 reading = null;
                 var id = Pairing.ReadQr(text);
                 if (id != null) { Found?.Invoke(id); return; }
@@ -116,11 +140,25 @@ namespace Advisor3D
             // Green is close enough to brightness for black on white. Unity's rows run bottom to
             // top, which would mirror the code, so they are turned the right way up here.
             var gray = new byte[w * h];
+            byte brightest = 0;
             for (var y = 0; y < h; y++)
             {
                 var from = (h - 1 - y) * w;
                 var to = y * w;
-                for (var x = 0; x < w; x++) gray[to + x] = pixels[from + x].g;
+                for (var x = 0; x < w; x++)
+                {
+                    var g = pixels[from + x].g;
+                    gray[to + x] = g;
+                    if (g > brightest) brightest = g;
+                }
+            }
+            // A camera that only sends black is not one that can see the room: try the next.
+            dark = brightest < 8 ? dark + 1 : 0;
+            if (dark >= DARK_FRAMES && cameras.Length > 1)
+            {
+                Debug.Log($"Advisor3D: the camera \"{cameras[at]}\" shows only black; trying the next one.");
+                Open(at + 1);
+                return;
             }
             reading = Task.Run(() => Read(gray, w, h));
         }
