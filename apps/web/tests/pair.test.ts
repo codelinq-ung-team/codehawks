@@ -34,3 +34,12 @@ test('coming back from the headset lands on results only when the answers were c
   assert.equal(landing(shared({ status: 'done', form, profile: answers('proposed') })!.profile), 'review')
   assert.equal(shared({ status: 'elsewhere', form, profile: {} }), null)
 })
+
+test('confirmed zero-support headset answers land on review and remain editable', () => {
+  const profile = Object.fromEntries(['support', 'years', 'mortgage', 'otherDebts', 'existing'].map((id) => [id, { status: 'confirmed', value: id === 'support' ? 0 : 1 }]))
+  const r = shared({ status: 'handoff', form, profile })!
+  assert.equal(landing(r.profile), 'review')
+  assert.deepEqual(r.profile.support, { status: 'confirmed', value: 0 })
+  r.profile.support.value = 1
+  assert.equal(landing(r.profile), 'results')
+})

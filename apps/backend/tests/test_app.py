@@ -17,7 +17,7 @@ class ProductionTests(unittest.TestCase):
     def setUp(self):
         self.aws = Mock()
         self.aws.converse.return_value = reply("Hello")
-        self.stream = Stream([delta("Hello"), stop()])
+        self.stream = Stream([delta("Hello. "), stop()])  # text reaches the client a checked sentence at a time
         self.aws.converse_stream.return_value = {"stream": self.stream}
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, {"MODEL_ID": "test-model"}).start()
@@ -45,7 +45,7 @@ class ProductionTests(unittest.TestCase):
     def test_stream_delivers_before_upstream_finishes(self):
         reached_end = []
         def upstream():
-            yield delta("first")
+            yield delta("First. ")
             reached_end.append(True)
             yield delta("second")
             yield stop()
@@ -53,9 +53,9 @@ class ProductionTests(unittest.TestCase):
         self.aws.converse_stream.return_value = {"stream": stream}
         response = self.post()
         iterator = iter(response.response)
-        self.assertEqual(json.loads(next(iterator)), {"delta": "first"})
+        self.assertEqual(json.loads(next(iterator)), {"delta": "First."})
         self.assertEqual(reached_end, [])
-        self.assertEqual([json.loads(line) for line in iterator], [{"delta": "second"}, {"done": True}])
+        self.assertEqual([json.loads(line) for line in iterator], [{"delta": " second"}, {"done": True}])
         self.assertTrue(stream.closed)
         response.close()
 
@@ -67,8 +67,8 @@ class ProductionTests(unittest.TestCase):
 
     def test_errors_before_and_after_text(self):
         for events, status in (([{"throttlingException": {"message": "secret"}}], 429),
-                               ([delta("partial"), {"modelTimeoutException": {}}], 200),
-                               ([delta("partial")], 200)):
+                               ([delta("Partial. "), {"modelTimeoutException": {}}], 200),
+                               ([delta("Partial. ")], 200)):
             stream = Stream(events)
             self.aws.converse_stream.return_value = {"stream": stream}
             response = self.post()

@@ -4,6 +4,7 @@ import math
 import os
 from pathlib import Path
 
+from .grounding import allowed, keep_grounded
 from .intake import HOUSEHOLD, LIMITS, PLANS
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .policy_catalog import VERSION, STATES, eligible
@@ -11,7 +12,9 @@ from .policy_catalog import VERSION, STATES, eligible
 REFERENCE = (Path(__file__).parent / "references/lincoln_policies.md").read_text(encoding="utf-8")
 REQUIRED = ("support", "years", "mortgage", "otherDebts", "existing")
 PREFERENCES = {"goal": ("temporary", "lifelong", "both"), "premium": ("low", "higher"),
-               "cashValue": ("yes", "no"), "tobacco": ("yes", "no")}
+               "cashValue": ("yes", "no"), "tobacco": ("yes", "no"), "health": ("excellent", "good", "fair")}
+# Added after launch: a tab still running the older site leaves them out, which reads as unknown.
+UNDERWRITING = ("health",)
 PROMPT = """You are Abe, the life insurance guide. Select one researched term policy and
 one researched single-life permanent policy, and recommend the coverage TYPE that best
 fits the supplied facts. These are alternatives for the same gap, not amounts to add.
@@ -33,6 +36,12 @@ duration covering years of support; if none is long enough use the longest and e
 the shorter protection. Do not recommend an unavailable option. If both are unavailable,
 recommendedType is null. Explain the reasons using only the supplied facts and identify
 important uncertainty. A licensed professional must confirm eligibility and quotes.
+Preferences also hold underwriting answers: tobacco and health (excellent, good or fair).
+They weigh on the underwriting class, the premium and how much medical review is needed,
+never on the gap. When tobacco is yes or health is fair, say in the reason, in one short
+sentence, that it may raise premiums or need fuller review. A fair health answer makes
+streamlined or no-lab underwriting less likely. Never guess a rate class, premium or
+approval. Null answers are unknown.
 The request may include outlook: the site's projection of the gap in about ten years,
 built from what the user expects by then (outlook.plans: kids, home, partner; and
 facts.futureIncome, the yearly income they expect). The recommendation is still sized
@@ -44,6 +53,8 @@ be confirmed. Plans are not facts yet: do not treat a planned child or home as a
 current need, or expected income as affordability. Say nothing of this when outlook
 is null.
 """
+# Shown when every sentence of an explanation quoted an amount the server could not account for.
+UNCONFIRMED = "A licensed professional can confirm how this fits your situation."
 
 TOOL = {"toolSpec": {"name": "recommend", "description": "Record the two policy options and preferred coverage type.",
     "inputSchema": {"json": {"type": "object", "additionalProperties": False, "properties": {
@@ -84,8 +95,10 @@ def validate(payload):
     if age is not None and (isinstance(age, bool) or not isinstance(age, int) or not 0 <= age <= 120):
         raise ChatError(400, "age must be whole years from 0 to 120, or null.")
     preferences = payload["preferences"]
-    if not isinstance(preferences, dict) or set(preferences) != {"state", *PREFERENCES}:
+    names = {"state", *PREFERENCES}
+    if not isinstance(preferences, dict) or not names - set(UNDERWRITING) <= set(preferences) <= names:
         raise ChatError(400, "Invalid coverage preferences.")
+    preferences = {name: preferences.get(name) for name in ("state", *PREFERENCES)}
     if preferences["state"] is not None and (not isinstance(preferences["state"], str) or preferences["state"] not in STATES):
         raise ChatError(400, "Use a US state abbreviation or null.")
     if any(preferences[name] is not None and (not isinstance(preferences[name], str) or preferences[name] not in allowed) for name, allowed in PREFERENCES.items()):
@@ -126,6 +139,9 @@ def clean(reading, candidates, facts, gap):
     for name in ("termFit", "permanentFit", "reason"):
         if not isinstance(reading[name], str) or not reading[name].strip() or len(reading[name]) > 700:
             raise ValueError("Invalid explanation")
+    # The model explains; it does not get to introduce an amount. See grounding.py.
+    within = allowed(facts, gap, outlook(facts, gap), candidates)
+    said = {name: keep_grounded(reading[name], within)[0].strip() or UNCONFIRMED for name in ("termFit", "permanentFit", "reason")}
     options = {}
     for category in ("term", "permanent"):
         pool = [p for p in candidates if p["category"] == category]
@@ -145,14 +161,14 @@ def clean(reading, candidates, facts, gap):
                 qualifications.append(f"This {duration}-year term is shorter than your {facts['years']}-year support horizon.")
         options[category] = dict(policyId=selected["id"], name=selected["name"], category=category,
                                  amount=gap, minimum=selected["minimum"], termYears=duration,
-                                 fit=reading[category + "Fit"].strip(), points=selected["points"],
+                                 fit=said[category + "Fit"], points=selected["points"],
                                  caveat=selected["caveat"], source=selected["source"], qualifications=qualifications)
     preferred = reading["recommendedType"]
     if preferred not in ("term", "permanent", None) or (preferred is not None and options[preferred] is None):
         raise ValueError("Invalid preferred category")
     if any(options.values()) and preferred is None:
         raise ValueError("Missing preferred category")
-    return dict(catalogVersion=VERSION, amount=gap, **options, recommendedType=preferred, reason=reading["reason"].strip())
+    return dict(catalogVersion=VERSION, amount=gap, **options, recommendedType=preferred, reason=said["reason"])
 
 
 def recommend(payload):

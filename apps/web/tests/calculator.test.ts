@@ -89,11 +89,33 @@ test('a higher income keeps support’s share, and a home is three times income'
 })
 
 test('someone starting out: kids and a home on a future income', () => {
-  const p = sample({ income: 13000, futureIncome: 60000, plans: 3, support: 0, years: 1, mortgage: 0, otherDebts: 8000, education: 0, existing: 0 })
-  assert.equal(additional(p), 8000)
+  const p = sample({ income: 13000, futureIncome: 60000, plans: 3, support: 1, years: 1, mortgage: 0, otherDebts: 8000, education: 0, existing: 0 })
+  assert.equal(additional(p), 8001)
   const o = ahead(p)
   assert.deepEqual([o.support, o.years, o.mortgage, o.additional], [42000, 20, 180000, 1078000])
-  assert.deepEqual(o.drivers.map((d) => [d.id, d.delta]), [['kids', 890000], ['home', 180000]])
+  assert.deepEqual(o.drivers.map((d) => [d.id, d.delta]), [['income', -1], ['kids', 890000], ['home', 180000]])
+})
+
+test('invalid support blocks saved or imported assessments without changing answers', () => {
+  for (const status of ['proposed', 'confirmed'] as const) {
+    for (const value of [0, -1, 0.4, NaN, Infinity, -Infinity, 'none', '1', null]) {
+      const p = sample()
+      p.support = { status, value: value as Profile['support']['value'] }
+      assert.deepEqual(calculate(p), { ready: false, missing: ['support'] })
+      assert.equal(compareScenario(p, { inflation: 0.03 }), null)
+      assert.equal(outlook(p, calculate(p)).ready, false)
+      assert.match(summaryText(p, calculate(p)), /Estimate not ready/)
+      assert.deepEqual(p.support, { status, value })
+    }
+  }
+})
+
+test('one dollar of support is valid, including with no dependents and zero debts', () => {
+  const p = sample({ support: 1, years: 1, mortgage: 0, otherDebts: 0, education: 0, existing: 0, savings: 0 })
+  p.household = { status: 'confirmed', value: 'none' }
+  assert.equal(additional(p), 1)
+  p.existing.value = 1
+  assert.equal(additional(p), 0)
 })
 
 test('a partner means at least 70% of income for at least ten years', () => {

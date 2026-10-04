@@ -22,12 +22,16 @@ const result = (): Recommendation => ({
     source: 'https://visit.lfg.com/PTR-FACT-FST001', qualifications: ['Confirm state availability.'] },
 })
 
-test('frontend and backend share calculator parity scenarios', () => {
+test('shared calculator scenarios retain parity except website-disallowed zero support', () => {
   const cases = JSON.parse(readFileSync(new URL('./coverage-cases.json', import.meta.url), 'utf8')) as Array<{ name: string; values: Partial<Record<FieldId, number>>; expected: number }>
   for (const scenario of cases) {
     const p = emptyProfile()
     for (const [id, value] of Object.entries(scenario.values)) p[id as FieldId] = { status: 'confirmed', value }
     const r = calculate(p)
+    if (scenario.values.support === 0) {
+      assert.deepEqual(r, { ready: false, missing: ['support'] }, scenario.name)
+      continue
+    }
     assert.ok(r.ready)
     assert.equal(r.additional, scenario.expected, scenario.name)
   }
@@ -37,7 +41,7 @@ test('snapshot keys include every policy input and ignore metadata', () => {
   const p = profile(), prefs = emptyPreferences()
   const key = recommendationKey(p, 35, prefs)
   assert.notEqual(recommendationKey(p, 36, prefs), key)
-  for (const [field, value] of Object.entries({ state: 'NY', tobacco: 'yes', goal: 'lifelong', premium: 'higher', cashValue: 'yes' })) {
+  for (const [field, value] of Object.entries({ state: 'NY', tobacco: 'yes', goal: 'lifelong', premium: 'higher', cashValue: 'yes', health: 'fair' })) {
     assert.notEqual(recommendationKey(p, 35, { ...prefs, [field]: value }), key)
   }
   assert.notEqual(recommendationKey({ ...p, years: { status: 'confirmed', value: 20 } }, 35, prefs), key)

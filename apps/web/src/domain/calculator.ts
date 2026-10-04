@@ -160,9 +160,14 @@ export function formatField(id: FieldId, field: Field | undefined) {
 const hasValue = (field: Field | undefined) =>
   !!field && (field.status === 'proposed' || field.status === 'confirmed') && field.value != null
 
+export const SUPPORT_ERROR = 'Enter yearly support of at least $1.'
+export const validSupport = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 1
+
 // Which required fields still block an estimate.
 export function missingRequired(profile: Profile): FieldId[] {
-  return FIELDS.filter((f) => f.role === 'required' && !hasValue(profile[f.id])).map((f) => f.id)
+  return FIELDS.filter((f) => f.role === 'required' &&
+    (!hasValue(profile[f.id]) || (f.id === 'support' && !validSupport(profile.support.value)))).map((f) => f.id)
 }
 
 const amount = (profile: Profile, id: FieldId) => (hasValue(profile[id]) ? Number(profile[id].value) : 0)
