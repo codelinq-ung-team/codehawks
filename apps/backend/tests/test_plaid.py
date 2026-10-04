@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from botocore.exceptions import ClientError
 
-from backend.plaid import PlaidError, create_link_token, exchange_and_get_accounts, normalize_accounts
+from backend.plaid import PlaidError, annual_income, create_link_token, exchange_and_get_accounts, normalize_accounts
 
 
 ACCOUNTS = [
@@ -50,11 +50,18 @@ class PlaidTests(unittest.TestCase):
 
     @patch("backend.plaid._post")
     def test_link_token_uses_random_non_pii_user(self, post):
-        post.return_value = {"link_token": "link-sandbox", "expiration": "2026-10-04T00:00:00Z"}
-        self.assertEqual(create_link_token()["link_token"], "link-sandbox")
-        path, body = post.call_args.args
+        post.side_effect = [
+            {"user_id": "user-sandbox"},
+            {"link_token": "link-sandbox", "expiration": "2026-10-04T00:00:00Z"},
+        ]
+        session = create_link_token()
+        self.assertEqual(session, {"link_token": "link-sandbox", "expiration": "2026-10-04T00:00:00Z", "user_id": "user-sandbox"})
+        self.assertEqual([call.args[0] for call in post.call_args_list], ["/user/create", "/link/token/create"])
+        path, body = post.call_args_list[1].args
         self.assertEqual(path, "/link/token/create")
-        self.assertEqual(body["products"], ["transactions"])
+        self.assertEqual(body["products"], ["transactions", "income_verification"])
+        self.assertEqual(body["income_verification"], {"income_source_types": ["bank"], "bank_income": {"days_requested": 120}})
+        self.assertEqual(body["user_id"], "user-sandbox")
         self.assertEqual(body["country_codes"], ["US"])
         self.assertNotIn("email_address", body["user"])
         self.assertNotIn("phone_number", body["user"])
@@ -65,15 +72,33 @@ class PlaidTests(unittest.TestCase):
         post.side_effect = [
             {"access_token": "access-sandbox", "item_id": "item-secret"},
             {"accounts": ACCOUNTS, "item": {"institution_id": "ins_secret"}},
+            {"bank_income": [{"bank_income_id": "income-secret", "bank_income_summary": {
+                "start_date": "2025-01-01", "end_date": "2025-04-30",
+                "total_amounts": [{"amount": 24000, "iso_currency_code": "USD"}],
+            }}]},
         ]
-        snapshot = exchange_and_get_accounts("public-sandbox")
+        snapshot = exchange_and_get_accounts("public-sandbox", "user-sandbox")
         self.assertEqual([call.args[0] for call in post.call_args_list],
-                         ["/item/public_token/exchange", "/accounts/get"])
+                         ["/item/public_token/exchange", "/accounts/get", "/credit/bank_income/get"])
         self.assertEqual(post.call_args_list[1].args[1]["access_token"], "access-sandbox")
+        self.assertEqual(post.call_args_list[2].args[1]["user_id"], "user-sandbox")
+        self.assertEqual(snapshot["annualIncome"], 73000)
         serialized = str(snapshot)
         for private in ("do-not-expose", "My Checking", "Sensitive name", "1234",
-                        "item-secret", "ins_secret", "access-sandbox"):
+                        "item-secret", "ins_secret", "access-sandbox", "income-secret"):
             self.assertNotIn(private, serialized)
+
+    def test_annual_income_uses_only_latest_usd_summary(self):
+        reports = [{"bank_income_summary": {
+            "start_date": "2025-01-01", "end_date": "2025-04-30",
+            "total_amounts": [
+                {"amount": 1000, "iso_currency_code": "EUR"},
+                {"amount": 24000, "iso_currency_code": "USD"},
+            ],
+        }}]
+        self.assertEqual(annual_income(reports), 73000)
+        self.assertIsNone(annual_income([]))
+        self.assertIsNone(annual_income([{"bank_income_summary": {"start_date": "bad", "end_date": "bad", "total_amounts": []}}]))
 
     def test_normalizes_categories_and_currency_totals(self):
         snapshot = normalize_accounts(ACCOUNTS)
@@ -82,8 +107,9 @@ class PlaidTests(unittest.TestCase):
         self.assertEqual(snapshot["totalsByCurrency"]["USD"], {
             "liquidAssets": 1250.25, "investmentAssets": 8000.0, "debtBalances": 450.0,
         })
-        self.assertEqual(snapshot["source"], "plaid_accounts_get")
+        self.assertEqual(snapshot["source"], "plaid_accounts_get+credit_bank_income_get")
         self.assertEqual(snapshot["environment"], "sandbox")
+        self.assertIsNone(snapshot["annualIncome"])
 
     def test_unknown_and_negative_values_are_not_counted_as_assets(self):
         accounts = [{
