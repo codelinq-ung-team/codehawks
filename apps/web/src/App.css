@@ -16,6 +16,8 @@
 
 html, body { margin: 0; }
 html, body { overflow-x: clip; }
+/* Keep room for the scrollbar on short pages too, so the centered header doesn't shift between pages. */
+html { scrollbar-gutter: stable; }
 body {
   background: var(--grouped-primary);
   color: var(--label-primary);
@@ -133,6 +135,24 @@ h1, h2, h3, p { margin: 0; }
   .qform { border-radius: 20px; padding-inline: var(--space-4); }
   .qform__body { padding: var(--space-6) 0; }
 }
+
+/* ---------- Plaid: the optional first step of the Basics form ---------- */
+.qform__filled { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); color: var(--success); font: 500 15px/20px var(--font-sans); }
+.qform__filled .ck-icon { flex: none; }
+.plaid-card { display: grid; gap: var(--space-4); margin-top: var(--space-6); padding: var(--space-5); border-radius: 16px; background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--card-edge); }
+.plaid-card__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--brand-tyrian); font-size: 17px; }
+.plaid-badge { padding: 4px 10px; border-radius: var(--radius-full); background: #e7f4ec; color: var(--success); font: 700 12px/16px var(--font-sans); letter-spacing: .04em; text-transform: uppercase; }
+.plaid-badge.is-sample { background: #fdf0e6; color: var(--highlight-text); }
+.plaid-fills { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.plaid-fills li { display: flex; justify-content: space-between; gap: var(--space-3); font-size: 17px; }
+.plaid-fills li.is-sub { padding-left: var(--space-4); color: var(--label-secondary); font-size: 15px; }
+.plaid-fills strong { font-variant-numeric: tabular-nums; }
+.plaid-note { display: flex; gap: var(--space-2); color: var(--label-secondary); font-size: 15px; line-height: 1.5; }
+.plaid-note .ck-icon { flex: none; margin-top: 3px; color: var(--tint-text); }
+.plaid-note strong { color: var(--label-primary); }
+.plaid-error { display: grid; justify-items: start; gap: var(--space-2); padding: var(--space-3); border-radius: 12px; background: #fff1f2; }
+.plaid-error p { display: flex; gap: var(--space-2); color: var(--danger); font-size: 15px; line-height: 1.4; }
+.plaid-error .ck-icon { flex: none; margin-top: 2px; }
 
 /* ---------- Chat ---------- */
 /* ---------- Mode: text chat or VR, chosen after the form ---------- */
@@ -376,6 +396,31 @@ h1, h2, h3, p { margin: 0; }
 .lp-cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); }
 .lp-cta__btn { min-height: 56px; padding: 0 var(--space-6); font-size: 18px; box-shadow: 0 10px 24px rgba(101, 0, 48, .18); }
 .lp-cta__btn > span { display: inline-flex; align-items: center; gap: var(--space-3); }
+
+/* Assessment, resume, and chat actions share the same hover feedback. */
+.lp :is(.lp-cta__btn, .lp-chat__cta) {
+  transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease, filter .12s ease;
+}
+.lp :is(.lp-cta__btn, .lp-chat__cta) .ck-icon { transition: transform .18s ease; }
+.lp :is(.lp-cta__btn, .lp-chat__cta):focus-visible:not(:disabled) {
+  background: color-mix(in srgb, var(--tint) 85%, black);
+  box-shadow: 0 14px 28px rgba(101, 0, 48, .25);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lp :is(.lp-cta__btn, .lp-chat__cta):hover:not(:disabled):not(:active) {
+    background: color-mix(in srgb, var(--tint) 85%, black);
+    box-shadow: 0 14px 28px rgba(101, 0, 48, .25);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .lp :is(.lp-cta__btn, .lp-chat__cta):hover:not(:disabled):not(:active) { transform: translateY(-2px); }
+    .lp :is(.lp-cta__btn, .lp-chat__cta):hover:not(:disabled):not(:active) .ck-icon { transform: translateX(3px); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp :is(.lp-cta__btn, .lp-chat__cta),
+  .lp :is(.lp-cta__btn, .lp-chat__cta) .ck-icon { transition: none; }
+  .lp :is(.lp-cta__btn, .lp-chat__cta):active:not(:disabled) { transform: none; }
+}
 
 .lp-trust { display: flex; flex-wrap: wrap; gap: var(--space-5) var(--space-8); width: 100%; margin: var(--space-2) 0 0; padding: var(--space-5) 0 0; list-style: none; border-top: 1px solid var(--card-edge); }
 .lp-trust li { display: flex; gap: var(--space-3); align-items: flex-start; color: var(--tint-text); }

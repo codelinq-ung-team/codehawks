@@ -151,7 +151,7 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
   }
 
   function next() {
-    if (last) document.getElementById('wrap-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (last) document.getElementById('wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     else goTo(index + 1)
   }
 
@@ -265,15 +265,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
     }
   }
   return (
-    <section className="wrap" aria-labelledby="wrap-title">
-      <div className="wrap__hero">
-        <GuidePose name="thumbs" size={96} className="wrap__abe" />
-        <div className="wrap__hero-text">
-          <h2 className="title-2" id="wrap-title">That’s the whole picture</h2>
-          <p className="body muted">Bring this summary to a licensed professional. They can turn it into real options for your family.</p>
-        </div>
-      </div>
-
+    <section className="wrap" id="wrap" aria-label="Your summary">
       <Plans p={p} r={r} onAsk={(q) => askRef.current?.ask(q)} />
 
       <div className="wrap__grid">
@@ -299,6 +291,14 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
             </>
           )}
           <Button variant="bordered" fullWidth onClick={() => go('review')}>Change My Answers</Button>
+        </div>
+      </div>
+
+      <div className="wrap__hero">
+        <GuidePose name="thumbs" size={96} className="wrap__abe" />
+        <div className="wrap__hero-text">
+          <h2 className="title-2">That’s the whole picture</h2>
+          <p className="body muted">Bring this summary to a licensed professional. They can turn it into real options for your family.</p>
         </div>
       </div>
 

@@ -17,7 +17,7 @@ export type Fact = {
 }
 
 // Basics answers are listed in the order the form asks them.
-const BASICS_ORDER = ['income', 'marital', 'dependents', 'household', 'debt', 'mortgage', 'otherDebts', 'coverage', 'existing']
+const BASICS_ORDER = ['income', 'marital', 'dependents', 'household', 'debt', 'mortgage', 'otherDebts', 'coverage', 'existing', 'savings']
 const YEARLY: FieldId[] = ['income', 'support']
 
 function facts(profile: Profile, form: Form): Fact[] {
@@ -40,7 +40,8 @@ function facts(profile: Profile, form: Form): Fact[] {
       value: formatField(f.id, field) + (known && YEARLY.includes(f.id) ? '/yr' : ''),
       unsure: !known,
     }
-    ;(field.source === 'form' ? basics : chat).push(fact)
+    // Answers from the form or from Plaid count as Basics.
+    ;(field.source ? basics : chat).push(fact)
   }
   basics.sort((a, b) => BASICS_ORDER.indexOf(a.id) - BASICS_ORDER.indexOf(b.id))
   return [...basics, ...chat]
