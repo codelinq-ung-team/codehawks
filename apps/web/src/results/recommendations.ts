@@ -1,5 +1,6 @@
 import { FIELDS, formatMoney, type Profile } from '../domain/calculator.ts'
 import { sha256 } from '../intake/ai.ts'
+import { validAdultAge } from '../intake/adultAge.ts'
 
 export const CATALOG_VERSION = 'lincoln-2026-10-04-v1'
 export type CoveragePreferences = {
@@ -54,20 +55,49 @@ export function checkedRecommendation(value: unknown, amount: number): Recommend
     if (category === 'term' ? ![10, 15, 20, 30].includes(p.termYears ?? 0) : p.termYears !== null) return null
   }
   if (r.recommendedType !== null && !r[r.recommendedType]) return null
+  if (r.recommendedType === null && (r.term !== null || r.permanent !== null)) return null
   if (amount === 0 && (r.recommendedType !== null || r.term !== null || r.permanent !== null)) return null
   return r
 }
 
+export type RecommendationFailure = 'input' | 'busy' | 'timeout' | 'invalid' | 'unavailable'
+export class RecommendationError extends Error {
+  kind: RecommendationFailure
+  constructor(kind: RecommendationFailure) {
+    super(kind === 'invalid' ? 'Invalid recommendation' : 'Recommendations unavailable')
+    this.kind = kind
+  }
+}
+
+export const RECOMMENDATION_FAILURES: Record<RecommendationFailure, string> = {
+  input: 'Check your answers in Review before comparing policies again.',
+  busy: 'Abe is busy right now. Wait a minute, then try again.',
+  timeout: 'The policy comparison took too long. Your answers are saved; try again.',
+  invalid: 'Abe’s policy comparison could not be verified. Your answers are saved; try again.',
+  unavailable: 'Abe couldn’t compare policies right now. Your answers are saved; try again.',
+}
+
 export async function requestRecommendation(input: ReturnType<typeof recommendationInput>, amount: number, signal: AbortSignal) {
+  if (!validAdultAge(input.age)) throw new RecommendationError('input')
   const body = new TextEncoder().encode(JSON.stringify(input))
-  const response = await fetch('/api/recommendations', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-amz-content-sha256': await sha256(body) },
-    body, signal,
-  })
-  if (!response.ok) throw new Error('Recommendations unavailable')
-  const result = checkedRecommendation(await response.json(), amount)
-  if (!result) throw new Error('Invalid recommendation')
-  return result
+  try {
+    const response = await fetch('/api/recommendations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-amz-content-sha256': await sha256(body) },
+      body, signal,
+    })
+    if (!response.ok) throw new RecommendationError(response.status === 400 ? 'input'
+      : response.status === 429 ? 'busy' : response.status === 504 ? 'timeout' : 'unavailable')
+    let value: unknown
+    try { value = await response.json() }
+    catch { throw new RecommendationError('invalid') }
+    const result = checkedRecommendation(value, amount)
+    if (!result) throw new RecommendationError('invalid')
+    return result
+  } catch (error) {
+    if (signal.aborted) throw new RecommendationError('timeout')
+    if (error instanceof RecommendationError) throw error
+    throw new RecommendationError('unavailable')
+  }
 }
 
 export function recommendationSummary(r: Recommendation) {

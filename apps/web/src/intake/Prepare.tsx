@@ -10,6 +10,7 @@ import { go, setState, useStore, type Form } from '../lib/store.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { applyForm } from './script.ts'
+import { ADULT_AGE_ERROR, validAdultAge } from './adultAge.ts'
 import { PlaidConnect } from './PlaidConnect.tsx'
 import { applyPlaid, debtFromPlaid, incomeFromPlaid, plaidFill } from './plaidFill.ts'
 
@@ -23,7 +24,7 @@ const QUESTIONS: Question[] = [
   {
     id: 'age', type: 'number', max: 120, placeholder: '35', pose: 'wave', side: 'left',
     prompt: 'How old are you?',
-    helper: 'Enter your age in whole years.',
+    helper: 'This assessment is for adults aged 18 or older. Include children as household dependents.',
   },
   {
     id: 'income', type: 'number', money: true, max: 100_000_000, placeholder: '75,000', pose: 'wave', side: 'left',
@@ -67,6 +68,8 @@ export function Prepare() {
   // Counts the question on screen; the bar is full on the last question.
   const progress = Math.round(((index + 1) / QUESTIONS.length) * 100)
   const tooBig = q.type === 'number' && typeof answer === 'number' && answer > q.max
+  const ageInvalid = q.id === 'age' && !validAdultAge(answer)
+  const invalid = tooBig || ageInvalid
   // Abe cheers once the last question is answered.
   const pose: PoseName = last && answer != null ? 'cheer' : q.pose
   const fromPlaid = (q.id === 'income' && incomeFromPlaid(form, plaid)) || (q.id === 'debt' && debtFromPlaid(form, plaid))
@@ -84,7 +87,7 @@ export function Prepare() {
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    if (answer != null && !tooBig) next()
+    if (answer != null && !invalid) next()
   }
 
   // Skipping leaves the answer empty, never zero.
@@ -131,11 +134,11 @@ export function Prepare() {
 
           {q.type === 'number' && (
             <>
-              <div className={'qform__input' + (tooBig ? ' is-error' : '')}>
+              <div className={'qform__input' + (invalid && answer != null ? ' is-error' : '')}>
                 {q.money && <span className="qform__prefix" aria-hidden="true">$</span>}
                 <input
                   type="text" inputMode="numeric" autoComplete="off" autoFocus
-                  aria-labelledby="q-heading" aria-describedby="q-helper" aria-invalid={tooBig || undefined}
+                  aria-labelledby="q-heading" aria-describedby={invalid && answer != null ? 'q-helper q-error' : 'q-helper'} aria-invalid={invalid && answer != null || undefined}
                   placeholder={q.placeholder}
                   value={typeof answer === 'number' ? (q.money ? answer.toLocaleString('en-US') : String(answer)) : ''}
                   onChange={(e) => {
@@ -151,17 +154,17 @@ export function Prepare() {
                   Filled in from {plaid?.environment === 'sample' ? 'sample accounts' : 'your Plaid accounts'} ({plaidFill(plaid)?.accounts} connected). Change it if it’s off.
                 </p>
               )}
-              {tooBig && <p className="qform__error" role="alert"><Icon name="exclamation" size={15} />Please enter a number up to {q.max.toLocaleString('en-US')}.</p>}
-              <button type="button" className="link-button subhead qform__skip" onClick={skip}>
-                {q.id === 'age' ? 'Prefer not to say? Skip this question' : `Not sure? Skip, and ${GUIDE_NAME} will ask later`}
-              </button>
+              {invalid && answer != null && <p id="q-error" className="qform__error" role="alert"><Icon name="exclamation" size={15} />{q.id === 'age' ? ADULT_AGE_ERROR : `Please enter a number up to ${q.max.toLocaleString('en-US')}.`}</p>}
+              {q.id !== 'age' && <button type="button" className="link-button subhead qform__skip" onClick={skip}>
+                {`Not sure? Skip, and ${GUIDE_NAME} will ask later`}
+              </button>}
             </>
           )}
         </div>
 
         <div className="qform__actions">
           <Button variant="bordered" onClick={() => index === 0 ? setConnecting(true) : setIndex(index - 1)}>Back</Button>
-          <Button type="submit" disabled={answer == null || tooBig}>
+          <Button type="submit" disabled={answer == null || invalid}>
             {last ? `Meet ${GUIDE_NAME}` : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} />
           </Button>
         </div>

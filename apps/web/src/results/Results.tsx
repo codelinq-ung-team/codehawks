@@ -258,7 +258,8 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
   return (
     <section className="wrap" id="wrap" aria-label="Your summary">
       <Plans p={p} r={r} onAsk={(q) => askRef.current?.ask(q)} recommendation={recommendations.result}
-        loading={recommendations.loading} failed={recommendations.failed} onRetry={recommendations.retry} />
+        loading={recommendations.loading} failed={recommendations.failed} onRetry={recommendations.retry}
+        needsAge={recommendations.needsAge} failure={recommendations.failure} />
 
       <div className="wrap__grid">
         <ListSection

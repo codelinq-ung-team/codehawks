@@ -5,8 +5,9 @@ Answers are interpreted through `POST /api/intake`, validated in the browser,
 and used by the local calculator. When the API is unavailable, the chat uses
 its labeled scripted fallback.
 
-Review includes optional coverage preferences: age, state, tobacco or nicotine use and
-overall health. They never change the calculated gap. Age, state and tobacco decide which
+This income-replacement assessment is for adults. Basics and Review require a whole-number
+age from 18–120; children remain valid household dependents. Age is required, while state,
+tobacco or nicotine use and overall health are optional. These never change the calculated gap. Age, state and tobacco decide which
 policies and term lengths are eligible; tobacco use or fair health adds a note on the policy
 cards that underwriting may mean higher premiums or more medical review. Protection goal,
 premium preference and cash-value interest are no longer asked, so they are sent as unknown
@@ -18,7 +19,12 @@ with a **Recommended** banner above the preferred coverage type. Source links,
 eligibility qualifications and policy minimum mismatches are shown on the cards.
 No premium quotes or underwriting approval are generated. The result is cached only
 for the matching answers in this tab; edits invalidate it. Failed requests leave
-named **Example policy** cards visible and offer **Try Again**. Missing term options
+named **Example policy** cards visible and offer **Try Again**, with distinct messages for
+busy, timed-out and unverifiable comparisons. Invalid requests direct users to Review.
+Saved sessions and VR handoffs with missing or underage adult ages keep the estimate visible
+and offer age correction before making a comparison call. Valid answers that leave no
+supported match (such as age 81 or New York) receive a shortlist explanation rather than
+a request failure. Users should keep their truthful answers. Missing term options
 show Lincoln TermAccel Level Term; missing permanent options show Lincoln WealthProtector
 IUL. These display-only examples include published features, limits and sources, even
 when unavailable for the user. They are never recommended, cached as selections, or
