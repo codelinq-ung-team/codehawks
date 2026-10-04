@@ -54,8 +54,8 @@ key. Israel owns arranging the following matching nonsecret variables in the
 
 | GitHub variable | Approved value |
 | --- | --- |
-| `BEDROCK_MODEL_ID` | `amazon.nova-lite-v1:0` |
-| `BEDROCK_MODEL_ARNS` | `["arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0"]` |
+| `BEDROCK_MODEL_ID` | `amazon.nova-pro-v1:0` |
+| `BEDROCK_MODEL_ARNS` | `["arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"]` |
 
 In his [PR #7 review reply](https://github.com/codelinq-ung-team/codehawks/pull/7#issuecomment-5974178108),
 Israel reported the model as `AUTHORIZED` and `AVAILABLE` in account
