@@ -49,7 +49,7 @@ export function ScenarioControls({ scenario, onChange, result }: {
         <div className="ck-row scenario-rate" role="listitem">
           <span className="ck-row__text">
             <span className="ck-row__title" id="scenario-rate">Prices rise each year</span>
-            <span className="ck-row__subtitle">2% is the Fed’s goal; 3% is nearer the long-run average</span>
+            <span className="ck-row__subtitle">2% is the Fed’s goal; 3% is closer to the long-run average</span>
           </span>
           <span className="scenario-rate__options" role="group" aria-labelledby="scenario-rate">
             {RATES.map((r) => (
