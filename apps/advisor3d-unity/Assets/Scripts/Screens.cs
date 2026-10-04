@@ -42,6 +42,7 @@ namespace Advisor3D
         static Btn startOver, roomToggle;
         static float confirmUntil;
         static Guide guide;
+        static Picture picture; // the ring of blocks and year posts around the wearer
         static Transform guideHolder; // on the left panel, except in the chat, where Abe stands in the middle
         static List<Message> guideLines = new List<Message>();
         static El guideCard;
@@ -145,6 +146,7 @@ namespace Advisor3D
             guideHolder = new GameObject("Guide Holder").transform;
             guide = new Guide(0.36f, guideHolder);
             GuideHome();
+            picture = new Picture(App.rig, TERM_COLOR);
 
             guideCard = left.Add(new El(SIDE_W, 460, ctx =>
             {
@@ -681,7 +683,7 @@ namespace Advisor3D
             Run(BotSay(lines, m => m.done = true));
         }
 
-        // "What Abe knows": every answer Abe has so far, listed on the right of the chat, with a way
+        // "What Abe knows": every answer Abe has so far, listed on the left of the chat, with a way
         // to take each one back. Basics answers come first, then what Abe learned in the chat.
         class Fact
         {
@@ -743,10 +745,10 @@ namespace Advisor3D
             var all = Facts(State.profile, State.form);
             knowsTotal = all.Count;
             knows = all.Skip(Math.Max(0, all.Count - KNOWS_ROWS)).ToList();
-            right.Clear("knows");
+            left.Clear("knows");
             const float Y = 20;
             var h = KNOWS_TOP - KNOWS_LIFT + KnowsHeight();
-            right.Add(new El(SIDE_W, h, ctx =>
+            left.Add(new El(SIDE_W, h, ctx =>
             {
                 ctx.Shadow(0, 0, SIDE_W, h, 24, Ui.C(60, 20, 30, 0.14f), 48, 20);
                 ctx.Rect(0, 0, SIDE_W, h, 24, T.bg);
@@ -757,7 +759,7 @@ namespace Advisor3D
             for (var i = 0; i < knows.Count; i++)
             {
                 var fact = knows[i];
-                var x = right.Add(new El(30, 30, ctx =>
+                var x = left.Add(new El(30, 30, ctx =>
                 {
                     ctx.Circle(15, 15, 15, T.fill3);
                     ctx.Icon("xmark", 15, 15, 16, T.label2, 2);
@@ -844,16 +846,20 @@ namespace Advisor3D
             var voiceKey = "?";
             var voiceVersion = Voice.Version;
 
-            // Abe stands in the middle of the card, so the chat feels like talking with him. Under him
-            // is what he just said; the whole conversation is the transcript on the left.
-            const float ABE_Y = HEAD + 132, SAID_Y = HEAD + 288, SAID_LINE = 27;
+            // Abe stands at the top of the card and the conversation runs directly under him, so it
+            // reads as talking with him: his words appear as he says them, and yours once heard.
+            const float ABE_Y = HEAD + 104, TOP = HEAD + 204;
             guideCard.Visible = false;
             guideHolder.SetParent(main.group, false);
             guideHolder.localPosition = main.At(MAIN_W / 2, ABE_Y, 0.02f);
-            
+            guideHolder.localScale = Vector3.one * 0.8f;
+            var caption = "";
+            var captionWait = 0f;
+
             var log = main.Add(new El(MAIN_W, MAIN_H, ctx =>
             {
                 var s = State;
+                var msgs = s.messages;
                 ctx.Fill(0, HEAD - 1, MAIN_W, 1, T.edge);
                 ctx.Fill(0, MAIN_H - composer, MAIN_W, 1, T.edge);
                 ctx.Face(28, 16, 52);
@@ -862,59 +868,38 @@ namespace Advisor3D
                 var doing = Voice.On ? (Voice.Speaking ? "Speaking…" : "Listening…") : Voice.Status == "connecting" ? "Connecting…" : "Here to help";
                 ctx.Text("Your guide · " + doing, 108, 46, Fn(400, 15), T.label2, lineH: 20);
 
-                var turn = Voice.On ? (Voice.Speaking ? $"{GUIDE_NAME} is speaking" : "Your turn. Just talk.")
-                    : Voice.Status == "connecting" ? $"{GUIDE_NAME} is getting ready…"
-                    : s.typing ? $"{GUIDE_NAME} is thinking…" : $"Tap an answer, or press Talk to {GUIDE_NAME}";
-                ctx.Text(turn, MAIN_W / 2, SAID_Y - 28, Fn(600, 15), Voice.On && !Voice.Speaking ? T.tint : T.label2, lineH: 22, align: Align.Center);
-                // The last thing Abe said, as much of it as fits above the reply area.
-                var said = s.messages.LastOrDefault(m => m.role == "bot")?.text;
-                if (said != null)
+                // Newest at the bottom. Older messages scroll off under Abe.
+                var bottom = MAIN_H - composer - 10;
+                var clip = ctx.Clip(0, TOP, MAIN_W, bottom - TOP + 6);
+                var y = bottom;
+                var maxW = (MAIN_W - 56) * 0.78f;
+                void Dots(float x)
                 {
-                    var f = Fn(500, 20);
-                    var lines = Ui.Wrap(said, f, MAIN_W - 120);
-                    var room = Mathf.Max(1, Mathf.FloorToInt((MAIN_H - composer - 8 - SAID_Y) / SAID_LINE));
-                    if (lines.Count > room) { lines = lines.Take(room).ToList(); lines[room - 1] = lines[room - 1].TrimEnd() + "…"; }
-                    for (var i = 0; i < lines.Count; i++) ctx.Text(lines[i], MAIN_W / 2, SAID_Y + i * SAID_LINE, f, lineH: SAID_LINE, align: Align.Center);
-                }
-                ctx.Text(ChatNote(), MAIN_W / 2, MAIN_H - 30, Fn(400, 12.5f), T.label2, lineH: 18, align: Align.Center);
-            }), 0, 0);
-
-            const float TOP = 58;
-            var transcript = left.Add(new El(SIDE_W, MAIN_H, ctx =>
-            {
-                var s = State;
-                var msgs = s.messages;
-                ctx.Shadow(0, 0, SIDE_W, MAIN_H, 24, Ui.C(60, 20, 30, 0.14f), 48, 20);
-                ctx.Rect(0, 0, SIDE_W, MAIN_H, 24, T.bg);
-                ctx.Rect(0.5f, 0.5f, SIDE_W - 1, MAIN_H - 1, 24, null, T.edge, 1);
-                // Newest at the bottom. Older messages scroll off under the title.
-                var clip = ctx.Clip(0, TOP, SIDE_W, MAIN_H - TOP - 14);
-                var y = MAIN_H - 24;
-                var maxW = (SIDE_W - 36 - 40) * 0.92f;
-                if (s.typing)
-                {
-                    y -= 40;
-                    clip.Rect(56, y, 64, 40, new float[] { 18, 18, 18, 6 }, T.grouped);
-                    for (var i = 0; i < 3; i++) clip.Circle(75 + i * 13, y + 20 - (phase == i ? 3 : 0), 3.5f, phase == i ? T.label2 : Ui.C("#c2c2c7"));
-                    clip.Face(18, y + 10, 30);
+                    y -= 42;
+                    clip.Rect(x, y, 66, 42, new float[] { 20, 20, 20, 20 }, T.grouped);
+                    for (var i = 0; i < 3; i++) clip.Circle(x + 20 + i * 13, y + 21 - (phase == i ? 3 : 0), 3.5f, phase == i ? T.label2 : Ui.C("#c2c2c7"));
                     y -= 8;
                 }
+                if (Voice.Hearing) Dots(MAIN_W - 28 - 66);          // you are talking; your words are on their way
+                else if (caption != "")                              // Abe, mid-sentence
+                {
+                    var b = BubbleLayout(Bot(caption), 18, maxW);
+                    y -= b.h;
+                    DrawBubble(clip, b, 28, y);
+                    y -= 8;
+                }
+                else if (s.typing || Voice.Status == "connecting") Dots(28);
                 for (var i = msgs.Count - 1; i >= 0 && y > TOP; i--)
                 {
                     var m = msgs[i];
-                    var b = BubbleLayout(m, 16, maxW);
+                    var b = BubbleLayout(m, 18, maxW);
                     y -= b.h;
-                    DrawBubble(clip, b, m.role == "user" ? SIDE_W - 18 - b.w : 56, y);
-                    // Abe's face sits beside the last bubble in each run of his messages.
-                    var face = m.role == "bot" && (i == msgs.Count - 1 ? !s.typing : msgs[i + 1].role != "bot");
-                    if (face) clip.Face(18, y + b.h - 30, 30);
-                    y -= i > 0 && msgs[i - 1].role != m.role ? 12 : 6;
+                    DrawBubble(clip, b, m.role == "user" ? MAIN_W - 28 - b.w : 28, y);
+                    y -= i > 0 && msgs[i - 1].role != m.role ? 14 : 8;
                 }
-                ctx.Gradient(1, TOP, SIDE_W - 2, 24, T.bg, new Color(1, 1, 1, 0));
-                ctx.Text("Transcript", 20, 16, Fn(700, 17), lineH: 26);
-                ctx.Fill(18, TOP - 1, SIDE_W - 36, 1, T.edge);
-                if (msgs.Count == 0 && !s.typing) ctx.Text("What you and Abe say shows up here.", 20, TOP + 16, Fn(400, 14), T.label2, maxW: SIDE_W - 40, lineH: 20);
-            }), 0, 0, "transcript");
+                ctx.Gradient(1, TOP, MAIN_W - 2, 26, T.bg, new Color(1, 1, 1, 0));
+                ctx.Text(ChatNote(), MAIN_W / 2, MAIN_H - 30, Fn(400, 12.5f), T.label2, lineH: 18, align: Align.Center);
+            }), 0, 0);
 
             // Talk to Abe: start or stop the voice conversation (Voice.cs). Everything else on the
             // screen keeps working while it is on.
@@ -939,7 +924,9 @@ namespace Advisor3D
                 var finished = last != null && last.done && !s.typing;
                 VoiceButton();
 
-                var nextKey = finished ? "done" : replies == null ? "none" : string.Join("\u0001", replies);
+                // While you are talking with Abe there is nothing to type into: only the suggestions stay.
+                var talking = Voice.Status != "off";
+                var nextKey = (finished ? "done" : replies == null ? "none" : string.Join("\u0001", replies)) + (talking ? "\u0001talking" : "");
                 if (nextKey != chipsKey)
                 {
                     chipsKey = nextKey;
@@ -954,6 +941,7 @@ namespace Advisor3D
                     {
                         // Suggestions to tap, then a line to answer in your own words, with "Why do you ask?" beside it.
                         var chips = (replies ?? new List<string>()).Where(r => r != Script.WHY).Select(r => Ui.Chip(r, false, () => Send(r))).ToList();
+                        if (talking && replies != null && replies.Contains(Script.WHY)) chips.Add(Ui.Chip(Script.WHY, true, () => Send(Script.WHY)));
                         var rows = new List<List<(El chip, float x)>> { new List<(El, float)>() };
                         var x = 28f;
                         foreach (var c in chips)
@@ -963,8 +951,9 @@ namespace Advisor3D
                             x += c.w + 10;
                         }
                         var h = chips.Count > 0 ? rows.Count * 58 : 0;
-                        composer = 104 + h;
-                        for (var i = 0; i < rows.Count; i++) foreach (var (c, cx) in rows[i]) main.Add(c, cx, INPUT_Y - h + i * 58, "chips");
+                        composer = (talking ? 46 : 104) + h;
+                        var chipsY = (talking ? MAIN_H - 40 : INPUT_Y) - h;
+                        for (var i = 0; i < rows.Count; i++) foreach (var (c, cx) in rows[i]) main.Add(c, cx, chipsY + i * 58, "chips");
 
                         var edge = MAIN_W - 28;
                         var send = main.Add(new El(48, 48, ctx =>
@@ -975,7 +964,7 @@ namespace Advisor3D
                         send.onSelect = SendDraft;
                         send.Redraw();
                         edge -= 58;
-                        if (replies != null && replies.Contains(Script.WHY))
+                        if (!talking && replies != null && replies.Contains(Script.WHY))
                         {
                             var why = Ui.Chip(Script.WHY, true, () => Send(Script.WHY));
                             main.Add(why, edge - why.w, INPUT_Y, "chips");
@@ -1000,20 +989,19 @@ namespace Advisor3D
                         }), 28, INPUT_Y, "chips");
                         draftEl.onSelect = OpenKeyboard;
                         draftEl.Redraw();
+                        draftEl.Visible = send.Visible = !talking;
                     }
                 }
 
-                // On the right: while you are talking with Abe, what he knows so far. With voice off, a
-                // number pad for the questions that take an amount, an age or a number of years.
+                // On the right, with voice off: a number pad for the questions that take an amount, an
+                // age or a number of years. While you are talking it stays clear.
                 var step = Script.NextStep(s);
                 var wantsNumber = Voice.Status == "off" && replies != null && !finished && s.pending == null && step != null && Calc.FIELD[step].kind != "choice";
                 var nextPad = wantsNumber ? step : null;
                 if (nextPad != padKey)
                 {
                     padKey = nextPad;
-                    knowsKey = null;
                     ClearRight();
-                    right.Clear("knows");
                     if (wantsNumber)
                     {
                         var kind = Calc.FIELD[step].kind;
@@ -1026,15 +1014,11 @@ namespace Advisor3D
                     }
                 }
 
-                if (!wantsNumber)
-                {
-                    var facts = Facts(s.profile, s.form);
-                    var key = string.Join("\u0001", facts.Select(f => f.id + "=" + f.value)) + (s.typing ? "…" : "");
-                    if (key != knowsKey) { knowsKey = key; ShowKnows(); }
-                }
+                var facts = Facts(s.profile, s.form);
+                var key = string.Join("\u0001", facts.Select(f => f.id + "=" + f.value)) + (s.typing ? "…" : "");
+                if (key != knowsKey) { knowsKey = key; ShowKnows(); }
                 draftEl?.Redraw();
                 log.Redraw();
-                transcript.Redraw();
             }
 
             // The chat opens by talking: Abe greets you out loud and asks the open question. If voice
@@ -1053,8 +1037,7 @@ namespace Advisor3D
                     Voice.Stop();
                     GuideHome();
                     guideCard.Visible = true;
-                    left.Clear("transcript");
-                    right.Clear("knows");
+                    left.Clear("knows");
                     knows = null;
                     draftEl = null;
                     typingHere = false;
@@ -1073,9 +1056,13 @@ namespace Advisor3D
                         opening = false;
                         if (!Voice.On && State.messages.Count == 0) BeginChat();
                     }
-                    if (Voice.Version != voiceVersion) { voiceVersion = Voice.Version; Update(); }
+                    if (Voice.Version != voiceVersion) { voiceVersion = Voice.Version; caption = Voice.Caption; Update(); }
                     var p = Mathf.FloorToInt(t * 4) % 3;
-                    if (p != phase && State.typing) { phase = p; transcript.Redraw(); }
+                    var dots = State.typing || Voice.Hearing || Voice.Status == "connecting";
+                    // Abe's words arrive a few at a time; showing them about six times a second is plenty.
+                    captionWait -= dt;
+                    if (caption != Voice.Caption && captionWait <= 0) { caption = Voice.Caption; captionWait = 0.16f; phase = p; log.Redraw(); }
+                    else if (p != phase && dots) { phase = p; log.Redraw(); }
                     if (keyboard == null) return;
                     if (keyboard.text != draft) { draft = keyboard.text ?? ""; draftEl?.Redraw(); }
                     if (keyboard.status == TouchScreenKeyboard.Status.Done) { keyboard = null; SendDraft(); }
@@ -1250,21 +1237,90 @@ namespace Advisor3D
             ["existing"] = T.partner, ["savings"] = T.hue.green, ["gap"] = T.highlight,
         };
 
-        static string Explain(Profile p, Estimate r)
+        // The results deck, from the site (apps/web/src/results/Results.tsx): the estimate
+        // explained one piece at a time. Each slide says what to read on the card, what Abe points
+        // out in the room (look), and what the room shows: the year posts (years: low, up or down)
+        // and whether the stacks include what is already there and the gap.
+        class Slide
+        {
+            public string eyebrow, title, body, years = "low";
+            public string[] look;
+            public bool have = true, gap = true;
+        }
+        const int SLIDES = 7;
+        static Action<int> resultsSlide; // lets the editor's screenshot pass turn to a slide
+
+        static Slide[] Deck(Profile p, Estimate r)
         {
             var years = p["years"].Number;
-            var support = r.needs.First(t => t.id == "support");
-            var debts = r.needs.Where(t => t.id != "support" && t.included && t.value > 0).ToList();
-            var text = $"You said your family would need {Calc.FormatMoney(p["support"].Number)} a year for {Plural(years, "year")}, which comes to {Calc.FormatMoney(support.value)}.";
-            if (debts.Count > 0) text += $" Adding {ListJoin(debts.Select(t => t.label.ToLowerInvariant()).ToList())} brings the total to {Calc.FormatMoney(r.totalNeeds)}.";
-            if (r.totalResources > 0)
+            var support = p["support"].Number;
+            var income = p["income"].status == Status.Confirmed ? p["income"].Number : (long?)null;
+            var startAge = p["youngestAge"].status == Status.Confirmed && p["household"].choice != "none" ? p["youngestAge"].Number : (long?)null;
+            var supportTotal = r.needs.First(t => t.id == "support").value;
+            var extras = r.needs.Where(t => t.id != "support" && t.included && t.value > 0).ToList();
+            var held = r.resources.Where(t => t.included && t.value > 0).ToList();
+            var covered = r.totalNeeds > 0 ? Mathf.RoundToInt(Mathf.Min(1f, (float)r.totalResources / r.totalNeeds) * 100) : 0;
+            var gap = r.additional > 0;
+            string Named(IEnumerable<Term> terms, Func<Term, string> label) => ListJoin(terms.Select(t => $"{label(t).ToLowerInvariant()} ({Calc.FormatMoney(t.value)})").ToList());
+
+            var everyday = $"You said your family would need {Calc.FormatMoney(support)} a year for {Plural(years, "year")}. Each year adds one more. Stacked up, that comes to {Calc.FormatMoney(supportTotal)}.";
+            if (income != null && income > 0) everyday += $" That’s about {Mathf.RoundToInt((float)support / income.Value * 100)}% of the {Calc.FormatMoney(income.Value)} you earn now.";
+            if (startAge != null) everyday += $" By the end, your youngest would be {startAge + years}.";
+
+            return new[]
             {
-                text += $" You already have {Calc.FormatMoney(r.totalResources)} in coverage and savings, " +
-                    (r.additional > 0 ? $"so the gap is about {Calc.FormatMoney(r.additional)}." : "which covers the needs you listed.");
-            }
-            else if (r.additional > 0) text += " You don’t have coverage or savings counted yet, so the full amount is what to consider.";
-            if (r.additional == 0) text += " That doesn’t mean every situation is covered. It’s worth checking again when life changes.";
-            return text;
+                new Slide
+                {
+                    eyebrow = "The short version",
+                    title = gap ? $"About {Calc.FormatMoney(r.additional)} more coverage would help protect your family" : "You’re covered for everything you listed",
+                    body = "This is a starting point for a conversation, not a verdict, and nothing here needs a decision today. Point at the arrow and I’ll show you where the number comes from, one piece at a time.",
+                    look = new[] { "The two stacks in front of you are the whole estimate: what your family would need, and what you already have.", "Point at the arrow under the slide and I’ll take it a piece at a time." },
+                },
+                new Slide
+                {
+                    eyebrow = "Everyday costs", title = "Keeping life steady at home", body = everyday, years = "up", have = false, gap = false,
+                    look = new[] { "Look down and to your right, then keep turning. Each post on the ring around you is one more year.", $"By the last post, it has added up to {Calc.FormatMoney(supportTotal)}." },
+                },
+                new Slide
+                {
+                    eyebrow = "One-time costs", have = false, gap = false,
+                    title = extras.Count > 0 ? "Costs that only come up once" : "No one-time costs to add",
+                    body = extras.Count > 0
+                        ? $"On top of everyday costs, you listed {Named(extras, t => t.label)}. All together, your family would need {Calc.FormatMoney(r.totalNeeds)}."
+                        : $"You didn’t list any debts or one-time costs, so the total your family would need stays at {Calc.FormatMoney(r.totalNeeds)}.",
+                    look = new[] { "The stack in front of you is everything your family would need. Each color is one of the costs in the list." },
+                },
+                new Slide
+                {
+                    eyebrow = "What you already have", gap = false,
+                    title = r.totalResources > 0 ? $"Good news: {Calc.FormatMoney(r.totalResources)} is already in place" : "Starting from zero is common",
+                    body = r.totalResources > 0
+                        ? $"Your {Named(held, t => t.id == "existing" ? "Life insurance" : "Savings")} would go toward that total. That’s {covered}% of it already taken care of."
+                        : "Many families don’t have coverage or savings set aside yet. That’s exactly what an estimate like this is for.",
+                    look = new[] { r.totalResources > 0 ? "A second stack has come up beside the first. That is what you already have." : "The second stack is empty for now, and that is a common place to start." },
+                },
+                new Slide
+                {
+                    eyebrow = "The gap",
+                    title = gap ? $"What’s left: {Calc.FormatMoney(r.additional)}" : "No gap for what you listed",
+                    body = gap
+                        ? "The orange piece is the difference between what your family would need and what you already have. It’s the amount of additional coverage worth talking through with a licensed professional."
+                        : "What you have meets the needs you listed. It’s still worth checking again when life changes, like a new home or a new baby.",
+                    look = new[] { gap ? "The glowing block is the gap. It brings the second stack level with the first." : "Both stacks reach the same height: for what you listed, there is no gap." },
+                },
+                new Slide
+                {
+                    eyebrow = "Over time", title = "The need gets smaller every year", years = "down",
+                    body = $"Everyday costs only matter for the years your family depends on your income. Each year that passes leaves one less year to cover, so after {Plural(years, "year")} that part reaches zero. Term insurance is built around this idea: it covers a set number of years.",
+                    look = new[] { "Look around you again. The posts now step down: each year that passes leaves one less to cover." },
+                },
+                new Slide
+                {
+                    eyebrow = "Try it yourself", title = "See how a change moves the number",
+                    body = "Change a number on your right and watch the stacks move. Your summary updates too.",
+                    look = new[] { "Use the + and − on your right. The stacks in front of you and the ring around you follow.", "It’s a starting point for a conversation with a licensed professional, not a quote." },
+                },
+            };
         }
 
         // Two stacks on a tray at waist height: what the family would need, and what is already
@@ -1326,15 +1382,18 @@ namespace Advisor3D
                 return s;
             }
 
-            public void Set(Estimate r)
+            // showHave, showGap: the slide deck brings in what is already there, and then the gap, a step at a time.
+            public void Set(Estimate r, bool showHave = true, bool showGap = true)
             {
                 var scale = MAX / Mathf.Max(r.totalNeeds, r.totalResources, 1);
-                foreach (var t in r.needs.Concat(r.resources)) blocks.First(b => b.id == t.id).block.target = t.included ? t.value * scale : 0;
-                blocks.First(b => b.id == "gap").block.target = r.additional * scale;
+                foreach (var t in r.needs) blocks.First(b => b.id == t.id).block.target = t.included ? t.value * scale : 0;
+                foreach (var t in r.resources) blocks.First(b => b.id == t.id).block.target = t.included && showHave ? t.value * scale : 0;
+                blocks.First(b => b.id == "gap").block.target = showGap ? r.additional * scale : 0;
+                have.panel.group.gameObject.SetActive(showHave);
                 needs.value = Calc.FormatMoney(r.totalNeeds);
                 have.value = Calc.FormatMoney(r.totalResources);
                 gap.value = Calc.FormatMoney(r.additional);
-                gap.panel.group.gameObject.SetActive(r.additional > 0);
+                gap.panel.group.gameObject.SetActive(showGap && r.additional > 0);
                 foreach (var s in new[] { needs, have, gap }) s.el.Redraw();
             }
 
@@ -1398,20 +1457,33 @@ namespace Advisor3D
             const float COL = 334;
             const float X2 = MAIN_W - M - COL;
             string copied = null;
+            var slide = 0;
+            Action refresh = null;
 
             var sheet = main.Add(new El(MAIN_W, MAIN_H, ctx =>
             {
                 var (p, r, _) = Now();
                 if (!r.ready) return;
-                ctx.Text("Your estimate", M, 26, Fn(700, 34), lineH: 41, spacing: -0.4f);
+                ctx.Text("Here’s what we found", M, 26, Fn(700, 32), lineH: 40, spacing: -0.4f);
 
                 // The brand stat card, with the orange arc in its corner.
-                ctx.Rect(M, 84, COL, 152, 20, T.tint);
-                ctx.Clip(M, 84, COL, 152).Circle(M + COL - 6, 84 + 152 + 34, 78, null, T.highlight, 6);
-                ctx.Text(Calc.FormatMoney(r.additional), M + 20, 102, Fn(700, 44), T.white, lineH: 50);
-                ctx.Text(r.additional > 0 ? "Estimated additional coverage to consider" : "No additional coverage needed for what you listed", M + 20, 158,
-                    Fn(400, 16), T.onBrandMuted, maxW: COL - 110, lineH: 21);
-                ctx.Text(Explain(p, r), M + 2, 254, Fn(400, 16), maxW: COL - 4, lineH: 23);
+                ctx.Rect(M, 82, COL, 118, 20, T.tint);
+                ctx.Clip(M, 82, COL, 118).Circle(M + COL - 6, 82 + 118 + 34, 78, null, T.highlight, 6);
+                ctx.Text(Calc.FormatMoney(r.additional), M + 20, 94, Fn(700, 40), T.white, lineH: 46);
+                ctx.Text(r.additional > 0 ? "Estimated additional coverage to consider" : "No additional coverage needed for what you listed", M + 20, 144,
+                    Fn(400, 15), T.onBrandMuted, maxW: COL - 110, lineH: 20);
+
+                // The slide: one piece of the estimate at a time, as on the site's results deck.
+                var step = Deck(p, r)[slide];
+                ctx.Text($"{step.eyebrow.ToUpperInvariant()} · {slide + 1} OF {SLIDES}", M + 2, 216, Fn(700, 12.5f), T.highlightText, lineH: 18, spacing: 0.6f);
+                var titleH = ctx.Text(step.title, M + 2, 238, Fn(700, 21), maxW: COL - 4, lineH: 27, spacing: -0.2f);
+                ctx.Text(step.body, M + 2, 246 + titleH, Fn(400, 15.5f), T.label2, maxW: COL - 4, lineH: 22);
+                // Which slide you are on.
+                for (var i = 0; i < SLIDES; i++)
+                {
+                    var on = i == slide;
+                    ctx.Rect(M + COL / 2 - (SLIDES * 14 + 10) / 2f + i * 14 + (i > slide ? 10 : 0), 607, on ? 18 : 8, 8, 4, on ? T.tint : i < slide ? Ui.C("#c9a3b3") : Ui.C("#d9d2cc"));
+                }
 
                 // How we got there: every term, in the order the math uses it.
                 ctx.Text("How we got there", X2 + 14, 84, Fn(600, 17), lineH: 24);
@@ -1482,7 +1554,17 @@ namespace Advisor3D
             }
             right.Add(Ui.Paint(SIDE_W, 24, ctx => ctx.Text("Changes here update your answers, the math and the blocks.", 16, 0, Fn(400, 13), T.label2, lineH: 18)), 0, 174);
 
-            Action refresh = null;
+            // Back and forward through the deck, under the slide.
+            void GoTo(int i)
+            {
+                slide = Mathf.Clamp(i, 0, SLIDES - 1);
+                refresh();
+                if (!Application.isPlaying) stacks.Settle();
+            }
+            Btn Arrow(string icon, float x, Action onSelect) => main.Add(Ui.Button(64, 44, new BtnO { label = "", icon = icon, variant = "bordered", size = 20, onSelect = onSelect }), x, 589);
+            var prev = Arrow("chevron-left", M, () => GoTo(slide - 1));
+            var next = Arrow("chevron-right", M + COL - 64, () => GoTo(slide + 1));
+
             var copy = right.Add(Ui.Button(SIDE_W, 56, new BtnO
             {
                 label = "Copy Summary", size = 19,
@@ -1528,15 +1610,30 @@ namespace Advisor3D
                     o.label = copied == "ok" ? "Summary Copied" : copied == "fail" ? "Copy Isn’t Available Here" : "Copy Summary";
                     o.variant = copied != null ? "inverse" : "filled";
                 });
-                stacks.Set(r);
-                Say(
-                    Bot(r.additional > 0 ? $"The glowing block in front of you is the gap: about {Calc.FormatMoney(r.additional)}." : "For what you listed, your coverage and savings already reach the top of the stack."),
-                    Bot("Try the + and − on your right and watch it move. It’s a starting point for a conversation with a licensed professional, not a quote."));
+                var step = Deck(State.profile, r)[slide];
+                prev.Set(o => o.disabled = slide == 0);
+                next.Set(o => o.disabled = slide == SLIDES - 1);
+                // What is in the room for this slide: the two stacks in front, and the ring of years around.
+                stacks.Set(r, step.have, step.gap);
+                Picture.Years = step.years;
+                Say(step.look.Select(line => Bot(line)).ToArray());
             };
+            Picture.ShowBlocks = false; // the tray in front shows the same amounts as two stacks
             refresh();
             if (!Application.isPlaying) stacks.Settle();
+            resultsSlide = GoTo;
 
-            return new Screen { main = main, update = refresh, tick = stacks.Tick, dispose = stacks.Dispose };
+            return new Screen
+            {
+                main = main, update = refresh, tick = stacks.Tick,
+                dispose = () =>
+                {
+                    stacks.Dispose();
+                    Picture.ShowBlocks = true;
+                    Picture.Years = "low";
+                    resultsSlide = null;
+                },
+            };
         }
 
         // ---------- routing ----------
@@ -1592,11 +1689,26 @@ namespace Advisor3D
             Store.Go(route);
             appear = 1;
             Fade(1);
+            picture.Settle(RingUp());
+        }
+
+        // The ring shows once there are answers to draw: in the chat, on Review and on Results.
+        static bool RingUp() => Store.Route == "chat" || Store.Route == "review" || Store.Route == "results";
+
+        // For the editor's screenshot pass: turn the results deck to a slide.
+        public static void TurnTo(int index)
+        {
+            resultsSlide?.Invoke(index);
+            picture.Settle(RingUp());
         }
 
         public static void Frame(float t, float dt)
         {
             if (current == null) return;
+            // With the ring up there is something behind the wearer worth turning to see, so the
+            // panels stay where they are when they look away.
+            App.FollowGaze = !RingUp();
+            picture.Tick(t, dt, RingUp());
             TypeKeys();
             if (confirmUntil > 0 && Time.time > confirmUntil) ResetStartOver();
             if (appear < 1)

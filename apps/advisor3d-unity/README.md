@@ -51,16 +51,24 @@ speak. That answer goes to the site's AI (`POST /api/intake`, see `Assets/Script
 which reads it into a field; the app checks the reading and does all the math itself. Tapped
 suggestions and number-pad answers are read by the built-in script, and so is everything when
 the AI can't be reached. That is the fallback, though: the chat opens by talking (see
-[Talking with Abe](#talking-with-abe)). Abe stands in the middle of the card, the transcript is
-on the left, and **What Abe knows** on the right lists the answers so far; the x beside each one
-takes it back. With voice off, the number pad takes that side for questions that want a number.
+[Talking with Abe](#talking-with-abe)). Abe stands at the top of the card with the conversation
+running under him, and **What Abe knows** on the left lists the answers so far; the x beside
+each one takes it back. With voice off, a number pad on the right takes amounts.
+
+Look down in the chat and there is a ring around you, like a low round table (`Picture.cs`).
+In front, each amount you give becomes a block that rises as you answer; round to the sides and
+behind you is one post for every year of support. On Results, Abe takes the estimate a slide at
+a time, as the site's results deck does: two stacks on a tray in front of you build up to the
+gap, and the posts around you become a staircase of the cost adding up, then stepping down as
+the years pass. While the ring is up the panels give you about six seconds to look around
+before they come round to face you; tapping B or Y brings them at once.
 
 ## Talking with Abe
 
 The Basics form is tapped; the chat is spoken. Opening the chat starts a voice conversation:
-Abe, in the middle of the card, greets you and asks the open question out loud, his mouth
-moving as he speaks, and you just answer. Each answer fills the same profile the tapped and
-typed ones fill, and everything said is written to the transcript on the left. **Stop Talking**
+Abe, at the top of the card, greets you and asks the open question out loud, his mouth
+moving as he speaks, and you just answer. His words appear under him as he says them, and yours
+once they are heard. Each answer fills the same profile the tapped and typed ones fill. **Stop Talking**
 and **Talk to Abe**, at the top of the card, turn voice off and on. If voice can't start, Abe's
 written opening lines appear and the chat works by tapping and typing, as on the site. It uses
 OpenAI's Realtime API (`gpt-realtime-2.1`, voice `ash`). **Not yet tried with a real API key,
@@ -68,14 +76,24 @@ in the editor or on a headset.** The code compiles and the logic is tested, noth
 
 - `Voice.cs` sends the microphone to OpenAI over a WebSocket and plays what comes back.
   `Guide.cs` opens and closes Abe's mouth with the loudness of his voice.
-- The app stays in charge. The model reports each answer by calling `record_answer`;
-  `VoiceScript.cs` puts it through the chat script's own checks (`Script.Interpret`: the limits,
-  the monthly check, the debt split), saves it, and tells the model what to ask next.
+- Abe leads the conversation himself (`VoiceScript.cs` holds his instructions, sent when
+  voice connects): he asks in his own words, reacts to what he hears, takes several answers in
+  one sentence or a correction to an earlier one, and never reads out an error.
+- The app still owns the answers. After everything you say the model first reports what it
+  heard through `save_answers`, in a silent text-only turn; the app checks each value with the
+  chat script's own rules (`Script.Interpret`), saves what is good, and tells the model what was
+  saved and what to find out next. Abe then speaks once. A youngest child over 30 is taken as
+  grown, not turned away.
 - The API key never ships in the APK. The app asks the backend, `POST /api/voice/session`
-  (`apps/backend/voice.py`), for a secret that lasts a minute. The model, the voice, Abe's
-  instructions and the tool are set there, so changing how Abe talks is a backend change.
-- The headset has no echo cancellation, so the microphone is closed while Abe speaks. You
-  can't talk over him; tap an answer if you want to cut in.
+  (`apps/backend/voice.py`), for a secret that lasts a minute. The model and the voice are set there.
+  Its own instructions and `record_answer` tool are a fallback the app replaces on connecting.
+- You can talk over Abe. The headset has no echo cancellation, so while he speaks the app does
+  not pass the microphone on (he would hear himself); it listens for a voice clearly louder
+  than his own echo, held for about a quarter of a second, then stops him and sends what you
+  said. If it stops him for a noise and nobody speaks, he asks his question again. The
+  thresholds are at the top of `Voice.cs` and have not been tuned on a headset.
+- Abe waits until you have clearly finished before he answers (`eagerness: low`), so a pause
+  in the middle of a number does not cut you off.
 - Voice hangs up after the closing words, when you leave the chat or take the headset off,
   and after ten minutes. Tapping, the number pad and typing all keep working while it is on,
   and are all that is left if voice can't start.
@@ -121,6 +139,8 @@ The logic files are ports of the site's, and keep its order, so the two can be r
 | `Guide.cs` | `guide/Avatar.tsx` |
 | `Screens.cs` | `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
 | `Voice.cs`, `VoiceScript.cs` | nothing: the site has no voice |
+| `Picture.cs` | `results/charts.tsx` (the year charts), as posts around the wearer |
+| `Hands.cs` | nothing |
 | `Ui.cs`, `App.cs`, `MeshGen.cs`, `Resources/Shaders/` | the headset UI kit and room (from `apps/advisor3d-web/src/xr/`) |
 
 When the site changes the calculator or the script, change these copies too.
@@ -138,8 +158,10 @@ What is different from the site:
   moves to the middle for the chat.
 - The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
-- There are no controller or hand models; you see the pointer rays. In passthrough you see
-  your real hands.
+- Your hands are drawn as a faint, see-through glove (`Hands.cs`); a hand that holds a
+  controller shows a faint closed glove. In passthrough you see your real hands.
+- Results is the site's seven-slide deck, with the charts built in the room (`Picture.cs` and
+  the stacks) in place of the easel. Abe's poses for each slide are not here.
 
 ## Tests
 
@@ -159,6 +181,10 @@ scripted chat and what the voice model is told (`VoiceScript.cs`).
   closing the microphone while he speaks is enough to stop him hearing himself.
 - The answer line in the chat: the headset keyboard opening, dictation, and the reply from the AI
   on the device (the same request works from a computer).
-- Passthrough ("Show My Real Room").
+- Passthrough ("Show My Real Room"). It showed no camera view on the headset; the OpenXR
+  composition layers feature it needs was off and is now on, but the fix has not been tried.
+- The drawn hands (`Hands.cs`): the glove shape has only been checked by compiling.
+- The ring and the results deck (`Picture.cs`): seen in the editor's screenshots, not in a headset.
+- The live captions under Abe, and the number pad staying away while voice is on.
 - Recentering (tap B or Y, or turn away from the panels) and starting over (hold B or Y, or
   leave the headset off for ten seconds). The thresholds are constants at the top of `App.cs`.

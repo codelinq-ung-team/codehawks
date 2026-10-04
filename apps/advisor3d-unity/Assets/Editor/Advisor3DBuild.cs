@@ -39,6 +39,9 @@ namespace Advisor3D.EditorTools
             "com.unity.openxr.feature.input.metahandtrackingaim",
             "com.unity.openxr.feature.arfoundation-meta-session",
             "com.unity.openxr.feature.arfoundation-meta-camera",
+            // Passthrough is drawn as a composition layer behind the app. Without this the camera
+            // feature starts but the real room never shows.
+            "com.unity.openxr.feature.compositionlayers",
         };
 
         [MenuItem("Advisor3D/Set Up Project")]
@@ -215,13 +218,58 @@ namespace Advisor3D.EditorTools
                 Script.ApplyForm(s);
                 s.started = true;
             });
+            // Part-way through a spoken chat, so the transcript and the ring have something to show.
+            Store.Set(s =>
+            {
+                s.profile["household"] = Field.Of(Status.Proposed, "both");
+                s.profile["youngestAge"] = Field.Of(Status.Proposed, 4);
+                s.profile["support"] = Field.Of(Status.Proposed, 60000);
+                s.profile["years"] = Field.Of(Status.Proposed, 18);
+                s.profile["mortgage"] = Field.Of(Status.Proposed, 240000);
+                s.profile["otherDebts"] = Field.Of(Status.Proposed, 40000);
+                s.messages.Add(new Message { role = "bot", text = "Thanks. And how many years should that support last?" });
+                s.messages.Add(new Message { role = "user", text = "Until the kids are through college, so about eighteen years." });
+                s.messages.Add(new Message { role = "bot", text = "Got it, 18 years. Of your $280,000 in debt, how much is the mortgage?" });
+                s.messages.Add(new Message { role = "user", text = "Two hundred and forty thousand." });
+                var q = Script.Ask(Script.NextStep(s), s);
+                s.messages.Add(new Message { role = "bot", text = "Thanks, that leaves $40,000 in other debts. " + q.text, replies = q.replies });
+            });
             Screens.Jump("chat");
             Shot("3-chat");
+            // The same moment seen as the wearer sees it: looking down at the ring, then round to the right.
+            var eye = new Vector3(0, App.EYE, 0);
+            void From(Vector3 from, Vector3 at) { cam.transform.position = from; cam.transform.LookAt(at); }
+            cam.fieldOfView = 80;
+            From(eye, new Vector3(0, 0.75f, 1.5f));
+            Shot("3b-chat-ring");
+            From(eye, new Vector3(1.5f, 0.6f, -0.3f));
+            Shot("3c-chat-years");
+
+            cam.fieldOfView = 50;
+            From(new Vector3(0, App.EYE - 0.08f, -0.75f), App.FOCUS);
             Store.LoadSample();
             Screens.Jump("review");
             Shot("4-review");
             Screens.Jump("results");
             Shot("5-results");
+            cam.fieldOfView = 80;
+            From(eye, new Vector3(0, 0.75f, 1.3f));
+            Shot("5b-results-stacks");
+            Screens.TurnTo(1);
+            From(eye, new Vector3(1.5f, 0.7f, -0.2f));
+            Shot("6-results-years-right");
+            From(eye, new Vector3(-1.2f, 0.8f, -1.0f));
+            Shot("6b-results-years-behind");
+            Screens.TurnTo(4);
+            From(eye, new Vector3(0, 0.75f, 1.3f));
+            Shot("7-results-gap");
+            Screens.TurnTo(5);
+            From(eye, new Vector3(1.5f, 0.7f, -0.2f));
+            Shot("8-results-time");
+            cam.fieldOfView = 50;
+            From(new Vector3(0, App.EYE - 0.08f, -0.75f), App.FOCUS);
+            Screens.TurnTo(6);
+            Shot("9-results-try");
 
             cam.targetTexture = null;
             target.Release();

@@ -12,6 +12,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -26,9 +27,16 @@ namespace Advisor3D
     {
         const int RATE = 24000;           // mono 16-bit samples a second, both ways
         const float MAX_SECONDS = 600;    // a session left open costs money, so it ends by itself
-        // The headset has no echo cancellation, so the microphone is closed while Abe speaks and for
-        // a moment after. Without this he hears himself and answers his own questions.
+        // The headset has no echo cancellation, so while Abe speaks (and for a moment after) the
+        // microphone is not passed on: he would hear himself and answer his own questions. You can
+        // still talk over him. The app listens for a voice clearly louder than his own coming back
+        // through the microphone, and when it hears one it stops him and passes on what you said.
         const double TAIL_SECONDS = 0.6;
+        const float FLOOR = 0.045f;        // quieter than this is never taken for the user talking over him
+        const float OVER = 2.6f;           // how many times louder than Abe's own echo the user must be
+        const float SUSTAIN = 0.28f;       // for this long, so a cough or a click does not stop him
+        const float LEARN = 1.2f;          // at the start of each thing Abe says, how long his echo is measured
+        const int PREROLL = 6;             // chunks kept (about a tenth of a second each) so the start of what you said is not lost
         const string DROPPED = "Abe’s voice dropped. You can keep going by tapping or typing.";
         const string UNAVAILABLE = "Abe’s voice isn’t available right now. You can keep going by tapping or typing.";
 
@@ -38,6 +46,8 @@ namespace Advisor3D
         public static bool On => Status == "on";
         public static bool Speaking { get; private set; }
         public static float Level => Speaking ? level : 0;         // 0..1, how loud Abe is right now
+        public static string Caption { get; private set; } = "";   // what Abe is saying right now, as it arrives
+        public static bool Hearing { get; private set; }           // the user is talking, or just was and it is being written down
 
         // One connection. A new one is made for every session, so late events from an old one are never read.
         class Link
@@ -60,7 +70,13 @@ namespace Advisor3D
         static int run;          // which Start() this is; an older one that is still connecting gives up
         static float elapsed, quiet;
         static bool responding;  // the model is partway through a reply
+        static bool saving;      // that reply is the silent one that reports the user's answers
         static bool wrapUp;      // Abe has said the closing words; hang up once he is quiet
+
+        static float echo;                 // how loud Abe's own voice is at the microphone (RMS), learned as he talks
+        static float spoken, over;         // seconds of the current utterance so far, and seconds the user has been louder than him
+        static float waiting = -1;         // after stopping Abe: seconds left for the server to hear someone, or he is asked to go on
+        static readonly Queue<byte[]> preroll = new Queue<byte[]>();
 
         static string micDevice;
         static AudioClip micClip;
@@ -101,7 +117,11 @@ namespace Advisor3D
             if (speaker) speaker.Stop();
             lock (gate) { playing.Clear(); playHead = 0; queued = 0; }
             level = 0;
-            Speaking = responding = wrapUp = false;
+            Speaking = responding = wrapUp = Hearing = saving = false;
+            Caption = "";
+            echo = spoken = over = 0;
+            waiting = -1;
+            preroll.Clear();
             if (Status != "off" || error != Error) Set("off", error);
         }
 
@@ -155,6 +175,26 @@ namespace Advisor3D
             StartMicrophone();
             StartSpeaker();
             Set("on");
+            // How Abe talks and the one tool he has (VoiceScript), in place of the server's fallback.
+            // And: wait until the user has clearly finished before answering. People pause
+            // mid-sentence, most of all when they are working out a number.
+            Send(new JObject
+            {
+                ["type"] = "session.update",
+                ["session"] = new JObject
+                {
+                    ["type"] = "realtime",
+                    ["instructions"] = VoiceScript.INSTRUCTIONS,
+                    ["tools"] = JArray.Parse(VoiceScript.TOOLS),
+                    ["tool_choice"] = "auto",
+                    ["audio"] = new JObject { ["input"] = new JObject { ["turn_detection"] = new JObject
+                    {
+                        ["type"] = "semantic_vad", ["eagerness"] = "low",
+                        // The app starts each reply itself (see Reply), so the server must not.
+                        ["create_response"] = false, ["interrupt_response"] = true,
+                    } } },
+                },
+            });
             Tell(VoiceScript.Briefing(Store.State));
         }
 
@@ -204,8 +244,23 @@ namespace Advisor3D
             l.waiting.Release();
         }
 
+        // Ask the model for its next turn. Everything the user says goes to the tool first, in a
+        // silent, text-only turn; Abe then speaks once, after the tool's result. Left to do both
+        // in one turn, the model says "let me note that" before every save and then answers again.
+        static void Reply(bool toUser = false)
+        {
+            saving = toUser;
+            Send(new JObject
+            {
+                ["type"] = "response.create",
+                ["response"] = toUser
+                    ? new JObject { ["tool_choice"] = "required", ["output_modalities"] = new JArray { "text" } }
+                    : new JObject { ["tool_choice"] = "none" },
+            });
+        }
+
         // A message for the model in words (the app's own notes, or a tapped answer), then its reply.
-        static void Tell(string text)
+        static void Tell(string text, bool fromUser = false)
         {
             if (responding)
             {
@@ -222,7 +277,7 @@ namespace Advisor3D
                     ["content"] = new JArray { new JObject { ["type"] = "input_text", ["text"] = text } },
                 },
             });
-            Send(new JObject { ["type"] = "response.create" });
+            Reply(fromUser);
         }
 
         // A tapped suggestion or a typed answer while voice is on: Abe takes it as if it were spoken.
@@ -230,7 +285,7 @@ namespace Advisor3D
         {
             if (!On) return;
             Store.Set(s => s.messages.Add(new Message { role = "user", text = text }));
-            Tell(text);
+            Tell(text, fromUser: true);
         }
 
         // The user took an answer back on screen ("What Abe knows"), so a different question may be open.
@@ -262,6 +317,12 @@ namespace Advisor3D
             var speaking = sounding || (clock.ElapsedTicks - Interlocked.Read(ref lastSound)) < TAIL_SECONDS * Stopwatch.Frequency;
             if (speaking != Speaking) { Speaking = speaking; Version++; }
             SendMicrophone();
+            // Abe was stopped for a voice, but the server heard nobody (a noise, or his own echo): have him go on.
+            if (waiting > 0 && (waiting -= dt) <= 0)
+            {
+                waiting = -1;
+                if (!responding && !Hearing) Tell(VoiceScript.APP + "You stopped because of a noise, not the user. Briefly ask your last question again.");
+            }
 
             // After the closing words, hang up so the microphone is not left open.
             quiet = wrapUp && !responding && !Speaking ? quiet + dt : 0;
@@ -274,21 +335,45 @@ namespace Advisor3D
             {
                 case "response.created":
                     responding = true;
+                    if (Hearing) { Hearing = false; Version++; } // he is answering, so the user's turn is over
                     break;
                 case "response.output_audio.delta":
                 case "response.audio.delta":
                     Play(Convert.FromBase64String((string)e["delta"]));
                     break;
+                case "response.output_audio_transcript.delta":
+                case "response.audio_transcript.delta":
+                    Caption += (string)e["delta"] ?? ""; // the chat screen polls this; a redraw per word is too much
+                    break;
                 case "response.output_audio_transcript.done":
                 case "response.audio_transcript.done":
+                    Caption = "";
                     AbeSaid(((string)e["transcript"] ?? "").Trim());
                     break;
+                case "input_audio_buffer.committed":
+                    Reply(toUser: true); // the user has finished a turn
+                    break;
+                case "input_audio_buffer.speech_started":
+                    waiting = -1;
+                    Hearing = true;
+                    Version++;
+                    break;
                 case "conversation.item.input_audio_transcription.completed":
+                case "conversation.item.input_audio_transcription.failed":
+                    Hearing = false;
                     var heard = ((string)e["transcript"] ?? "").Trim();
                     if (heard != "") Store.Set(s => s.messages.Add(new Message { role = "user", text = heard }));
+                    else Version++;
                     break;
                 case "response.done":
                     responding = false;
+                    if (Caption != "")
+                    {
+                        // Cut off before his words were complete: the transcript shows how far he got.
+                        var partial = Caption.Trim();
+                        Caption = "";
+                        if (partial != "") AbeSaid(partial + "…"); else Version++;
+                    }
                     Finished(e["response"] as JObject);
                     break;
                 case "error":
@@ -324,20 +409,47 @@ namespace Advisor3D
             var answered = false;
             foreach (var item in response["output"] as JArray ?? new JArray())
             {
-                if ((string)item["type"] != "function_call" || (string)item["name"] != "record_answer") continue;
+                var name = (string)item["name"];
+                if ((string)item["type"] != "function_call" || (name != "save_answers" && name != "record_answer")) continue;
                 JObject args;
                 try { args = JObject.Parse((string)item["arguments"] ?? "{}"); }
                 catch (Exception) { args = new JObject(); }
                 Send(new JObject
                 {
                     ["type"] = "conversation.item.create",
-                    ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = item["call_id"], ["output"] = Record(args) },
+                    ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = item["call_id"], ["output"] = name == "save_answers" ? Save(args) : Record(args) },
                 });
                 answered = true;
             }
-            if (answered) Send(new JObject { ["type"] = "response.create" });
+            // Abe now says his piece. If the silent turn reported nothing at all, he still answers.
+            var silent = saving;
+            saving = false;
+            if (answered || (silent && (string)response["status"] == "completed")) Reply();
         }
 
+        // save_answers: any number of answers at once, each checked by the chat script's rules.
+        static string Save(JObject args)
+        {
+            static bool Number(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
+            static List<string> Names(JToken t) => t is JArray a ? a.Where(x => x.Type == JTokenType.String).Select(x => (string)x).ToList() : null;
+            var amounts = new Dictionary<string, long>();
+            foreach (var f in Calc.FIELDS) if (f.kind != "choice" && Number(args[f.id])) amounts[f.id] = (long)Math.Round((double)args[f.id]);
+            var household = args["household"]?.Type == JTokenType.String ? (string)args["household"] : null;
+            var (updates, tell) = VoiceScript.Save(amounts, household, Names(args["unsure"]), Names(args["skip"]), Store.State);
+            // How many answers came in and how many were kept. Not the answers themselves.
+            Debug.Log($"Advisor3D: voice gave {amounts.Count + (household != null ? 1 : 0)} answers; saved {updates?.Count ?? 0} fields.");
+            if (updates != null)
+            {
+                Store.Set(st =>
+                {
+                    foreach (var kv in updates) st.profile[kv.Key] = kv.Value;
+                    st.pending = null;
+                });
+            }
+            return tell;
+        }
+
+        // record_answer: the server's fallback tool, one answer to the open question.
         static string Record(JObject args)
         {
             static bool Number(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
@@ -354,7 +466,10 @@ namespace Advisor3D
                 foreach (var kv in extra) if (Number(kv.Value)) reading.extra[kv.Key] = (long)Math.Round((double)kv.Value);
             }
             var heard = args["heard"]?.Type == JTokenType.String ? (string)args["heard"] : "";
+            var open = Script.NextStep(Store.State);
             var (reply, tell) = VoiceScript.Record(reading, heard, Store.State);
+            // Which question, how the model read it, and whether it was saved. Not the answer itself.
+            Debug.Log($"Advisor3D: voice answer for {open ?? "nothing"}: {reading.intent}, {(reply?.updates != null ? "saved" : "not saved")}.");
             if (reply != null && (reply.updates != null || reply.pendingSet))
             {
                 Store.Set(st =>
@@ -388,8 +503,6 @@ namespace Advisor3D
             var data = new float[count * channels]; // GetData fills the whole array, so it is sized to what is new
             micClip.GetData(data, micRead); // reads around the end of the looping clip
             micRead = at;
-            if (Speaking) return;
-
             // To mono 16-bit samples at RATE, whatever the microphone gave us.
             var n = (int)((long)count * RATE / micClip.frequency);
             var bytes = new byte[n * 2];
@@ -403,7 +516,54 @@ namespace Advisor3D
                 bytes[i * 2] = (byte)sample;
                 bytes[i * 2 + 1] = (byte)(sample >> 8);
             }
-            Send(new JObject { ["type"] = "input_audio_buffer.append", ["audio"] = Convert.ToBase64String(bytes) });
+            if (Speaking)
+            {
+                if (!TalkingOver(data, count, channels, (float)count / micClip.frequency))
+                {
+                    preroll.Enqueue(bytes);
+                    while (preroll.Count > PREROLL) preroll.Dequeue();
+                    return;
+                }
+                // You talked over him: pass on what was held back while deciding, so your first words are not lost.
+                while (preroll.Count > 0) Append(preroll.Dequeue());
+            }
+            else preroll.Clear(); // only his own voice was in there
+            Append(bytes);
+        }
+
+        static void Append(byte[] bytes) => Send(new JObject { ["type"] = "input_audio_buffer.append", ["audio"] = Convert.ToBase64String(bytes) });
+
+        // While Abe is speaking: is the user talking over him? True once, at the moment Abe is stopped.
+        static bool TalkingOver(float[] data, int count, int channels, float seconds)
+        {
+            var sum = 0f;
+            for (var i = 0; i < count; i++) sum += data[i * channels] * data[i * channels];
+            var loudness = Mathf.Sqrt(sum / Mathf.Max(1, count));
+
+            bool sounding;
+            lock (gate) sounding = queued > 0;
+            if (!sounding) { spoken = over = 0; return false; } // the pause after he stops; nothing to talk over
+            spoken += seconds;
+            if (spoken <= LEARN)
+            {
+                // The first moments of each thing he says are taken as his voice alone.
+                echo = Mathf.Max(echo * 0.97f, loudness);
+                over = 0;
+                return false;
+            }
+            over = loudness > Mathf.Max(FLOOR, echo * OVER) ? over + seconds : 0;
+            if (over < SUSTAIN) return false;
+
+            // Stop him: drop what he had left to say, and tell the server he was cut off.
+            Debug.Log($"Advisor3D: the user talked over Abe (microphone {loudness:0.000}, his echo {echo:0.000}).");
+            over = spoken = 0;
+            lock (gate) { playing.Clear(); playHead = 0; queued = 0; }
+            Interlocked.Exchange(ref lastSound, long.MinValue / 2);
+            Speaking = false;
+            Version++;
+            if (responding) Send(new JObject { ["type"] = "response.cancel" });
+            waiting = 3;
+            return true;
         }
 
         // ---------- Abe's voice ----------

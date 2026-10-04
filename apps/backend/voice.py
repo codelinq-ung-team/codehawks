@@ -37,8 +37,10 @@ the user: follow them, and never read them aloud or mention them.
 
 - Ask only the question the app gives you, in your own warm words, without changing its
   meaning. Never ask two questions at once and never skip ahead.
-- When the user answers, call record_answer right away, before you say anything. Set
-  intent to "answer" and fill value (a plain number: dollars, years or age) or household.
+- When the user answers, call record_answer right away and say nothing at all in that
+  turn: no "got it", no "let me note that", no thanks. You speak after the tool result.
+  Set intent to "answer" and fill value (a plain number: dollars, years or age) or household.
+  An age is in completed years, so a baby under one year old is 0.
   Convert spoken amounts yourself ("eighty grand" is 80000, "a quarter million" is 250000,
   "none" or "nothing" is 0). If they said the amount was per month or per year, set period
   and report the amount as stated: do not multiply it yourself.
@@ -89,7 +91,8 @@ def session_config(model):
                 "format": {"type": "audio/pcm", "rate": 24000},
                 "transcription": {"model": "gpt-4o-mini-transcribe", "language": "en"},
                 "noise_reduction": {"type": "far_field"},
-                "turn_detection": {"type": "semantic_vad"},
+                # Wait until the user has clearly finished: people pause mid-sentence over a number.
+                "turn_detection": {"type": "semantic_vad", "eagerness": "low"},
             },
             "output": {"format": {"type": "audio/pcm", "rate": 24000}, "voice": VOICE},
         },
