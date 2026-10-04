@@ -55,15 +55,25 @@ export function Header({ route }: { route: Route }) {
 }
 
 function Stepper({ index }: { index: number }) {
+  // Finished steps link back by route (answers live in the store, so nothing is lost);
+  // the current step and later ones are plain text.
   return (
     <nav className="stepper" aria-label="Progress">
       <ol>
-        {STEPS.map((s, i) => (
-          <li key={s.id} className={i < index ? 'is-done' : i === index ? 'is-current' : ''} aria-current={i === index ? 'step' : undefined}>
-            <span className="stepper__mark" aria-hidden="true">{i < index && <Icon name="check" size={14} weight={3} />}</span>
-            <span className="stepper__label">{s.label}{i < index && <span className="sr-only"> (done)</span>}</span>
-          </li>
-        ))}
+        {STEPS.map((s, i) => {
+          const done = i < index
+          const inner = (
+            <>
+              <span className="stepper__mark" aria-hidden="true">{done && <Icon name="check" size={14} weight={3} />}</span>
+              <span className="stepper__label">{s.label}{done && <span className="sr-only"> (done, go back)</span>}</span>
+            </>
+          )
+          return (
+            <li key={s.id} className={done ? 'is-done' : i === index ? 'is-current' : ''} aria-current={i === index ? 'step' : undefined}>
+              {done ? <a className="stepper__link" href={'#/' + s.id}>{inner}</a> : inner}
+            </li>
+          )
+        })}
       </ol>
     </nav>
   )

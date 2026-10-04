@@ -53,6 +53,7 @@ export function Prepare() {
   const q = QUESTIONS[index]
   const answer = form[q.id]
   const last = index === QUESTIONS.length - 1
+  // Counts the question on screen, so Basics opens at 20% before any answer and is full on the last question.
   const progress = Math.round(((index + 1) / QUESTIONS.length) * 100)
   const tooBig = q.type === 'number' && typeof answer === 'number' && answer > q.max
   // Abe cheers once the last question is answered.
@@ -83,8 +84,11 @@ export function Prepare() {
   return (
     <Page className="qform-screen">
       <form className="qform" onSubmit={submit} aria-labelledby="q-heading" noValidate>
-        <div className="qform__meta"><span>Question {index + 1} of {QUESTIONS.length}</span><span>{progress}% complete</span></div>
-        <div className="qform__bar" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>
+        <div className="qform__meta"><span>Basics · Question {index + 1} of {QUESTIONS.length}</span></div>
+        <div
+          className="qform__bar" role="progressbar" aria-label="Basics progress"
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`Question ${index + 1} of ${QUESTIONS.length}`}
+        ><span style={{ width: `${progress}%` }} /></div>
 
         <div className="qform__body" key={q.id} data-side={q.side}>
           <div className="qform__head">

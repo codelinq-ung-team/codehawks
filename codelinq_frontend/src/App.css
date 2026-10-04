@@ -46,6 +46,9 @@ h1, h2, h3, p { margin: 0; }
 .stepper__mark { display: grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%; background: var(--fill-secondary); }
 .is-done .stepper__mark { background: var(--highlight-text); color: #fff; }
 .is-current .stepper__mark { background: var(--tint); }
+.stepper__link { display: flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
+.stepper__link:hover .stepper__label { text-decoration: underline; }
+.stepper__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .stepper__label { font: inherit; font-size: 15px; line-height: 20px; }
 
 /* ---------- Screens ---------- */
@@ -206,14 +209,18 @@ h1, h2, h3, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .msg--typing span { animation: none; opacity: .6; } }
 
 .composer {
-  display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-5) var(--space-4); background: var(--grouped-secondary);
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-2) var(--space-5) var(--space-4); background: var(--grouped-secondary);
 }
+/* "Why do you ask?" sits inside the answer box, hollowed out: an outlined pill with no fill. */
 .composer__why {
-  justify-self: start; padding: 2px 0; border: 0; background: none; cursor: pointer;
-  color: var(--label-secondary); font: 500 15px/20px var(--font-sans); text-decoration: underline; text-underline-offset: 4px;
+  display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 40px; padding: 0 var(--space-4);
+  border: 1.5px solid var(--tint-text); border-radius: var(--radius-full); background: transparent; cursor: pointer;
+  color: var(--tint-text); font: 600 15px/20px var(--font-sans); white-space: nowrap;
 }
-.composer__why:hover { color: var(--label-primary); }
-.composer__why:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.composer__why:hover:not(:disabled) { background: var(--fill-quaternary); }
+.composer__why:disabled { opacity: .5; cursor: default; }
+.composer__why:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.composer__why-short { display: none; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 var(--space-4);
@@ -265,6 +272,8 @@ h1, h2, h3, p { margin: 0; }
   .msg { max-width: 82%; }
   .stepper__label { font-size: 13px; }
   .stepper__mark { display: none; }
+  .composer__why-full { display: none; }
+  .composer__why-short { display: inline; }
 }
 
 

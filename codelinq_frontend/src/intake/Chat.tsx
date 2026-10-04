@@ -135,9 +135,6 @@ export function Chat() {
           </div>
 
           <div className="composer">
-            {replies?.includes(WHY) && (
-              <button type="button" className="composer__why" onClick={() => void send(WHY)}>{WHY}</button>
-            )}
             {chips && chips.length > 0 && (
               <div className="chips" role="group" aria-label="Suggested answers">
                 {chips.map((r) => (
@@ -151,6 +148,13 @@ export function Chat() {
                   ref={inputRef} className="composer__input" value={draft} autoFocus autoComplete="off"
                   onChange={(e) => setDraft(e.target.value)} placeholder="Type your answer…" aria-label="Your answer"
                 />
+                {replies?.includes(WHY) && (
+                  <button type="button" className="composer__why" onClick={() => void send(WHY)} disabled={state.typing} aria-label={WHY}>
+                    <Icon name="info" size={16} weight={2.2} />
+                    <span className="composer__why-full" aria-hidden="true">{WHY}</span>
+                    <span className="composer__why-short" aria-hidden="true">Why?</span>
+                  </button>
+                )}
                 <button type="submit" className="composer__send" disabled={!draft.trim() || state.typing} aria-label="Send">
                   <Icon name="arrow-up" size={22} weight={2.4} />
                 </button>
