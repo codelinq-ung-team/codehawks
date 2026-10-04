@@ -74,12 +74,17 @@ in the editor or on a headset.** The code compiles and the logic is tested, noth
 
 - `Voice.cs` sends the microphone to OpenAI over a WebSocket and plays what comes back.
   `Guide.cs` opens and closes Abe's mouth with the loudness of his voice.
-- The app stays in charge. The model reports each answer by calling `record_answer`;
-  `VoiceScript.cs` puts it through the chat script's own checks (`Script.Interpret`: the limits,
-  the monthly check, the debt split), saves it, and tells the model what to ask next.
+- Abe leads the conversation himself (`VoiceScript.cs` holds his instructions, sent when
+  voice connects): he asks in his own words, reacts to what he hears, takes several answers in
+  one sentence or a correction to an earlier one, and never reads out an error.
+- The app still owns the answers. After everything you say the model first reports what it
+  heard through `save_answers`, in a silent text-only turn; the app checks each value with the
+  chat script's own rules (`Script.Interpret`), saves what is good, and tells the model what was
+  saved and what to find out next. Abe then speaks once. A youngest child over 30 is taken as
+  grown, not turned away.
 - The API key never ships in the APK. The app asks the backend, `POST /api/voice/session`
-  (`backend/voice.py`), for a secret that lasts a minute. The model, the voice, Abe's
-  instructions and the tool are set there, so changing how Abe talks is a backend change.
+  (`backend/voice.py`), for a secret that lasts a minute. The model and the voice are set there.
+  Its own instructions and `record_answer` tool are a fallback the app replaces on connecting.
 - You can talk over Abe. The headset has no echo cancellation, so while he speaks the app does
   not pass the microphone on (he would hear himself); it listens for a voice clearly louder
   than his own echo, held for about a quarter of a second, then stops him and sends what you

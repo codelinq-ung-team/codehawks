@@ -12,6 +12,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -69,6 +70,7 @@ namespace Advisor3D
         static int run;          // which Start() this is; an older one that is still connecting gives up
         static float elapsed, quiet;
         static bool responding;  // the model is partway through a reply
+        static bool saving;      // that reply is the silent one that reports the user's answers
         static bool wrapUp;      // Abe has said the closing words; hang up once he is quiet
 
         static float echo;                 // how loud Abe's own voice is at the microphone (RMS), learned as he talks
@@ -115,7 +117,7 @@ namespace Advisor3D
             if (speaker) speaker.Stop();
             lock (gate) { playing.Clear(); playHead = 0; queued = 0; }
             level = 0;
-            Speaking = responding = wrapUp = Hearing = false;
+            Speaking = responding = wrapUp = Hearing = saving = false;
             Caption = "";
             echo = spoken = over = 0;
             waiting = -1;
@@ -173,15 +175,24 @@ namespace Advisor3D
             StartMicrophone();
             StartSpeaker();
             Set("on");
-            // Wait until the user has clearly finished before answering: people pause mid-sentence,
-            // most of all when they are working out a number.
+            // How Abe talks and the one tool he has (VoiceScript), in place of the server's fallback.
+            // And: wait until the user has clearly finished before answering. People pause
+            // mid-sentence, most of all when they are working out a number.
             Send(new JObject
             {
                 ["type"] = "session.update",
                 ["session"] = new JObject
                 {
                     ["type"] = "realtime",
-                    ["audio"] = new JObject { ["input"] = new JObject { ["turn_detection"] = new JObject { ["type"] = "semantic_vad", ["eagerness"] = "low" } } },
+                    ["instructions"] = VoiceScript.INSTRUCTIONS,
+                    ["tools"] = JArray.Parse(VoiceScript.TOOLS),
+                    ["tool_choice"] = "auto",
+                    ["audio"] = new JObject { ["input"] = new JObject { ["turn_detection"] = new JObject
+                    {
+                        ["type"] = "semantic_vad", ["eagerness"] = "low",
+                        // The app starts each reply itself (see Reply), so the server must not.
+                        ["create_response"] = false, ["interrupt_response"] = true,
+                    } } },
                 },
             });
             Tell(VoiceScript.Briefing(Store.State));
@@ -233,8 +244,23 @@ namespace Advisor3D
             l.waiting.Release();
         }
 
+        // Ask the model for its next turn. Everything the user says goes to the tool first, in a
+        // silent, text-only turn; Abe then speaks once, after the tool's result. Left to do both
+        // in one turn, the model says "let me note that" before every save and then answers again.
+        static void Reply(bool toUser = false)
+        {
+            saving = toUser;
+            Send(new JObject
+            {
+                ["type"] = "response.create",
+                ["response"] = toUser
+                    ? new JObject { ["tool_choice"] = "required", ["output_modalities"] = new JArray { "text" } }
+                    : new JObject { ["tool_choice"] = "none" },
+            });
+        }
+
         // A message for the model in words (the app's own notes, or a tapped answer), then its reply.
-        static void Tell(string text)
+        static void Tell(string text, bool fromUser = false)
         {
             if (responding)
             {
@@ -251,7 +277,7 @@ namespace Advisor3D
                     ["content"] = new JArray { new JObject { ["type"] = "input_text", ["text"] = text } },
                 },
             });
-            Send(new JObject { ["type"] = "response.create" });
+            Reply(fromUser);
         }
 
         // A tapped suggestion or a typed answer while voice is on: Abe takes it as if it were spoken.
@@ -259,7 +285,7 @@ namespace Advisor3D
         {
             if (!On) return;
             Store.Set(s => s.messages.Add(new Message { role = "user", text = text }));
-            Tell(text);
+            Tell(text, fromUser: true);
         }
 
         // The user took an answer back on screen ("What Abe knows"), so a different question may be open.
@@ -324,6 +350,9 @@ namespace Advisor3D
                     Caption = "";
                     AbeSaid(((string)e["transcript"] ?? "").Trim());
                     break;
+                case "input_audio_buffer.committed":
+                    Reply(toUser: true); // the user has finished a turn
+                    break;
                 case "input_audio_buffer.speech_started":
                     waiting = -1;
                     Hearing = true;
@@ -380,20 +409,47 @@ namespace Advisor3D
             var answered = false;
             foreach (var item in response["output"] as JArray ?? new JArray())
             {
-                if ((string)item["type"] != "function_call" || (string)item["name"] != "record_answer") continue;
+                var name = (string)item["name"];
+                if ((string)item["type"] != "function_call" || (name != "save_answers" && name != "record_answer")) continue;
                 JObject args;
                 try { args = JObject.Parse((string)item["arguments"] ?? "{}"); }
                 catch (Exception) { args = new JObject(); }
                 Send(new JObject
                 {
                     ["type"] = "conversation.item.create",
-                    ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = item["call_id"], ["output"] = Record(args) },
+                    ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = item["call_id"], ["output"] = name == "save_answers" ? Save(args) : Record(args) },
                 });
                 answered = true;
             }
-            if (answered) Send(new JObject { ["type"] = "response.create" });
+            // Abe now says his piece. If the silent turn reported nothing at all, he still answers.
+            var silent = saving;
+            saving = false;
+            if (answered || (silent && (string)response["status"] == "completed")) Reply();
         }
 
+        // save_answers: any number of answers at once, each checked by the chat script's rules.
+        static string Save(JObject args)
+        {
+            static bool Number(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
+            static List<string> Names(JToken t) => t is JArray a ? a.Where(x => x.Type == JTokenType.String).Select(x => (string)x).ToList() : null;
+            var amounts = new Dictionary<string, long>();
+            foreach (var f in Calc.FIELDS) if (f.kind != "choice" && Number(args[f.id])) amounts[f.id] = (long)Math.Round((double)args[f.id]);
+            var household = args["household"]?.Type == JTokenType.String ? (string)args["household"] : null;
+            var (updates, tell) = VoiceScript.Save(amounts, household, Names(args["unsure"]), Names(args["skip"]), Store.State);
+            // How many answers came in and how many were kept. Not the answers themselves.
+            Debug.Log($"Advisor3D: voice gave {amounts.Count + (household != null ? 1 : 0)} answers; saved {updates?.Count ?? 0} fields.");
+            if (updates != null)
+            {
+                Store.Set(st =>
+                {
+                    foreach (var kv in updates) st.profile[kv.Key] = kv.Value;
+                    st.pending = null;
+                });
+            }
+            return tell;
+        }
+
+        // record_answer: the server's fallback tool, one answer to the open question.
         static string Record(JObject args)
         {
             static bool Number(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
