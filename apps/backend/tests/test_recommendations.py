@@ -59,7 +59,7 @@ class RecommendationsTests(unittest.TestCase):
         self.assertIsNone(outlook({**VALUES, "income": 50000, "futureIncome": 50000, "plans": 0}, 500000))
         self.assertIsNone(outlook({**VALUES, "income": 50000, "futureIncome": 30000}, 500000))
         young = dict(income=13000, futureIncome=60000, plans=3, support=0, years=1, mortgage=0, otherDebts=8000, existing=0)
-        self.assertEqual(outlook(young, 8000), {"inYears": 10, "plans": ["kids", "home"], "support": 42000, "years": 22, "mortgage": 180000, "gap": 1112000})
+        self.assertEqual(outlook(young, 8000), {"inYears": 10, "plans": ["kids", "home"], "support": 42000, "years": 20, "mortgage": 180000, "gap": 1078000})
         partner = outlook({**VALUES, "income": 60000, "plans": 4}, 500000)
         self.assertEqual((partner["support"], partner["years"], partner["gap"]), (42000, 10, 520000))
 

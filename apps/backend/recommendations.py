@@ -99,8 +99,8 @@ def outlook(facts, gap):
     """What the gap could grow into in about ten years, from the user's plans and expected income.
 
     Mirrors outlook() in apps/web/src/domain/calculator.ts: support keeps its share of income;
-    kids or a partner mean at least 70% of income for at least 22 or 10 years; a home is a
-    mortgage of three times income. None unless the gap grows.
+    kids or a partner mean at least 70% of income for at least 20 or 10 years, and kids add a
+    50,000 education fund; a home is a mortgage of three times income. None unless the gap grows.
     """
     plans = [plan for bit, plan in enumerate(PLANS) if facts.get("plans", 0) >> bit & 1]
     now = facts.get("income", 0)
@@ -108,14 +108,15 @@ def outlook(facts, gap):
     support, years, mortgage = facts["support"], facts["years"], facts["mortgage"]
     if now and support and "futureIncome" in facts:
         support = math.floor(support * then / now / 100 + 0.5) * 100
-    for plan, least in (("kids", 22), ("partner", 10)):
+    for plan, least in (("kids", 20), ("partner", 10)):
         if plan in plans:
             years = max(years, least)
             support = max(support, math.floor(then * 0.7 / 100 + 0.5) * 100)
+    education = facts.get("education", 0) + (50_000 if "kids" in plans else 0)
     if "home" in plans:
         mortgage = max(mortgage, math.floor(then * 3 / 1000 + 0.5) * 1000)
     ahead = max(0, support * years + mortgage + facts["otherDebts"] + facts.get("finalExpenses", 0)
-                + facts.get("education", 0) - facts["existing"] - facts.get("savings", 0))
+                + education - facts["existing"] - facts.get("savings", 0))
     return {"inYears": 10, "plans": plans, "support": support, "years": years, "mortgage": mortgage, "gap": ahead} if ahead > gap else None
 
 

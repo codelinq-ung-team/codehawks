@@ -397,29 +397,36 @@ h1, h2, h3, p { margin: 0; }
 .lp-cta__btn { min-height: 56px; padding: 0 var(--space-6); font-size: 18px; box-shadow: 0 10px 24px rgba(101, 0, 48, .18); }
 .lp-cta__btn > span { display: inline-flex; align-items: center; gap: var(--space-3); }
 
-/* Assessment, resume, and chat actions share the same hover feedback. */
-.lp :is(.lp-cta__btn, .lp-chat__cta) {
+/* Assessment, resume, and chat actions share the same hover feedback. Add className="lift" to any
+   kit Button for it; "lift--back" nudges a leading back arrow left instead of a trailing one right. */
+:is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift) {
   transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease, filter .12s ease;
 }
-.lp :is(.lp-cta__btn, .lp-chat__cta) .ck-icon { transition: transform .18s ease; }
-.lp :is(.lp-cta__btn, .lp-chat__cta):focus-visible:not(:disabled) {
+:is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift) .ck-icon { transition: transform .18s ease; }
+:is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn--prominent.lift):focus-visible:not(:disabled) {
   background: color-mix(in srgb, var(--tint) 85%, black);
   box-shadow: 0 14px 28px rgba(101, 0, 48, .25);
 }
 @media (hover: hover) and (pointer: fine) {
-  .lp :is(.lp-cta__btn, .lp-chat__cta):hover:not(:disabled):not(:active) {
+  :is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn--prominent.lift):hover:not(:disabled):not(:active) {
     background: color-mix(in srgb, var(--tint) 85%, black);
     box-shadow: 0 14px 28px rgba(101, 0, 48, .25);
   }
+  /* Bordered buttons keep their burgundy text, so they warm up instead of going dark. */
+  .ck-btn--bordered.lift:hover:not(:disabled):not(:active) {
+    background: color-mix(in srgb, var(--tint) 10%, var(--bg-primary));
+    box-shadow: 0 10px 20px rgba(101, 0, 48, .14);
+  }
   @media (prefers-reduced-motion: no-preference) {
-    .lp :is(.lp-cta__btn, .lp-chat__cta):hover:not(:disabled):not(:active) { transform: translateY(-2px); }
-    .lp :is(.lp-cta__btn, .lp-chat__cta):hover:not(:disabled):not(:active) .ck-icon { transform: translateX(3px); }
+    :is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift):hover:not(:disabled):not(:active) { transform: translateY(-2px); }
+    :is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift):not(.lift--back):hover:not(:disabled):not(:active) .ck-icon:last-child { transform: translateX(3px); }
+    .ck-btn.lift--back:hover:not(:disabled):not(:active) > .ck-icon:first-child { transform: translateX(-3px); }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lp :is(.lp-cta__btn, .lp-chat__cta),
-  .lp :is(.lp-cta__btn, .lp-chat__cta) .ck-icon { transition: none; }
-  .lp :is(.lp-cta__btn, .lp-chat__cta):active:not(:disabled) { transform: none; }
+  :is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift),
+  :is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift) .ck-icon { transition: none; }
+  :is(.lp .lp-cta__btn, .lp .lp-chat__cta, .ck-btn.lift):active:not(:disabled) { transform: none; }
 }
 
 .lp-trust { display: flex; flex-wrap: wrap; gap: var(--space-5) var(--space-8); width: 100%; margin: var(--space-2) 0 0; padding: var(--space-5) 0 0; list-style: none; border-top: 1px solid var(--card-edge); }

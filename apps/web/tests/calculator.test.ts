@@ -1,7 +1,10 @@
 // Run with `npm test` (Node 22.18+ runs TypeScript directly).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyProfile, calculate, formatField, formatPlans, outlook, parseAmount, parseCount, summaryText, type FieldId, type Profile } from '../src/domain/calculator.ts'
+import {
+  emptyProfile, calculate, compareScenario, formatField, formatPercent, formatPlans, outlook, parseAmount, parseCount, summaryText, supportTotal,
+  type FieldId, type Profile,
+} from '../src/domain/calculator.ts'
 
 function sample(overrides: Partial<Record<FieldId, number>> = {}): Profile {
   const p = emptyProfile()
@@ -89,8 +92,8 @@ test('someone starting out: kids and a home on a future income', () => {
   const p = sample({ income: 13000, futureIncome: 60000, plans: 3, support: 0, years: 1, mortgage: 0, otherDebts: 8000, education: 0, existing: 0 })
   assert.equal(additional(p), 8000)
   const o = ahead(p)
-  assert.deepEqual([o.support, o.years, o.mortgage, o.additional], [42000, 22, 180000, 1112000])
-  assert.deepEqual(o.drivers.map((d) => [d.id, d.delta]), [['kids', 924000], ['home', 180000]])
+  assert.deepEqual([o.support, o.years, o.mortgage, o.additional], [42000, 20, 180000, 1078000])
+  assert.deepEqual(o.drivers.map((d) => [d.id, d.delta]), [['kids', 890000], ['home', 180000]])
 })
 
 test('a partner means at least 70% of income for at least ten years', () => {
@@ -116,4 +119,57 @@ test('plans read back as words', () => {
   assert.equal(formatField('plans', { status: 'confirmed', value: 6 }), 'A home and a partner')
   assert.match(summaryText(sample({ income: 50000, futureIncome: 100000, plans: 2 }), calculate(sample({ income: 50000, futureIncome: 100000, plans: 2 }))),
     /\+ A higher income .*: \$400,000\n\+ A home .*: \$150,000\n= Coverage to consider by then: \$1,050,000 \(\$500,000 today\)/)
+})
+
+test('rising prices: $40k a year for 10 years at 3% comes to $458,555', () => {
+  assert.equal(supportTotal(40000, 10, 0.03), 458555)
+  assert.equal(supportTotal(40000, 10), 400000)
+  assert.equal(additional(sample()), 500000)
+  const r = calculate(sample(), { inflation: 0.03 })
+  assert.ok(r.ready)
+  assert.equal(r.additional, 558555)
+})
+
+test('a new child in 2 years stretches support to 20 years and adds their education', () => {
+  const r = calculate(sample(), { newChild: { inYears: 2, education: 50000 } })
+  assert.ok(r.ready)
+  assert.equal(r.needs.find((t) => t.id === 'support')!.value, 800000)
+  assert.equal(r.additional, 950000)
+})
+
+test('a new child never shortens support that already runs longer', () => {
+  const r = calculate(sample({ years: 25 }), { newChild: { inYears: 2, education: 0 } })
+  assert.ok(r.ready)
+  assert.equal(r.additional, additional(sample({ years: 25 })))
+})
+
+test('scenario changes add up to the difference, and the answers are not touched', () => {
+  const p = sample()
+  const before = JSON.stringify(p)
+  const s = compareScenario(p, { newChild: { inYears: 2, education: 50000 }, inflation: 0.03 })
+  assert.ok(s)
+  assert.equal(s.base.additional, 500000)
+  assert.deepEqual(s.changes.map((c) => c.id), ['years', 'inflation', 'education'])
+  assert.equal(s.changes.reduce((sum, c) => sum + c.value, 0), s.next.totalNeeds - s.base.totalNeeds)
+  assert.equal(s.nextYears, 20)
+  assert.equal(JSON.stringify(p), before)
+})
+
+test('no scenario means no changes', () => {
+  const s = compareScenario(sample(), {})
+  assert.ok(s)
+  assert.equal(s.changes.length, 0)
+  assert.equal(s.next.additional, s.base.additional)
+})
+
+test('percentages above zero never show 0%, and short of the whole never show 100%', () => {
+  assert.equal(formatPercent(0, 600000), '0%')
+  assert.equal(formatPercent(2500, 600000), '0.4%')
+  assert.equal(formatPercent(100, 600000), 'under 0.1%')
+  assert.equal(formatPercent(100000, 600000), '17%')
+  assert.equal(formatPercent(597500, 600000), '99.6%')
+  assert.equal(formatPercent(599999, 600000), 'over 99.9%')
+  assert.equal(formatPercent(600000, 600000), '100%')
+  assert.equal(formatPercent(900000, 600000), '100%')
+  assert.equal(formatPercent(5, 0), '0%')
 })

@@ -43,7 +43,7 @@ export function Plans({ p, r, onAsk, recommendation, loading, failed, onRetry }:
           recommended={recommendation?.recommendedType === 'term'} reason={recommendation?.reason}
           icon="calendar" name="Term" tagline="Coverage for the years your family depends on you."
           big="10–30" unit="years of coverage" cost={1} costLabel="Usually costs less"
-          ask={<Button variant="bordered" fullWidth onClick={() => onAsk(ABOUT_TERM)}>Ask about term</Button>}
+          ask={<Button variant="bordered" fullWidth onClick={() => onAsk(ABOUT_TERM)} className="lift">Ask about term</Button>}
           points={['Covers a set number of years, often 10, 20 or 30', 'Usually the lowest price for the same amount of coverage', 'Fits needs that end, like income support or a mortgage']}
           catchText="No cash value, and coverage ends with the term. Some policies can be renewed or converted."
           fit={support > 0 && mortgage > 0
@@ -65,7 +65,7 @@ export function Plans({ p, r, onAsk, recommendation, loading, failed, onRetry }:
           recommended={recommendation?.recommendedType === 'permanent'} reason={recommendation?.reason}
           icon="shield" name="Permanent" tagline="Potential lifelong protection with adequate funding."
           big="Lifetime" unit="coverage" cost={3} costLabel="Usually costs more"
-          ask={<Button variant="bordered" fullWidth onClick={() => onAsk(ABOUT_PERMANENT)}>Ask about permanent</Button>}
+          ask={<Button variant="bordered" fullWidth onClick={() => onAsk(ABOUT_PERMANENT)} className="lift">Ask about permanent</Button>}
           points={['Designed for lifelong protection, subject to funding and policy conditions', 'Most kinds build cash value; loans can reduce benefits', 'Fits needs with no end date, like final expenses or leaving something behind']}
           catchText="Costs much more for the same amount of coverage."
           fit={final > 0
