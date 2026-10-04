@@ -2,6 +2,8 @@
 
 The LinqLife guided assessment in a Quest 3S, in VR or passthrough. It is the 2D frontend (`codelinq_frontend`, branch `justin-frontend`) moved into a headset: the same five screens (Home, Basics, Chat with Pip, Review, Results), the same copy, colors and math. Source is in [`advisor3d/`](../advisor3d/); the built site is served at **`https://codelinq.codehawks.org/advisor3d/index.html`** from `app/public/advisor3d/`. It is a prototype: the chat follows the frontend's fixed script, and it needs no backend or AWS changes.
 
+The native Quest app, in Unity, is in [`advisor3d-unity/`](../advisor3d-unity/). It follows the live site's flow and reads answers with the site's AI backend (`POST /api/intake`); its README covers building it onto a headset. It is not part of the site build and does not change anything below.
+
 ## Rules that affect everyone deploying this site
 
 1. **`scripts/publish-app.sh` runs `aws s3 sync app/public/ --delete`.** The site is exactly what is in `app/public/` at deploy time. Anything missing there is deleted from S3. If a build empties or replaces `app/public/`, `/advisor3d/` disappears.
