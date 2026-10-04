@@ -107,6 +107,22 @@ class IntakeTests(unittest.TestCase):
         self.aws.converse.return_value = tool(intent="answer", value=50000, extra={"existing": 50000, "income": 40000}, say="")
         self.assertEqual(self.post(step="savings", answer="about 40k in a 401k and 10k in the bank").json["extra"], {})
 
+    def test_an_answer_to_a_different_question_is_kept(self):
+        self.aws.converse.return_value = tool(intent="unclear", extra={"education": 50000, "savings": 9}, say="And your income?")
+        result = self.post(answer="i want 50k of college education for my kids").json
+        self.assertEqual((result["intent"], result["value"], result["extra"]), ("unclear", None, {"education": 50000}))
+        # Listed amounts may be added up, and "each" may be multiplied out; nothing else is taken.
+        self.aws.converse.return_value = tool(intent="unclear", extra={"otherDebts": 23000, "education": 100000, "savings": 73000}, say="")
+        self.assertEqual(self.post(answer="15k car loan and 8k on cards, and 50k each for my two kids").json["extra"],
+                         {"otherDebts": 23000, "education": 100000, "savings": 73000})
+        self.assertEqual(self.post(answer="15k car loan and 8k on cards").json["extra"], {"otherDebts": 23000})
+
+    def test_a_guess_ending_in_a_question_mark_is_an_answer(self):
+        self.aws.converse.return_value = tool(intent="answer", value=90000, say="")
+        self.assertEqual(self.post(answer="maybe 90k?").json["value"], 90000)
+        self.assertEqual(self.post(answer="is 90k a lot?").json["intent"], "question")
+        self.assertEqual(self.post(answer="maybe ninety?").json["intent"], "question")
+
     def test_invalid_model_output_and_provider_errors_are_sanitized(self):
         for reply in (tool(intent="guess", say="x"), {"output": {"message": {"content": [{"text": "no json"}]}}}, {}):
             self.aws.converse.return_value = reply

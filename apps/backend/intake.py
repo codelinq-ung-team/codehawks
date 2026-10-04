@@ -7,6 +7,7 @@ by the site before anything reaches the profile.
 import json
 import os
 import re
+from itertools import combinations
 
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .prompts import INTAKE_PROMPT
@@ -37,7 +38,7 @@ TOOL = {"toolSpec": {
                       "description": "Only for the plans field: what they expect in the next ten years. Empty for none."},
             "period": {"type": "string", "enum": ["month", "year"],
                        "description": "Only when the user said the amount is per month or per year."},
-            "extra": {"type": "object", "description": "Other fields the user stated outright in the same message, as numbers.",
+            "extra": {"type": "object", "description": "Figures the message gives for fields other than the current one, as numbers. Fill it with any intent.",
                       "properties": {name: {"type": "number"} for name in LIMITS}},
             "say": {"type": "string", "description": "What Abe says back."},
         },
@@ -60,6 +61,23 @@ def figures(text):
     text = re.sub(r"\b(401\s?\(?k\)?|403\s?\(?b\)?|529)\b", " ", text.lower())  # account names, not amounts
     found = re.findall(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|m|mil|million)?\b", text)
     return {round(float(digits.replace(",", "")) * scale.get(unit, 1)) for digits, unit in found}
+
+
+# How a message starts when it asks something, as opposed to a guess ending in "?".
+ASKS = re.compile(r"^(should|shall|do|does|did|is|are|am|can|could|would|will|what|why|how|which|who|when|where)\b")
+
+
+def stated_amounts(answer, value):
+    """What an extra field may hold: figures the user typed, apart from the main answer,
+    their sums, and a few times one of them when the user said "each"."""
+    typed = figures(answer)
+    # Figures that add up to the main answer were parts of it, not other fields.
+    typed = set() if value is not None and sum(typed) == value else typed - {value}
+    typed = sorted(typed)[:8]
+    allowed = {sum(group) for size in range(1, len(typed) + 1) for group in combinations(typed, size)}
+    if re.search(r"\b(each|apiece|per (kid|child|person))\b", answer.lower()):
+        allowed |= {figure * count for figure in typed for count in range(2, 7)}
+    return allowed
 
 
 def validate_request(payload):
@@ -95,10 +113,17 @@ def clean(reading, step, answer):
     say = reading.get("say")
     say = " ".join(say.split())[:MAX_SAY] if isinstance(say, str) else ""
     result = {"intent": reading["intent"], "value": None, "household": None, "period": None, "extra": {}, "say": say}
-    # A question is never recorded as an answer, whatever the model made of it.
+    # A question is never recorded as an answer, whatever the model made of it. A guess
+    # that ends in "?" ("maybe 50k?") still counts when the figure is the one they typed.
     if answer.endswith("?") and result["intent"] in ("answer", "unsure", "skip"):
-        result["intent"] = "question"
-        return result
+        guess = (result["intent"] == "answer" and not ASKS.match(answer.lower())
+                 and number(reading.get("value"), step if step in LIMITS else "years") in figures(answer))
+        if not guess:
+            result["intent"] = "question"
+            return result
+    if result["intent"] == "unclear":
+        # Nothing for this field, but the message may have answered another one.
+        result["extra"] = extras(reading, step, answer, None)
     if result["intent"] != "answer":
         return result
     if step == "household":
@@ -122,16 +147,18 @@ def clean(reading, step, answer):
         result["value"] = round(max(-1, min(value, 10 ** 12)))
         if reading.get("period") in ("month", "year"):
             result["period"] = reading["period"]
-    # An extra field must repeat a figure the user typed, apart from the main answer.
-    extra = reading.get("extra")
-    if isinstance(extra, dict):
-        stated = figures(answer)
-        # Figures that add up to the main answer were parts of it, not other fields.
-        stated = set() if sum(stated) == result["value"] else stated - {result["value"]}
-        for name, value in extra.items():
-            if name in LIMITS and name != step and number(value, name) in stated:
-                result["extra"][name] = number(value, name)
+    result["extra"] = extras(reading, step, answer, result["value"])
     return result
+
+
+def extras(reading, step, answer, value):
+    """Other fields the message gave figures for. Each must come from what the user typed."""
+    extra = reading.get("extra")
+    if not isinstance(extra, dict):
+        return {}
+    allowed = stated_amounts(answer, value)
+    return {name: number(amount, name) for name, amount in extra.items()
+            if name in LIMITS and name not in (step, "plans") and number(amount, name) in allowed}
 
 
 def read_answer(payload):
