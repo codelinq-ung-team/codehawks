@@ -1,6 +1,6 @@
 {
-  "name": "LinqLife Advisor3D",
-  "short_name": "LinqLife",
+  "name": "LincLife Advisor3D",
+  "short_name": "LincLife",
   "description": "A guided life insurance needs assessment in VR or passthrough (prototype)",
   "start_url": "./index.html",
   "scope": "./",

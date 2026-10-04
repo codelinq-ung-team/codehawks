@@ -71,7 +71,7 @@ Nova Lite inference calls. Keep deployment paused until this fix is reviewed and
 merged and Israel gives the go-ahead. No bootstrap permission changes are needed
 for this fix; the existing boundary already covers the limiter table operations.
 
-The deployment smoke check verifies that the LinqLife site is published, health,
+The deployment smoke check verifies that the LincLife site is published, health,
 JSON input errors, one buffered model reply, one intake reading, one streaming
 reply, and anonymous denial at the direct Function URL. It makes three small,
 billable Bedrock requests and prints no conversation content.
@@ -99,7 +99,7 @@ hex SHA-256 digest of the exact UTF-8 request body bytes.** CloudFront signs ori
 requests using its OAC, but Lambda requires a signed payload hash. This header is
 not an API key. Hash and send the same serialized bytes. The backend deployment
 client in `scripts/smoke_backend.py` demonstrates this, and the website does the
-same in `codelinq_frontend/src/intake/ai.ts`.
+same in `codelinc_frontend/src/intake/ai.ts`.
 [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html)
 
 Streaming is the default. The response is `application/x-ndjson`, with each event
@@ -121,7 +121,7 @@ conversation history. Explicit `stream:false` returns a single JSON `{ "reply":
 
 ### Guided intake for the website
 
-The LinqLife chat sends each typed answer to `POST /api/intake` (same headers as
+The LincLife chat sends each typed answer to `POST /api/intake` (same headers as
 above, not streamed):
 
 ```json
@@ -166,7 +166,7 @@ Each session counts against the shared admission limit. The route needs
 an OpenAI key (below). Without one it returns 503 and the app keeps its tapped and
 typed chat.
 
-On AWS the key lives in the Secrets Manager secret `codelinq-hackathon-app-openai-api-key`,
+On AWS the key lives in the Secrets Manager secret `codelinc-hackathon-app-openai-api-key`,
 which the app stack creates. The function's environment holds only the secret's ARN
 (`OPENAI_API_KEY_SECRET`); it reads the value when a session is requested and keeps
 it for five minutes. To turn voice on, Israel adds the key as the `OPENAI_VOICE_TOKEN`
@@ -225,7 +225,7 @@ site's dev server, which proxies `/api` to port 8000:
 
 ```sh
 MODEL_ID=amazon.nova-pro-v1:0 AWS_DEFAULT_REGION=us-east-1 python -m flask --app backend.app run --port 8000
-cd codelinq_frontend && npm ci && npm run dev
+cd codelinc_frontend && npm ci && npm run dev
 ```
 
 Without AWS credentials the API returns 503 and the chat falls back to its script.

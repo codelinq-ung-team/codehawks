@@ -1,5 +1,5 @@
-// The LinqLife site's AI backend. Asks POST /api/intake to read one spoken or typed answer,
-// exactly as the website does (codelinq_frontend/src/intake/ai.ts). Hands back null when the
+// The LincLife site's AI backend. Asks POST /api/intake to read one spoken or typed answer,
+// exactly as the website does (codelinc_frontend/src/intake/ai.ts). Hands back null when the
 // AI can't be reached, so the chat falls back to the script.
 using System;
 using System.Collections;
@@ -15,7 +15,7 @@ namespace Advisor3D
 {
     public static class Backend
     {
-        public static string Site = "https://codelinq.codehawks.org";
+        public static string Site = "https://codelinc.codehawks.org";
 
         static readonly string[] INTENTS = { "answer", "unsure", "skip", "why", "question", "unclear" };
 

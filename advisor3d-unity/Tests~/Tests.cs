@@ -1,5 +1,5 @@
 // The site's tests, ported, so the C# calculator and chat script
-// can be checked against the same cases (the site's tests are in codelinq_frontend/tests/). Run with: dotnet run --project Tests~
+// can be checked against the same cases (the site's tests are in codelinc_frontend/tests/). Run with: dotnet run --project Tests~
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -18,7 +18,7 @@ export function Brand() {
   return (
     <a className="brand headline" href="#/">
       <span className="brand__mark" aria-hidden="true"><Icon name="heart" size={18} weight={2.4} /></span>
-      <span>Linq<span className="brand__accent">Life</span></span>
+      <span>Linc<span className="brand__accent">Life</span></span>
     </a>
   )
 }
@@ -95,7 +95,7 @@ export function Title({ children, sub }: { children: ReactNode; sub?: ReactNode 
 export function Footer() {
   return (
     <footer className="lp-footer">
-      <p className="footnote muted">LinqLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security.</p>
+      <p className="footnote muted">LincLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security.</p>
       <PartnerBadge prefix="Built at" name="codeLinc 11" />
     </footer>
   )

@@ -25,8 +25,8 @@ def request(path, body=None):
 
 def check_site():
     with request("/") as response:
-        assert response.status == 200 and b"<title>LinqLife</title>" in response.read(), "The LinqLife site is not published"
-    print("LinqLife site is published.")
+        assert response.status == 200 and b"<title>LincLife</title>" in response.read(), "The LincLife site is not published"
+    print("LincLife site is published.")
 
 
 def check_api():

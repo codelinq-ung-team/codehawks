@@ -1,5 +1,5 @@
 // Session-only app state, in the same shape and under the same key as the 2D frontend
-// (codelinq_frontend/src/lib/store.ts). Both apps are on one origin, so a tab that moves
+// (codelinc_frontend/src/lib/store.ts). Both apps are on one origin, so a tab that moves
 // between them keeps its answers and its chat. This copy has no React: screens subscribe.
 import { emptyProfile, type FieldId, type Field, type Profile } from '../domain/calculator.ts'
 
@@ -16,7 +16,7 @@ export type AppState = {
   typing: boolean
 }
 
-const KEY = 'linqlife:v1'
+const KEY = 'linclife:v1'
 const listeners = new Set<() => void>()
 
 function initial(): AppState {

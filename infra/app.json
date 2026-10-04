@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Private hackathon site and streaming Bedrock backend for codelinq.codehawks.org.",
+  "Description": "Private hackathon site and streaming Bedrock backend for codelinc.codehawks.org.",
   "Parameters": {
     "BedrockModelId": {
       "Type": "String",
@@ -19,7 +19,7 @@
     },
     "SiteCertificateArn": {
       "Type": "String",
-      "Description": "DNS-validated ACM certificate for codelinq.codehawks.org.",
+      "Description": "DNS-validated ACM certificate covering the canonical and legacy domains.",
       "AllowedPattern": "^arn:aws:acm:us-east-1:394270749442:certificate/[0-9a-f-]+$"
     },
     "CloudFrontOriginAccessControlId": {
@@ -30,7 +30,16 @@
     "RuntimePermissionsBoundaryArn": {
       "Type": "String",
       "Description": "Apply this boundary to every app runtime role.",
-      "AllowedPattern": "arn:aws:iam::394270749442:policy/codelinq-hackathon-runtime-boundary"
+      "AllowedPattern": "arn:aws:iam::394270749442:policy/codelinc-hackathon-runtime-boundary"
+    },
+    "LegacyAliasEnabled": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "false",
+        "true"
+      ],
+      "Description": "Enable only after the legacy distribution releases its alias."
     },
     "OpenAiApiKey": {
       "Type": "String",
@@ -44,11 +53,11 @@
     "VoiceApiKeySecret": {
       "Type": "AWS::SecretsManager::Secret",
       "Properties": {
-        "Name": "codelinq-hackathon-app-openai-api-key",
+        "Name": "codelinc-hackathon-app-openai-api-key",
         "Description": "OpenAI key the chat function reads to start voice sessions. It never reaches the headset.",
         "SecretString": { "Ref": "OpenAiApiKey" },
         "Tags": [
-          { "Key": "Project", "Value": "codelinq-hackathon" },
+          { "Key": "Project", "Value": "codelinc-hackathon" },
           { "Key": "Owner", "Value": "Israel Jauregui" },
           { "Key": "Lifecycle", "Value": "ephemeral" },
           { "Key": "ManagedBy", "Value": "CloudFormation" }
@@ -58,28 +67,52 @@
     "ChatRateLimitTable": {
       "Type": "AWS::DynamoDB::Table",
       "Properties": {
-        "TableName": "codelinq-hackathon-app-chat-rate-limit",
+        "TableName": "codelinc-hackathon-app-chat-rate-limit",
         "BillingMode": "PAY_PER_REQUEST",
-        "AttributeDefinitions": [{ "AttributeName": "id", "AttributeType": "S" }],
-        "KeySchema": [{ "AttributeName": "id", "KeyType": "HASH" }],
-        "SSESpecification": { "SSEEnabled": true },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "id",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "id",
+            "KeyType": "HASH"
+          }
+        ],
+        "SSESpecification": {
+          "SSEEnabled": true
+        },
         "Tags": [
-          { "Key": "Project", "Value": "codelinq-hackathon" },
-          { "Key": "Owner", "Value": "Israel Jauregui" },
-          { "Key": "Lifecycle", "Value": "ephemeral" },
-          { "Key": "ManagedBy", "Value": "CloudFormation" }
+          {
+            "Key": "Project",
+            "Value": "codelinc-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
         ]
       }
     },
     "ChatLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/codelinq-hackathon-app-chat",
+        "LogGroupName": "/aws/lambda/codelinc-hackathon-app-chat",
         "RetentionInDays": 7,
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -99,7 +132,7 @@
     "ChatRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
-        "RoleName": "codelinq-hackathon-app-chat",
+        "RoleName": "codelinc-hackathon-app-chat",
         "PermissionsBoundary": {
           "Ref": "RuntimePermissionsBoundaryArn"
         },
@@ -123,8 +156,16 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
-                  "Resource": { "Fn::GetAtt": ["ChatRateLimitTable", "Arn"] }
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "ChatRateLimitTable",
+                      "Arn"
+                    ]
+                  }
                 },
                 {
                   "Effect": "Allow",
@@ -143,7 +184,7 @@
                     "logs:PutLogEvents"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-chat:log-stream:*"
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinc-hackathon-app-chat:log-stream:*"
                   }
                 },
                 {
@@ -158,7 +199,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -177,10 +218,18 @@
     },
     "ChatFunction": {
       "Type": "AWS::Lambda::Function",
-      "Metadata": { "cfn-lint": { "config": { "ignore_checks": ["W3002"] } } },
+      "Metadata": {
+        "cfn-lint": {
+          "config": {
+            "ignore_checks": [
+              "W3002"
+            ]
+          }
+        }
+      },
       "DependsOn": "ChatLogGroup",
       "Properties": {
-        "FunctionName": "codelinq-hackathon-app-chat",
+        "FunctionName": "codelinc-hackathon-app-chat",
         "Runtime": "python3.12",
         "Architectures": [
           "x86_64"
@@ -200,8 +249,12 @@
         ],
         "Environment": {
           "Variables": {
-            "CHAT_RATE_LIMIT_TABLE": { "Ref": "ChatRateLimitTable" },
-            "OPENAI_API_KEY_SECRET": { "Ref": "VoiceApiKeySecret" },
+            "CHAT_RATE_LIMIT_TABLE": {
+              "Ref": "ChatRateLimitTable"
+            },
+            "OPENAI_API_KEY_SECRET": {
+              "Ref": "VoiceApiKeySecret"
+            },
             "MODEL_ID": {
               "Ref": "BedrockModelId"
             },
@@ -217,7 +270,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -281,7 +334,7 @@
       "UpdateReplacePolicy": "Delete",
       "Properties": {
         "BucketName": {
-          "Fn::Sub": "codelinq-hackathon-app-assets-${AWS::AccountId}-${AWS::Region}"
+          "Fn::Sub": "codelinc-hackathon-app-assets-${AWS::AccountId}-${AWS::Region}"
         },
         "BucketEncryption": {
           "ServerSideEncryptionConfiguration": [
@@ -308,7 +361,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -328,18 +381,26 @@
     "AssetsBucketPolicy": {
       "Type": "AWS::S3::BucketPolicy",
       "Properties": {
-        "Bucket": { "Ref": "AssetsBucket" },
+        "Bucket": {
+          "Ref": "AssetsBucket"
+        },
         "PolicyDocument": {
           "Version": "2012-10-17",
           "Statement": [
             {
               "Effect": "Allow",
-              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
               "Action": "s3:GetObject",
-              "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/*" },
+              "Resource": {
+                "Fn::Sub": "${AssetsBucket.Arn}/*"
+              },
               "Condition": {
                 "StringEquals": {
-                  "AWS:SourceArn": { "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}" }
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"
+                  }
                 }
               }
             }
@@ -351,8 +412,19 @@
       "Type": "AWS::CloudFront::Distribution",
       "Properties": {
         "DistributionConfig": {
-          "Aliases": [ "codelinq.codehawks.org" ],
-          "Comment": "Codelinq hackathon site; managed by this repository.",
+          "Aliases": [
+            "codelinc.codehawks.org",
+            {
+              "Fn::If": [
+                "LegacyAliasEnabled",
+                "codelinq.codehawks.org",
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
+            }
+          ],
+          "Comment": "Codelinc hackathon site; managed by this repository.",
           "Enabled": true,
           "DefaultRootObject": "index.html",
           "HttpVersion": "http2and3",
@@ -389,9 +461,18 @@
             },
             {
               "Id": "HackathonAssets",
-              "DomainName": { "Fn::GetAtt": [ "AssetsBucket", "RegionalDomainName" ] },
-              "OriginAccessControlId": { "Ref": "CloudFrontOriginAccessControlId" },
-              "S3OriginConfig": { "OriginAccessIdentity": "" }
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "AssetsBucket",
+                  "RegionalDomainName"
+                ]
+              },
+              "OriginAccessControlId": {
+                "Ref": "CloudFrontOriginAccessControlId"
+              },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": ""
+              }
             }
           ],
           "CacheBehaviors": [
@@ -420,33 +501,100 @@
           "DefaultCacheBehavior": {
             "TargetOriginId": "HackathonAssets",
             "ViewerProtocolPolicy": "redirect-to-https",
-            "AllowedMethods": [ "GET", "HEAD", "OPTIONS" ],
-            "CachedMethods": [ "GET", "HEAD", "OPTIONS" ],
+            "AllowedMethods": [
+              "GET",
+              "HEAD",
+              "OPTIONS"
+            ],
+            "CachedMethods": [
+              "GET",
+              "HEAD",
+              "OPTIONS"
+            ],
             "Compress": true,
-            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6"
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+            "FunctionAssociations": [
+              {
+                "EventType": "viewer-request",
+                "FunctionARN": {
+                  "Fn::GetAtt": [
+                    "LegacyRedirectFunction",
+                    "FunctionARN"
+                  ]
+                }
+              }
+            ]
           },
           "PriceClass": "PriceClass_100",
           "CustomErrorResponses": [
-            { "ErrorCode": 403, "ErrorCachingMinTTL": 0 },
-            { "ErrorCode": 404, "ErrorCachingMinTTL": 0 },
-            { "ErrorCode": 500, "ErrorCachingMinTTL": 0 },
-            { "ErrorCode": 502, "ErrorCachingMinTTL": 0 },
-            { "ErrorCode": 503, "ErrorCachingMinTTL": 0 },
-            { "ErrorCode": 504, "ErrorCachingMinTTL": 0 }
+            {
+              "ErrorCode": 403,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 404,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 500,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 502,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 503,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 504,
+              "ErrorCachingMinTTL": 0
+            }
           ],
-          "Restrictions": { "GeoRestriction": { "RestrictionType": "none" } },
+          "Restrictions": {
+            "GeoRestriction": {
+              "RestrictionType": "none"
+            }
+          },
           "ViewerCertificate": {
-            "AcmCertificateArn": { "Ref": "SiteCertificateArn" },
+            "AcmCertificateArn": {
+              "Ref": "SiteCertificateArn"
+            },
             "MinimumProtocolVersion": "TLSv1.2_2021",
             "SslSupportMethod": "sni-only"
           }
         },
         "Tags": [
-          { "Key": "Project", "Value": "codelinq-hackathon" },
-          { "Key": "Owner", "Value": "Israel Jauregui" },
-          { "Key": "Lifecycle", "Value": "ephemeral" },
-          { "Key": "ManagedBy", "Value": "CloudFormation" }
+          {
+            "Key": "Project",
+            "Value": "codelinc-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
         ]
+      }
+    },
+    "LegacyRedirectFunction": {
+      "Type": "AWS::CloudFront::Function",
+      "Properties": {
+        "Name": "codelinc-hackathon-app-legacy-redirect",
+        "AutoPublish": true,
+        "FunctionConfig": {
+          "Comment": "Redirect the legacy website; keep API requests compatible.",
+          "Runtime": "cloudfront-js-2.0"
+        },
+        "FunctionCode": "function handler(event) {\n    var request = event.request;\n    if (request.headers.host.value !== \"codelinq.codehawks.org\" || request.uri.indexOf(\"/api/\") === 0) return request;\n    var parts = [];\n    Object.keys(request.querystring).forEach(function (key) {\n        var item = request.querystring[key];\n        (item.multiValue || [item]).forEach(function (value) { parts.push(key + \"=\" + value.value); });\n    });\n    return { statusCode: 308, statusDescription: \"Permanent Redirect\", headers: {\n        location: { value: \"https://codelinc.codehawks.org\" + request.uri + (parts.length ? \"?\" + parts.join(\"&\") : \"\") },\n        \"cache-control\": { value: \"public, max-age=300\" }\n    }};\n}"
       }
     }
   },
@@ -460,7 +608,7 @@
       }
     },
     "ChatEndpoint": {
-      "Value": "https://codelinq.codehawks.org/api/chat"
+      "Value": "https://codelinc.codehawks.org/api/chat"
     },
     "RuntimePermissionsBoundaryArn": {
       "Value": {
@@ -473,13 +621,30 @@
       }
     },
     "SiteDistributionId": {
-      "Value": { "Ref": "SiteDistribution" }
+      "Value": {
+        "Ref": "SiteDistribution"
+      }
     },
     "SiteDistributionDomainName": {
-      "Value": { "Fn::GetAtt": [ "SiteDistribution", "DomainName" ] }
+      "Value": {
+        "Fn::GetAtt": [
+          "SiteDistribution",
+          "DomainName"
+        ]
+      }
     },
     "SiteUrl": {
-      "Value": "https://codelinq.codehawks.org"
+      "Value": "https://codelinc.codehawks.org"
+    }
+  },
+  "Conditions": {
+    "LegacyAliasEnabled": {
+      "Fn::Equals": [
+        {
+          "Ref": "LegacyAliasEnabled"
+        },
+        "true"
+      ]
     }
   }
 }

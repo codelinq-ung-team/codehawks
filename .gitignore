@@ -15,3 +15,6 @@ bootstrap-outputs.local.json
 
 # The site is built into app/public/ during deploy by scripts/build-app.sh
 app/public/
+
+# Local package-manager cache is not application source.
+.pnpm-store/

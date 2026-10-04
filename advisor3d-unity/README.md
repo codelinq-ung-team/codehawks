@@ -1,7 +1,7 @@
 # Advisor3D for Quest (Unity)
 
-The LinqLife guided assessment as a native Quest app. It follows the live site
-(`codelinq_frontend` on `main`, at https://codelinq.codehawks.org): the same five screens (Home,
+The LincLife guided assessment as a native Quest app. It follows the live site
+(`codelinc_frontend` on `main`, at https://codelinc.codehawks.org): the same five screens (Home,
 Basics, Chat with Abe, Review, Results), the same copy, colors and math, and the same AI backend
 reading what you say or type. It replaces the WebXR prototype in [`../advisor3d/`](../advisor3d/).
 
@@ -108,7 +108,7 @@ backend; the deployed one always uses `DEFAULT_MODEL` in `backend/voice.py`.
 
 The logic files are ports of the site's, and keep its order, so the two can be read side by side.
 
-| Unity (`Assets/Scripts/`) | Site (`codelinq_frontend/src/`) |
+| Unity (`Assets/Scripts/`) | Site (`codelinc_frontend/src/`) |
 | --- | --- |
 | `Calculator.cs` | `domain/calculator.ts` |
 | `Script.cs` | `intake/script.ts`, `guide/guide.ts` |
@@ -145,7 +145,7 @@ The calculator and the chat script have no Unity types, so they run without it:
 dotnet run --project Tests~
 ```
 
-These are the site's tests (`codelinq_frontend/tests/`) ported to C#, plus a run through the whole
+These are the site's tests (`codelinc_frontend/tests/`) ported to C#, plus a run through the whole
 scripted chat and what the voice model is told (`VoiceScript.cs`).
 
 ## Not checked yet

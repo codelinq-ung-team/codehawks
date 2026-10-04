@@ -82,4 +82,9 @@ Heads-up: <dependencies, setup changes, mocks, or remaining gaps>
 
 ## AWS deployment
 
-Read [the AWS and deployment guide](docs/agent-aws.md) before changing infrastructure or deployment workflows. This repository owns only the `codelinq-hackathon` namespace; Codehawks has independent production infrastructure in the same account. Change resources through reviewed CloudFormation and main-branch GitHub Actions. Local AWS CLI use is read-only; Israel Jauregui is the AWS account owner. Apply the `codelinq-hackathon-app-` resource prefix, `Project=codelinq-hackathon`, and `RuntimePermissionsBoundaryArn` to runtime roles. Never grant the shared GitHub OIDC provider to the hackathon stack.
+The namespace rename also owns the exact legacy resources recorded in
+`infra/legacy-config.json`, exclusively for the phases in `docs/rename-migration.md`.
+Do not apply the new template to the legacy stack. Use the migration workflow;
+normal deployment and teardown target only the new namespace.
+
+Read [the AWS and deployment guide](docs/agent-aws.md) before changing infrastructure or deployment workflows. This repository owns only the `codelinc-hackathon` namespace; Codehawks has independent production infrastructure in the same account. Change resources through reviewed CloudFormation and main-branch GitHub Actions. Local AWS CLI use is read-only; Israel Jauregui is the AWS account owner. Apply the `codelinc-hackathon-app-` resource prefix, `Project=codelinc-hackathon`, and `RuntimePermissionsBoundaryArn` to runtime roles. Never grant the shared GitHub OIDC provider to the hackathon stack.

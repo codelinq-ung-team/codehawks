@@ -37,7 +37,7 @@ class ProductionTests(unittest.TestCase):
 
     def test_buffered_and_cloudfront_origin(self):
         response = self.http.post("/api/chat", json={"messages": MESSAGES, "stream": False},
-                                  headers={"Origin": "https://codelinq.codehawks.org"})
+                                  headers={"Origin": "https://codelinc.codehawks.org"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, {"reply": "Hello"})
         self.assertEqual(response.headers["Cache-Control"], "no-store")

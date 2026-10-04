@@ -45,7 +45,7 @@ namespace Advisor3D.EditorTools
         public static void Setup()
         {
             PlayerSettings.companyName = "Codehawks";
-            PlayerSettings.productName = "LinqLife Advisor3D";
+            PlayerSettings.productName = "LincLife Advisor3D";
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, APP_ID);
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
