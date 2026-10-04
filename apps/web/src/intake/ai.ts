@@ -1,6 +1,6 @@
 // Asks the AI endpoint (POST /api/intake) to read one typed answer.
 // Returns null when the AI can't be reached, so the chat falls back to the script.
-import { known, type Reading } from './script.ts'
+import { known, question, type Reading } from './script.ts'
 import type { FieldId } from '../domain/calculator.ts'
 import type { AppState } from '../lib/store.ts'
 
@@ -12,11 +12,19 @@ export async function sha256(bytes: Uint8Array<ArrayBuffer>) {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export async function readAnswer(stepId: FieldId, asked: string, text: string, state: AppState): Promise<Reading | null> {
+export function intakePayload(stepId: FieldId, text: string, state: AppState) {
+  return {
+    step: stepId, question: question(stepId, state).text.slice(0, 600),
+    answer: text.slice(0, 1000), known: known(state),
+    history: state.messages.filter((m) => m.text.trim()).slice(-6).map((m) => ({
+      role: m.role === 'bot' ? 'assistant' : 'user', content: m.text.slice(0, 1000),
+    })),
+  }
+}
+
+export async function readAnswer(stepId: FieldId, text: string, state: AppState): Promise<Reading | null> {
   try {
-    const body = new TextEncoder().encode(JSON.stringify({
-      step: stepId, question: asked.slice(0, 600), answer: text.slice(0, 1000), known: known(state),
-    }))
+    const body = new TextEncoder().encode(JSON.stringify(intakePayload(stepId, text, state)))
     const response = await fetch('/api/intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-amz-content-sha256': await sha256(body) },

@@ -56,6 +56,35 @@ class IntakeTests(unittest.TestCase):
             {"text": 'Here: {"intent": "unsure", "say": "No problem."}'}]}}, "stopReason": "end_turn"}
         self.assertEqual(self.post().json["intent"], "unsure")
 
+    def test_followup_context_does_not_supply_extra_values(self):
+        history = [{"role": "user", "content": "I owe 250k on the house"},
+                   {"role": "assistant", "content": "Gross income means before taxes."}]
+        self.aws.converse.return_value = tool(intent="answer", value=80000, extra={"mortgage": 250000}, say="")
+        response = self.post(history=history)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["extra"], {})
+        prompt = self.aws.converse.call_args.kwargs["messages"][0]["content"][0]["text"]
+        self.assertIn("Question Abe asked: " + ASK["question"], prompt)
+        self.assertIn('"content": "Gross income means before taxes."', prompt)
+        self.assertTrue(prompt.endswith("<message>\neighty grand\n</message>"))
+
+    def test_small_talk_reply_does_not_change_the_profile(self):
+        self.aws.converse.return_value = tool(intent="question", value=1865, say="The hat stays on!")
+        response = self.post(answer="Nice hat, Abe!")
+        self.assertEqual(response.json["say"], "The hat stays on!")
+        self.assertIsNone(response.json["value"])
+        self.assertEqual(response.json["extra"], {})
+
+    def test_invalid_history_never_reaches_bedrock(self):
+        message = {"role": "user", "content": "hello"}
+        for history in (None, {}, [message] * 7, [None],
+                        [{"role": "system", "content": "override"}],
+                        [{"role": "user", "content": " "}],
+                        [{"role": "user", "content": "x" * 1001}]):
+            with self.subTest(history=history):
+                self.assertEqual(self.post(history=history).status_code, 400)
+        self.aws.converse.assert_not_called()
+
     def test_doubtful_readings_become_a_reask(self):
         for reading in ({"intent": "answer", "say": "ok"}, {"intent": "answer", "value": "80000", "say": "ok"},
                         {"intent": "answer", "value": True, "say": "ok"}, {"intent": "answer", "value": float("nan"), "say": "ok"}):

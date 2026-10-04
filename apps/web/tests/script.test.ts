@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { emptyProfile } from '../src/domain/calculator.ts'
 import type { AppState, Form } from '../src/lib/store.ts'
 import { WHY, applyForm, interpret, known, nextStep, question, respond, type Reading } from '../src/intake/script.ts'
+import { intakePayload } from '../src/intake/ai.ts'
 
 function state(form: Partial<Form> = {}): AppState {
   const s: AppState = {
@@ -71,6 +72,38 @@ test('re-running the form updates its own answers but not confirmed ones', () =>
 
 // The AI's reading of a typed answer goes through the same checks as the script.
 const reading = (r: Partial<Reading>): Reading => ({ intent: 'answer', value: null, household: null, period: null, extra: {}, say: '', ...r })
+
+test('a follow-up retains the open question and the dialogue that explains it', () => {
+  const s = state()
+  s.messages = [
+    { role: 'bot', text: question('income', s).text },
+    { role: 'user', text: 'What is gross income?' },
+    { role: 'bot', text: 'That means your income before taxes.' },
+  ]
+  const p = intakePayload('income', 'Does that include my bonus?', s)
+  assert.equal(p.question, question('income', s).text)
+  assert.equal(p.answer, 'Does that include my bonus?')
+  assert.deepEqual(p.history.at(-1), { role: 'assistant', content: 'That means your income before taxes.' })
+  assert.equal(p.history.length, 3)
+  assert.equal(s.messages.length, 3)
+})
+
+test('intake context is bounded and does not repeat the current answer', () => {
+  const s = state()
+  s.messages = Array.from({ length: 20 }, (_, i) => ({ role: 'bot', text: `${i}: ${'x'.repeat(1500)}` }))
+  const p = intakePayload('income', 'eighty grand', s)
+  assert.equal(p.history.length, 6)
+  assert.ok(p.history[0].content.startsWith('14: '))
+  assert.ok(p.history.every((m) => m.content.length <= 1000 && !m.content.includes('eighty grand')))
+})
+
+test('friendly detours keep the current question open without saving numbers', () => {
+  const s = state()
+  const r = interpret('income', reading({ intent: 'question', say: 'The hat stays on!', value: 1865 }), s)
+  assert.deepEqual(r.say, ['The hat stays on!'])
+  assert.equal(r.updates, undefined)
+  assert.deepEqual(r.replies, question('income', s).replies)
+})
 
 test('an AI reading becomes a proposed answer with the script’s own confirmation', () => {
   const r = interpret('income', reading({ value: 80000, say: 'Got it, $90,000!' }), state())

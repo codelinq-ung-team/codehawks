@@ -48,7 +48,7 @@ async function send(text: string) {
   } else {
     setState({ typing: true })
     const count = getState().messages.length
-    const reading = await readAnswer(step, last?.text ?? '', text.trim(), s)
+    const reading = await readAnswer(step, text.trim(), s)
     // Start Over while Abe was thinking: drop the reply.
     if (getState().messages.length !== count) return
     res = reading ? interpret(step, reading, s, text) : respond(step, text, s)

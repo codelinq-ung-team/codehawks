@@ -1,12 +1,13 @@
 """Offline checks of the deployed API and streaming lifecycle."""
 import json
+from http.client import HTTPConnection
 import os
+from pathlib import Path
 import socket
 import subprocess
 import sys
 import time
 import unittest
-from urllib.request import urlopen
 from unittest.mock import Mock, patch
 
 from backend.app import app
@@ -110,18 +111,27 @@ class ProductionProcessTests(unittest.TestCase):
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith("AWS_") and key != "MODEL_ID"}
         environment["AWS_EC2_METADATA_DISABLED"] = "true"
-        process = subprocess.Popen([
-            sys.executable, "-m", "gunicorn", "--bind", f"127.0.0.1:{port}",
-            "--workers", "1", "--threads", "2", "--worker-class", "gthread",
-            "--timeout", "110", "--access-logfile", "/dev/null", "backend.app:app",
-        ], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        environment["LAMBDA_TASK_ROOT"] = str(Path(__file__).resolve().parents[2])
+        environment["PORT"] = str(port)
+        environment["PATH"] = str(Path(sys.executable).parent) + os.pathsep + environment.get("PATH", "")
+        # Exercise the actual deployed launcher, including its Lambda-specific flags.
+        process = subprocess.Popen(["sh", str(Path(__file__).resolve().parents[1] / "run.sh")],
+                                   env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
                 self.assertIsNone(process.poll(), "Production server exited during startup")
                 try:
-                    with urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                    # HTTPConnection leaves HTTP/1.1 keep-alive enabled by default;
+                    # the server must explicitly close it for the adapter.
+                    connection = HTTPConnection("127.0.0.1", port, timeout=1)
+                    try:
+                        connection.request("GET", "/health")
+                        response = connection.getresponse()
                         self.assertEqual(json.load(response), {"status": "ok"})
+                        self.assertEqual(response.headers.get("Connection"), "close")
+                    finally:
+                        connection.close()
                     return
                 except OSError:
                     time.sleep(0.1)

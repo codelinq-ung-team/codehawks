@@ -48,7 +48,12 @@ rejects model settings that differ from the deployed bootstrap, packages pinned
 dependencies, and sets Lambda's `MODEL_ID` through CloudFormation. Lambda uses its
 own role to call Bedrock. Do not add a Bedrock key or long-lived AWS credentials.
 
-The function has 512 MB memory, a 120-second timeout, and seven-day logs. A shared
+The function has 512 MB memory, a 120-second timeout, and seven-day logs.
+The Lambda launcher disables Gunicorn's worker heartbeat timeout because Lambda
+can freeze the process between invocations; Lambda and SDK timeouts still bound
+requests. It closes local HTTP connections after each response, disables the
+unused control socket, and places worker temporary files in `/tmp`.
+A shared
 DynamoDB admission limit allows **30 Bedrock calls in any rolling 60 seconds**
 across all users, Lambda instances, and buffered/streaming requests. Additional
 requests return JSON HTTP 429 before inference; limiter failures return sanitized
@@ -133,13 +138,19 @@ above, not streamed):
 `support`, `years`, `mortgage`, `otherDebts`, `finalExpenses`, `education`,
 `existing`, `savings`). `question` (up to 600 characters) and `answer` (up to 1000)
 are required. `known` optionally lists answers so far by field id, plus `totalDebt`.
+`history` optionally holds up to six recent `{ "role": "user" | "assistant",
+"content": "..." }` messages, each nonempty and at most 1000 characters. Older
+clients may omit it. The website always sends the current assessment question,
+even after an explanation or joke, and uses history for conversational follow-ups.
+History is context only; figures for new answers must come from the latest message.
 The reply is the model's reading, checked by the server:
 
 ```json
 {"intent":"answer","value":80000,"household":null,"period":null,"extra":{},"say":""}
 ```
 
-`intent` is `answer`, `unsure`, `skip`, `why`, `question`, or `unclear`. `value` is
+`intent` is `answer`, `unsure`, `skip`, `why`, `question`, or `unclear`. `question`
+also covers friendly small talk; it leaves the current assessment field open. `value` is
 dollars, years or age; `household` is `both`, `partner`, `kids`, `others` or `none`;
 `period` is `month` or `year` only when the user said so. `extra` holds other fields
 whose figures the user typed in the same message. `say` is Abe's wording for
