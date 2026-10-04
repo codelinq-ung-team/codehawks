@@ -11,7 +11,7 @@ import re
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .prompts import INTAKE_PROMPT
 
-# Mirrors FIELDS in codelinc_frontend/src/domain/calculator.ts.
+# Mirrors FIELDS in apps/web/src/domain/calculator.ts.
 MONEY = ("income", "support", "mortgage", "otherDebts", "finalExpenses", "education", "existing", "savings")
 LIMITS = {"youngestAge": (0, 30), "years": (1, 70), **{name: (0, 1_000_000_000) for name in MONEY}}
 HOUSEHOLD = ("both", "partner", "kids", "others", "none")

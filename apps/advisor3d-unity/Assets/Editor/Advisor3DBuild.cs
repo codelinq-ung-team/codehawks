@@ -1,5 +1,5 @@
 // Project setup and builds, from the Advisor3D menu or the command line (see README.md):
-//   Unity -batchmode -quit -projectPath advisor3d-unity -executeMethod Advisor3D.EditorTools.Advisor3DBuild.BuildApk
+//   Unity -batchmode -quit -projectPath apps/advisor3d-unity -executeMethod Advisor3D.EditorTools.Advisor3DBuild.BuildApk
 // Setup writes the Quest settings (OpenXR, IL2CPP, ARM64, Vulkan) and the one scene, so nothing
 // in this project has to be clicked together by hand.
 using System;

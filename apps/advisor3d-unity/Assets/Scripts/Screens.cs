@@ -1,6 +1,6 @@
 // The five screens of the LincLife site (Home → Basics → Chat with Abe → Review → Results),
 // laid out for a headset: one main card in front, Abe on the left, the number pad or
-// side actions on the right. Copy and flow follow the site (codelinc_frontend on main), and
+// side actions on the right. Copy and flow follow the site (apps/web on main), and
 // the chat reads answers with the site's AI backend.
 using System;
 using System.Collections;

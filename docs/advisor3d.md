@@ -1,29 +1,29 @@
 # Advisor3D (WebXR prototype) for agents
 
-The LincLife guided assessment in a Quest 3S, in VR or passthrough. It is the 2D frontend (`codelinc_frontend`, branch `justin-frontend`) moved into a headset: the same five screens (Home, Basics, Chat with Pip, Review, Results), the same copy, colors and math. Source is in [`advisor3d/`](../advisor3d/); the built site is served at **`https://codelinc.codehawks.org/advisor3d/index.html`** from `app/public/advisor3d/`. It is a prototype: the chat follows the frontend's fixed script, and it needs no backend or AWS changes.
+The LincLife guided assessment in a Quest 3S, in VR or passthrough. It is the 2D frontend (`apps/web` on `main`) moved into a headset: the same five screens (Home, Basics, Chat with Pip, Review, Results), the same copy, colors and math. Source is in [`apps/advisor3d-web/`](../apps/advisor3d-web/); the built site is served at **`https://codelinc.codehawks.org/advisor3d/index.html`** from `build/site/advisor3d/`. It is a prototype: the chat follows the frontend's fixed script, and it needs no backend or AWS changes.
 
-The native Quest app, in Unity, is in [`advisor3d-unity/`](../advisor3d-unity/). It follows the live site's flow and reads answers with the site's AI backend (`POST /api/intake`); its README covers building it onto a headset. It is not part of the site build and does not change anything below.
+The native Quest app, in Unity, is in [`apps/advisor3d-unity/`](../apps/advisor3d-unity/). It follows the live site's flow and reads answers with the site's AI backend (`POST /api/intake`); its README covers building it onto a headset. It is not part of the site build and does not change anything below.
 
 ## Rules that affect everyone deploying this site
 
-1. **`scripts/publish-app.sh` runs `aws s3 sync app/public/ --delete`.** The site is exactly what is in `app/public/` at deploy time. Anything missing there is deleted from S3. If a build empties or replaces `app/public/`, `/advisor3d/` disappears.
-2. **`scripts/build-app.sh` is the build adapter.** The deploy workflow runs it, if it exists, right before publishing. It calls `scripts/build-advisor3d.sh`, which runs `npm ci`, builds `advisor3d/`, and writes `app/public/advisor3d/` (Node 20+, preinstalled on `ubuntu-latest`). That output is git-ignored, so it is never committed and always built fresh during deploy. When the 2D frontend gets wired in, add its build and copy its output into `app/public/` **above** the Advisor3D line in `build-app.sh`, and never clear `app/public/advisor3d/` after that line runs. If you replace `build-app.sh`, keep the Advisor3D call.
-3. **Link to `/advisor3d/index.html`, not `/advisor3d/`.** CloudFront's default root object only applies to `/`. A request for `/advisor3d/` finds no S3 key and the 403/404 fallback returns the root `/index.html` (the main site). If you want the bare folder URL, ask the infra owner for a CloudFront Function that rewrites a trailing `/` to `/index.html`; that is an `infra/app.json` change.
-4. **Do not use root-absolute asset paths inside `advisor3d/`** (`/foo.js`). The Vite config uses `base: './'` so it works under a subpath.
-5. **The site's SPA fallback hides mistakes.** Missing files return the root page with status 200, so a wrong path looks like it worked. Before the first Advisor3D deploy, `https://codelinc.codehawks.org/advisor3d/index.html` returns the root "Hello" page. To verify a deploy, check that the page title is `LincLife Advisor3D` and that `/advisor3d/manifest.webmanifest` is JSON.
+1. **`scripts/publish-app.sh` runs `aws s3 sync build/site/ --delete`.** The site is exactly what is in `build/site/` at deploy time. Anything missing there is deleted from S3. If a build empties or replaces `build/site/`, `/advisor3d/` disappears.
+2. **`scripts/build-app.sh` is the build adapter.** The deploy workflow runs it, if it exists, right before publishing. It calls `scripts/build-advisor3d.sh`, which runs `npm ci`, builds `apps/advisor3d-web/`, and writes `build/site/advisor3d/` (Node 20+, preinstalled on `ubuntu-latest`). That output is git-ignored, so it is never committed and always built fresh during deploy. The 2D frontend build runs **above** the Advisor3D line in `build-app.sh`; never clear `build/site/advisor3d/` after that line runs. If you replace `build-app.sh`, keep the Advisor3D call.
+3. **Link to `/advisor3d/index.html`, not `/advisor3d/`.** CloudFront's default root object only applies to `/`. A request for `/advisor3d/` finds no S3 key; the site has no global 403/404 HTML fallback. If you want the bare folder URL, ask the infra owner for a CloudFront Function that rewrites a trailing `/` to `/index.html`; that is an `infra/app.json` change.
+4. **Do not use root-absolute asset paths inside `apps/advisor3d-web/`** (`/foo.js`). The Vite config uses `base: './'` so it works under a subpath.
+5. **Verify the actual built assets.** Check that the page title is `LincLife Advisor3D` and that `/advisor3d/manifest.webmanifest` is JSON.
 6. **Deploys go live immediately and have no approval gate.** Anyone with write access can run **Actions → Deploy hackathon** on `main`. The teardown workflow removes the site, including `/advisor3d/`, at the end of the event.
 
 ## Deploying it
 
-1. Merge the PR that contains `advisor3d/`, `scripts/build-app.sh`, and `scripts/build-advisor3d.sh`.
-2. Run **Actions → Deploy hackathon → Run workflow** on `main` (leave "verify only" off).
+1. Merge the PR that contains `apps/advisor3d-web/`, `scripts/build-app.sh`, and `scripts/build-advisor3d.sh`.
+2. After Israel confirms configuration and explicitly gives the deployment go-ahead, run **Actions → Deploy hackathon → Run workflow** on `main` (leave "verify only" off).
 3. Open `https://codelinc.codehawks.org/advisor3d/index.html` on the Quest Browser. Press the menu and choose to install the app to add it to your library. Caching is `max-age=300` and a deploy invalidates `/*`, so updates appear within seconds to minutes.
 
 ## What is shared with the 2D frontend
 
 Advisor3D runs the frontend's own logic, so both apps ask the same questions and reach the same number.
 
-- **Copied verbatim from `justin-frontend` (commit `970dcd5`):** `src/domain/calculator.ts` (fields, parsing, the estimate), `src/intake/script.ts` (Pip's questions, "why we ask" text, reply parsing), `src/guide/guide.ts`, and both test files in `tests/`. **Do not edit these copies.** When the frontend changes them, copy the new files over. Once `codelinc_frontend` is on `main`, replace the copies with imports from `../codelinc_frontend/src/`.
+- **Copied verbatim from `justin-frontend` (commit `970dcd5`):** `src/domain/calculator.ts` (fields, parsing, the estimate), `src/intake/script.ts` (Pip's questions, "why we ask" text, reply parsing), `src/guide/guide.ts`, and both test files in `tests/`. **Do not edit these copies.** When the frontend changes them, copy the new files over. Shared-package extraction is deferred; keep these copies in sync with `apps/web/src/`.
 - **Ported, not copied:** `src/lib/store.ts` is the frontend's store without React, and `src/guide/pip.js` holds Pip's pixel art from `Avatar.tsx`. Screen copy in `src/screens.js` follows `Home.tsx`, `Prepare.tsx`, `Chat.tsx`, `Review.tsx` and `Results.tsx`. Colors come from `kit/tokens.css` and are listed once in `src/xr/ui.js` (`T`).
 - **Session state uses the frontend's key and shape:** `sessionStorage['linclife:v1']` holding `{ profile, form, messages, pending, started, typing }`. Both apps are on one origin, so a tab that goes from one to the other keeps its answers and its chat. A new tab starts fresh, as it does on the 2D site. The routes are the same hash routes: `#/`, `#/prepare`, `#/chat`, `#/review`, `#/results`.
 - The first version of Advisor3D wrote `localStorage['linclife-assessment-answers']` and had its own questions and formula. That is gone; nothing reads that key now.
@@ -38,10 +38,10 @@ Advisor3D runs the frontend's own logic, so both apps ask the same questions and
 ## Working on it
 
 ```sh
-cd advisor3d
+cd apps/advisor3d-web
 npm ci
 npm run dev                 # http://localhost:5173 (mouse to point, number keys for the pad)
-npm test                    # the frontend's calculator and script tests; needs Node 22.18+ (CI does not run them)
+npm test                    # the frontend's calculator and script tests; needs Node 22.18+ (also run in CI)
 ```
 
 To test on a Quest 3S connected by USB with developer mode on:
@@ -59,4 +59,4 @@ In the Quest Browser press **Enter VR** or **Enter Passthrough**, then point at 
 
 ## Ownership
 
-Advisor3D is Israel's prototype and touches only `advisor3d/`, `scripts/build-advisor3d.sh`, `scripts/build-app.sh` (the Advisor3D call), one step in `.github/workflows/validate.yml`, and this doc. Keep other work out of those paths, and ping Israel before changing them.
+Advisor3D is Israel's prototype and touches only `apps/advisor3d-web/`, `scripts/build-advisor3d.sh`, `scripts/build-app.sh` (the Advisor3D call), one step in `.github/workflows/validate.yml`, and this doc. Keep other work out of those paths, and ping Israel before changing them.

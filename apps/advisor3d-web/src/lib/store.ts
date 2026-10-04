@@ -1,5 +1,5 @@
 // Session-only app state, in the same shape and under the same key as the 2D frontend
-// (codelinc_frontend/src/lib/store.ts). Both apps are on one origin, so a tab that moves
+// (apps/web/src/lib/store.ts). Both apps are on one origin, so a tab that moves
 // between them keeps its answers and its chat. This copy has no React: screens subscribe.
 import { emptyProfile, type FieldId, type Field, type Profile } from '../domain/calculator.ts'
 
