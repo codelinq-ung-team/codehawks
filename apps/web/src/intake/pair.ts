@@ -1,7 +1,7 @@
 // Pairing this browser with the Quest app (POST and GET /api/pair, see apps/backend/pairing.py).
 // The site saves the Basics answers and shows the pairing id as a QR code; the headset reads it,
 // has the conversation, and saves what Abe learned back for the site to pick up.
-import { FIELDS, emptyProfile, type Profile } from '../domain/calculator.ts'
+import { FIELDS, emptyProfile, missingRequired, type Profile } from '../domain/calculator.ts'
 import type { Form, Route } from '../lib/store.ts'
 import { sha256 } from './ai.ts'
 
@@ -60,5 +60,5 @@ export function shared(r: unknown): Shared | null {
 // Where someone coming back from the headset lands: on their results when they confirmed their
 // answers there, and otherwise on Review to confirm them here.
 export function landing(profile: Profile): Route {
-  return FIELDS.every((f) => f.role !== 'required' || profile[f.id].status === 'confirmed') ? 'results' : 'review'
+  return missingRequired(profile).length === 0 && FIELDS.every((f) => f.role !== 'required' || profile[f.id].status === 'confirmed') ? 'results' : 'review'
 }

@@ -3,7 +3,7 @@
 // fallback when the AI can't be reached. interpret() takes the AI's reading of a typed
 // answer and puts it through the same checks, so both return the same Reply shape.
 import {
-  FIELD, HOUSEHOLD, NO_PLANS, PLANS, PLANS_MAX, formatField, formatMoney, formatPlans, parseAmount, parseCount, isUnsure, isSkip, isWhy,
+  FIELD, HOUSEHOLD, NO_PLANS, PLANS, PLANS_MAX, SUPPORT_ERROR, validSupport, formatField, formatMoney, formatPlans, parseAmount, parseCount, isUnsure, isSkip, isWhy,
   type Field, type FieldId, type Household, type Profile,
 } from '../domain/calculator.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
@@ -42,11 +42,12 @@ const hasKids = (s: AppState) => ['kids', 'both'].includes(String(val(s.profile,
 const debtTotal = (s: AppState) => (s.form.debt ?? 0) > 0 ? s.form.debt as number : null
 const money = (v: number | Household) => formatMoney(Number(v))
 
-function moneyReader(opts: { monthlyCheck?: boolean } = {}) {
+function moneyReader(opts: { monthlyCheck?: boolean; support?: boolean } = {}) {
   return (text: string): Read => {
     const r = parseAmount(text)
     if (r.kind === 'negative') return { retry: 'Amounts can’t be negative. What’s the amount?' }
     if (r.kind !== 'amount') return { retry: 'I didn’t catch an amount. You can type something like 75,000 or 75k, or say “not sure.”' }
+    if (opts.support && !validSupport(r.value)) return { retry: SUPPORT_ERROR }
     if (opts.monthlyCheck && r.period === 'month') return { clarify: r.value }
     return { value: r.value }
   }
@@ -155,7 +156,7 @@ const STEPS: Step[] = [
       return { text: 'If something happened to you, how much would your family need each year to keep their life on track?', replies: ['$30,000', '$50,000', 'Not sure'] }
     },
     why: 'This is the yearly amount that would replace your paycheck for your family, covering things like groceries, rent, and bills. It’s often a bit less than your income because some of your own costs go away.',
-    read: moneyReader({ monthlyCheck: true }),
+    read: moneyReader({ monthlyCheck: true, support: true }),
     ack: (v) => `Okay, ${money(v)} a year.`,
   },
   {
@@ -349,6 +350,9 @@ export function intro(state: AppState): string[] {
 }
 
 function done(step: Step, value: number | Household, extra: string[], state: AppState): Reply {
+  if (step.id === 'support' && !validSupport(value)) {
+    return { say: [SUPPORT_ERROR], pending: null, replies: question(step.id, state).replies }
+  }
   return {
     updates: { ...step.also?.(value, state), [step.id]: { status: 'proposed', value } },
     say: extra.length ? extra : [step.ack(value, state)],
