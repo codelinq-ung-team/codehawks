@@ -49,15 +49,17 @@ income (yearly, before taxes), support (yearly amount the family would need), ye
 (funeral and final bills), education (education or other future costs, total),
 existing (life insurance already in place, total), savings (savings or investments
 the family could use). Two optional fields look ahead about ten years: plans (which
-of these they expect: kids = a first or another child, home = buying a home, partner
-= marrying or a partner coming to rely on them) and futureIncome (the yearly income
-they expect by then).
+of these they expect: kids = a first or another child, home = buying a home or a
+place of their own, partner = a wedding, an engagement, marrying, or a partner coming
+to rely on them) and futureIncome (the yearly income they expect by then).
 
 Choose intent:
 - answer: the message answers the current field. For household set household. For
   plans set plans to every one they mention, or to an empty list when they expect
   none of them or say nothing will change; leave value out. A plan they are unsure
-  of ("maybe kids someday") still counts. For
+  of ("maybe kids someday") still counts. Check the message for each of the three
+  separately: "a place together and a baby after the wedding" is home, kids and
+  partner. A plan they rule out ("no kids") is left out. For
   every other field set value to a plain number: dollars, years, or age. Convert
   words and shorthand ("eighty grand", "1.2 million", "a quarter million", "250k").
   "None", "no", "nothing" or "I don't have one" means value 0. If known totalDebt
