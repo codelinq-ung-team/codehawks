@@ -40,9 +40,30 @@
         "true"
       ],
       "Description": "Enable only after the legacy distribution releases its alias."
+    },
+    "OpenAiApiKey": {
+      "Type": "String",
+      "NoEcho": true,
+      "Default": "unset",
+      "Description": "OpenAI key for Abe's voice, from the OPENAI_VOICE_TOKEN Actions secret. Voice stays off while this is unset.",
+      "AllowedPattern": "^(unset|sk-[A-Za-z0-9_-]{20,250})$"
     }
   },
   "Resources": {
+    "VoiceApiKeySecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "codelinc-hackathon-app-openai-api-key",
+        "Description": "OpenAI key the chat function reads to start voice sessions. It never reaches the headset.",
+        "SecretString": { "Ref": "OpenAiApiKey" },
+        "Tags": [
+          { "Key": "Project", "Value": "codelinc-hackathon" },
+          { "Key": "Owner", "Value": "Israel Jauregui" },
+          { "Key": "Lifecycle", "Value": "ephemeral" },
+          { "Key": "ManagedBy", "Value": "CloudFormation" }
+        ]
+      }
+    },
     "ChatRateLimitTable": {
       "Type": "AWS::DynamoDB::Table",
       "Properties": {
@@ -165,6 +186,11 @@
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinc-hackathon-app-chat:log-stream:*"
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": { "Ref": "VoiceApiKeySecret" }
                 }
               ]
             }
@@ -225,6 +251,9 @@
           "Variables": {
             "CHAT_RATE_LIMIT_TABLE": {
               "Ref": "ChatRateLimitTable"
+            },
+            "OPENAI_API_KEY_SECRET": {
+              "Ref": "VoiceApiKeySecret"
             },
             "MODEL_ID": {
               "Ref": "BedrockModelId"

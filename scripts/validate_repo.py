@@ -111,7 +111,15 @@ def validate_chat(template):
     assert variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
     assert variables["AWS_LWA_INVOKE_MODE"] == "response_stream"
     assert variables["AWS_LWA_READINESS_CHECK_PATH"] == "/health"
-    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+    # The voice key is a Secrets Manager secret the function reads when it needs it; only its ARN is in the environment.
+    assert variables["OPENAI_API_KEY_SECRET"] == {"Ref": "VoiceApiKeySecret"}
+    secret = resources["VoiceApiKeySecret"]
+    assert secret["Type"] == "AWS::SecretsManager::Secret"
+    assert secret["Properties"]["Name"] == "codelinc-hackathon-app-openai-api-key"
+    assert secret["Properties"]["SecretString"] == {"Ref": "OpenAiApiKey"}
+    key = template["Parameters"]["OpenAiApiKey"]
+    assert key["NoEcho"] is True and key["Default"] == "unset", "The key is hidden, and voice is off until it is supplied"
+    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "OPENAI_API_KEY_SECRET", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
                               "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
                               "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
     url = resources["ChatFunctionUrl"]["Properties"]
@@ -133,14 +141,17 @@ def validate_chat(template):
     assert table["Properties"]["SSESpecification"] == {"SSEEnabled": True}
     assert table["Properties"]["AttributeDefinitions"] == [{"AttributeName": "id", "AttributeType": "S"}]
     assert table["Properties"]["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
-    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable"):
+    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable", "VoiceApiKeySecret"):
         tags = {tag["Key"]: tag["Value"] for tag in resources[name]["Properties"]["Tags"]}
         assert tags == {"Project": CONFIG["prefix"], "Owner": "Israel Jauregui",
                         "Lifecycle": "ephemeral", "ManagedBy": "CloudFormation"}
     policies = resources["ChatRole"]["Properties"]["Policies"]
     statements = [s for policy in policies for s in policy["PolicyDocument"]["Statement"]]
     assert len(validate_bedrock_statements(statements)) == 1
-    assert len(statements) == 3, "Chat needs only scoped inference, admission control, and logging"
+    assert len(statements) == 4, "Chat needs only scoped inference, admission control, logging, and its one secret"
+    reading = [s for s in statements if s["Action"] == "secretsmanager:GetSecretValue"]
+    assert reading == [{"Effect": "Allow", "Action": "secretsmanager:GetSecretValue",
+                        "Resource": {"Ref": "VoiceApiKeySecret"}}], "Chat may read only the voice key"
     limiter = [s for s in statements if s["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem"]]
     assert limiter == [{"Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
                         "Resource": {"Fn::GetAtt": ["ChatRateLimitTable", "Arn"]}}], "Admission control may access only its own table"

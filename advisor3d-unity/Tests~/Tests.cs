@@ -257,6 +257,71 @@ static class Tests
             Eq(string.Join(",", known.Select(kv => kv.Key + "=" + kv.Value)), "income=75000,totalDebt=180000");
         });
 
+        // ---------- voice ----------
+        Test("the voice briefing names what is known and the open question", () =>
+        {
+            var s = State(new Form { income = 75000 });
+            var b = VoiceScript.Briefing(s);
+            Ok(b.StartsWith(VoiceScript.APP));
+            Match(b, @"Your yearly income: \$75,000");
+            Ok(b.Contains(Script.Ask("household", s).text));
+            s.profile["household"] = Field.Of(Status.Proposed, "kids");
+            Ok(VoiceScript.TakenBack(s).Contains("ask: \"" + Script.Ask("youngestAge", s).text));
+            Store.LoadSample();
+            Match(VoiceScript.Briefing(Store.State), "already collected");
+            Ok(VoiceScript.TakenBack(Store.State).Contains(Script.CLOSING));
+        });
+        Test("a spoken answer is saved and the model is told the next question", () =>
+        {
+            var s = State(new Form { income = 75000 });
+            var (reply, tell) = VoiceScript.Record(new Reading { household = "kids" }, "just my kids", s);
+            Eq(reply.updates["household"].choice, "kids");
+            Match(tell, "^Saved\\.");
+            Ok(tell.Contains("Then ask: \"" + Script.Ask("youngestAge", s).text.Substring(0, 12)));
+        });
+        Test("a spoken value the script rejects is not saved", () =>
+        {
+            var s = State();
+            s.profile["household"] = Field.Of(Status.Proposed, "kids");
+            var (reply, tell) = VoiceScript.Record(new Reading { value = 500 }, "five hundred", s);
+            Ok(reply.updates == null);
+            Match(tell, "^Not saved yet\\..*between 0 and 30");
+            var (none, missing) = VoiceScript.Record(new Reading(), "um", s);
+            Ok(none.updates == null);
+            Match(missing, "^Not saved yet");
+        });
+        Test("a spoken monthly amount is checked before it is saved", () =>
+        {
+            var s = State();
+            s.profile["household"] = Field.Of(Status.Proposed, "none");
+            Eq(Script.NextStep(s), "income");
+            var (ask, tell) = VoiceScript.Record(new Reading { value = 6000, period = "month" }, "six thousand a month", s);
+            Ok(ask.updates == null);
+            Eq(ask.pending, 6000);
+            Match(tell, "call record_answer again");
+            s.pending = ask.pending;
+            Match(VoiceScript.Briefing(s), @"Is \$6,000 a monthly amount");
+            var (yes, said) = VoiceScript.Record(new Reading(), "yes, monthly", s);
+            Eq(yes.updates["income"].num, 72000);
+            Match(said, "^Saved\\.");
+        });
+        Test("unsure and the last answer by voice", () =>
+        {
+            var s = State();
+            s.profile["household"] = Field.Of(Status.Proposed, "none");
+            Eq(VoiceScript.Record(new Reading { intent = "unsure" }, "no idea", s).reply.updates["income"].status, Status.Unknown);
+            Store.LoadSample();
+            var done = Store.State;
+            done.profile["savings"] = Field.Empty();
+            var (last, tell) = VoiceScript.Record(new Reading { value = 60000 }, "sixty thousand", done);
+            Eq(last.updates["savings"].num, 60000);
+            Ok(tell.Contains(Script.CLOSING) && !tell.Contains("Then ask"));
+            done.profile["savings"] = last.updates["savings"];
+            var (none, nothing) = VoiceScript.Record(new Reading { value = 1 }, "one", done);
+            Ok(none == null);
+            Match(nothing, "^Nothing was saved");
+        });
+
         foreach (var (name, run) in all)
         {
             try { run(); Console.WriteLine("ok   " + name); }

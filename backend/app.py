@@ -6,6 +6,7 @@ from werkzeug.exceptions import HTTPException
 
 from .intake import read_answer
 from .llm import ChatError, chat, iter_chat_events
+from .voice import create_session
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 65536
@@ -45,6 +46,15 @@ def json_payload():
 def intake_route():
     try:
         return jsonify(read_answer(json_payload()))
+    except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/voice/session")
+def voice_session_route():
+    try:
+        json_payload()  # the body is unused, but CloudFront needs one to sign
+        return jsonify(create_session())
     except ChatError as error:
         return jsonify(error=error.message), error.status
 
