@@ -426,9 +426,11 @@ export function known(state: AppState): Record<string, number | string> {
 export function interpret(stepId: FieldId, reading: Reading, state: AppState, typed = ''): Reply {
   const step = STEP[stepId]
   // A monthly amount is read by the script, which asks before turning it into a yearly one.
+  // When the AI kept it monthly, its figure is used below: it reads "5 or 6k a month".
   const amount = parseAmount(typed)
-  if (reading.intent === 'answer' && amount.kind === 'amount' && amount.period === 'month') return respond(stepId, typed, state)
-  const replies = question(stepId, state).replies
+  if (reading.intent === 'answer' && reading.period !== 'month' && amount.kind === 'amount' && amount.period === 'month') return respond(stepId, typed, state)
+  const ask = question(stepId, state)
+  const replies = ask.replies
 
   if (reading.intent === 'why' || (reading.intent === 'question' && !reading.say.trim())) return { say: [reading.say.trim() || step.why], why: true }
   if (reading.intent === 'unsure') return respond(stepId, 'not sure', { ...state, pending: null })
@@ -439,6 +441,11 @@ export function interpret(stepId: FieldId, reading: Reading, state: AppState, ty
       const r = step.read(typed.trim(), state)
       if ('value' in r) return settle(step, r, state)
     }
+    // They answered a different question ("50k for the kids' college" when asked about
+    // income): keep what they gave, and ask this one again.
+    const updates: Partial<Profile> = {}
+    const noted = reading.intent === 'unclear' ? note(reading, state, updates) : []
+    if (noted.length) return { updates, say: [`Got it, I noted your ${noted.join(' and ')}. You can change anything during review.`, ask.text], replies }
     return { say: [reading.say.trim() || 'Sorry, I didn’t catch that. Could you say it another way?'], replies }
   }
 
@@ -453,17 +460,22 @@ export function interpret(stepId: FieldId, reading: Reading, state: AppState, ty
   const reply = settle(step, step.read(text, state), state)
   if (!reply.updates) return reply
 
-  // Other figures given in the same message fill empty fields only, and are named back.
+  const noted = note(reading, state, reply.updates)
+  if (noted.length) reply.say.push(`I also noted your ${noted.join(' and ')}. You can change anything during review.`)
+  return reply
+}
+
+// Other figures given in the same message fill empty fields only, and are named back.
+function note(reading: Reading, state: AppState, updates: Partial<Profile>): string[] {
   const noted: string[] = []
   for (const [id, raw] of Object.entries(reading.extra)) {
     const other = STEP[id as FieldId]
     if (!other || other.id === 'household' || other.id === 'plans' || typeof raw !== 'number') continue
-    if (state.profile[other.id].status !== 'empty' || reply.updates[other.id]) continue
+    if (state.profile[other.id].status !== 'empty' || updates[other.id]) continue
     const r = other.read(String(raw), state)
     if (!('value' in r)) continue
-    Object.assign(reply.updates, other.also?.(r.value, state), { [other.id]: { status: 'proposed', value: r.value } })
-    noted.push(`${FIELD[other.id].label.toLowerCase()} (${formatField(other.id, reply.updates[other.id])})`)
+    Object.assign(updates, other.also?.(r.value, state), { [other.id]: { status: 'proposed', value: r.value } })
+    noted.push(`${FIELD[other.id].label.toLowerCase()} (${formatField(other.id, updates[other.id])})`)
   }
-  if (noted.length) reply.say.push(`I also noted your ${noted.join(' and ')}. You can change anything during review.`)
-  return reply
+  return noted
 }

@@ -234,3 +234,23 @@ test('the AI’s reading of plans and expected income goes through the script’
   assert.equal(mixed.updates?.income?.value, 13000)
   assert.equal(mixed.updates?.futureIncome?.value, 70000)
 })
+
+test('an answer to a different question is kept, and the current one is asked again', () => {
+  const s = state()
+  s.profile.household = { status: 'proposed', value: 'kids' }
+  const r = interpret('income', reading({ intent: 'unclear', say: 'What do you earn?', extra: { education: 50000, years: 500 } }), s,
+    'i want 50k of college education for my kids')
+  assert.deepEqual(r.updates, { education: { status: 'proposed', value: 50000 } })
+  assert.match(r.say[0], /noted your education.*\$50,000/)
+  assert.equal(r.say[1], question('income', s).text)
+  assert.ok(r.replies?.includes(WHY))
+  // Nothing usable in extra: the AI's own re-ask is shown, as before.
+  const plain = interpret('income', reading({ intent: 'unclear', say: 'What do you earn?', extra: { years: 500 } }), s, 'hmm')
+  assert.deepEqual([plain.updates, plain.say], [undefined, ['What do you earn?']])
+})
+
+test('a monthly range the AI read is checked as monthly, using its figure', () => {
+  const r = interpret('support', reading({ value: 5500, period: 'month' }), state(), 'probably 5 or 6k a month')
+  assert.deepEqual(r.pending, { value: 5500 })
+  assert.match(r.say[0], /\$5,500 a month/)
+})
