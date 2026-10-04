@@ -21,8 +21,8 @@ namespace Advisor3D
         public static Transform rig; // panels hang off the rig; in a headset it moves to the wearer
         public static Camera cam;
         public static bool Passthrough { get; private set; }
-        // Whether the panels come round when the wearer looks away from them. Off while there is
-        // something around the wearer worth turning to look at (Picture.cs).
+        // Whether the panels come round as soon as the wearer looks away from them. Off while there
+        // is something around the wearer worth turning to look at (Picture.cs); they then wait a few seconds.
         public static bool FollowGaze = true;
 
         GameObject environment;
@@ -49,6 +49,7 @@ namespace Advisor3D
         DateTime pausedAt;
 
         const float AWAY_SECONDS = 0.8f;   // looking away this long brings the panels back in front
+        const float LINGER_SECONDS = 6;    // the same, while there is something around the wearer to look at
         const float AWAY_ANGLE = 55;       // degrees off the main panel; the side panels end at about 45
         const float AWAY_STEP = 0.5f;      // meters walked, or stood up or sat down, from where the panels were placed
         const float HOLD_SECONDS = 1.5f;   // holding B or Y this long starts over
@@ -408,9 +409,12 @@ namespace Advisor3D
             var looking = Vector3.ProjectOnPlane(head.forward, Vector3.up);
             // How far the wearer has moved from the spot the layout was built around, sitting or standing included.
             var moved = head.position - (rig.position + Vector3.up * EYE);
-            var away = (FollowGaze && looking.sqrMagnitude > 0.01f && Vector3.Angle(looking, toPanels) > AWAY_ANGLE) || moved.magnitude > AWAY_STEP;
-            astray = away ? astray + dt : 0;
-            if (astray >= AWAY_SECONDS) { astray = 0; Recenter(); }
+            var turned = looking.sqrMagnitude > 0.01f && Vector3.Angle(looking, toPanels) > AWAY_ANGLE;
+            var walked = moved.magnitude > AWAY_STEP;
+            astray = turned || walked ? astray + dt : 0;
+            // With the ring up, a turned head gets time to look around before the panels come round.
+            // They still come: with hand tracking there is no B or Y button to call them.
+            if (astray >= (walked || FollowGaze ? AWAY_SECONDS : LINGER_SECONDS)) { astray = 0; Recenter(); }
         }
 
         void Update()

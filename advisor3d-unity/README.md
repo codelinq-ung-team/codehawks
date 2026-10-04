@@ -58,8 +58,8 @@ In front, each amount you give becomes a block that rises as you answer; round t
 behind you is one post for every year of support. On Results, Abe takes the estimate a slide at
 a time, as the site's results deck does: two stacks on a tray in front of you build up to the
 gap, and the posts around you become a staircase of the cost adding up, then stepping down as
-the years pass. While the ring is up the panels stay put when you turn to look; tap B or Y to
-bring them round.
+the years pass. While the ring is up the panels give you about six seconds to look around
+before they come round to face you; tapping B or Y brings them at once.
 
 ## Talking with Abe
 
