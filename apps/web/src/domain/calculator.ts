@@ -16,7 +16,7 @@ export type Household = 'both' | 'partner' | 'kids' | 'others' | 'none'
 
 // 'unknown' is never treated as zero.
 export type FieldStatus = 'empty' | 'unknown' | 'skipped' | 'proposed' | 'confirmed'
-export type Field = { status: FieldStatus; value: number | Household | null; source?: 'form' }
+export type Field = { status: FieldStatus; value: number | Household | null; source?: 'form' | 'plaid' }
 export type Profile = Record<FieldId, Field>
 
 export type FieldDef = { id: FieldId; group: GroupId; label: string; kind: FieldKind; role: FieldRole }

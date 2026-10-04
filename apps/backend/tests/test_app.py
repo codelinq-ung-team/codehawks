@@ -100,6 +100,35 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(events[-1], {"done": True})
         response.close()
 
+    @patch("backend.app.create_link_token")
+    def test_plaid_link_token_route(self, create):
+        create.return_value = {"link_token": "link-sandbox", "expiration": "soon"}
+        response = self.http.post("/api/plaid/link-token", json={})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["link_token"], "link-sandbox")
+        create.assert_called_once_with()
+
+    @patch("backend.app.exchange_and_get_accounts")
+    def test_plaid_exchange_route(self, exchange):
+        snapshot = {"version": 1, "source": "plaid_accounts_get", "accounts": []}
+        exchange.return_value = snapshot
+        response = self.http.post("/api/plaid/exchange", json={"public_token": "public-sandbox"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"connected": True, "financialSnapshot": snapshot})
+        exchange.assert_called_once_with("public-sandbox")
+
+    def test_plaid_routes_reject_wrong_shapes(self):
+        for path, body in (("/api/plaid/link-token", {"user": "pii"}),
+                           ("/api/plaid/exchange", {}),
+                           ("/api/plaid/exchange", {"public_token": "x", "extra": True})):
+            with self.subTest(path=path, body=body):
+                self.assertEqual(self.http.post(path, json=body).status_code, 400)
+
+    def test_plaid_unconfigured_returns_503(self):
+        with patch.dict(os.environ, {"PLAID_CLIENT_ID": "", "PLAID_SECRET": ""}):
+            response = self.http.post("/api/plaid/link-token", json={})
+        self.assertEqual(response.status_code, 503)
+
 
 @unittest.skipIf(sys.platform == "win32", "Gunicorn runs on the Linux deployment target")
 class ProductionProcessTests(unittest.TestCase):

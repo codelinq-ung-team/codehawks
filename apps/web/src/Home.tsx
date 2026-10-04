@@ -32,7 +32,7 @@ export function Home() {
             <Button size="large" onClick={start} className="lp-cta__btn">{startLabel}<Icon name="chevron-right" size={18} weight={2.6} /></Button>
             {resume
               ? <button type="button" className="link-button subhead" onClick={() => { resetState(); go('prepare') }}>Start fresh instead</button>
-              : <span className="subhead muted">5 quick questions, then a short chat</span>}
+              : <span className="subhead muted">6 quick questions, then a short chat</span>}
           </div>
           <ul className="lp-trust">
             <li><Icon name="shield" size={22} /><span><strong>Private by design</strong><span>No account, and nothing is saved</span></span></li>

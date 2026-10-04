@@ -202,15 +202,15 @@
 
 /* ---------- Wrap-up ---------- */
 .wrap { display: grid; gap: var(--space-6); margin-top: var(--space-8); }
-.wrap__hero { display: flex; align-items: center; gap: var(--space-4); }
-.wrap__abe { flex: none; width: 80px; height: 80px; }
-.wrap__hero-text { display: grid; gap: var(--space-1); max-width: 34em; }
-.wrap__hero-text .title-2 { font-weight: 700; }
 /* Phones: the math, then Ask Abe, then the buttons. Wide screens put Ask Abe beside the other two. */
 .wrap__grid { display: grid; gap: var(--space-6); grid-template-areas: "math" "ask" "actions"; }
 .wrap__math { grid-area: math; }
 .wrap__actions { grid-area: actions; align-content: start; }
 .wrap .limits { margin-top: 0; }
+.wrap__hero { display: flex; align-items: center; gap: var(--space-4); }
+.wrap__abe { flex: none; width: 80px; height: 80px; }
+.wrap__hero-text { display: grid; gap: var(--space-1); max-width: 34em; }
+.wrap__hero-text .title-2 { font-weight: 700; }
 
 /* ---------- Ask Abe ---------- */
 .ask { grid-area: ask; display: flex; flex-direction: column; min-width: 0; }

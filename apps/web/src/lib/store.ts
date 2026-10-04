@@ -4,8 +4,20 @@ import { emptyProfile, type FieldId, type Field, type Profile } from '../domain/
 
 // Answers from the short form before the chat. null means not answered yet (never zero).
 export type Marital = 'single' | 'married'
-export type Form = { income: number | null; marital: Marital | null; dependents: number | null; debt: number | null; coverage: boolean | null }
+export type Form = { age: number | null; income: number | null; marital: Marital | null; dependents: number | null; debt: number | null; coverage: boolean | null }
 export type Message = { role: 'bot' | 'user'; text: string; replies?: string[]; why?: boolean; done?: boolean }
+// Redacted balances from Plaid (apps/backend/plaid.py), or the labeled sample set when Plaid
+// isn't configured. Only account types and balances: no names, numbers or institutions.
+export type FinancialSnapshot = {
+  environment: 'sandbox' | 'sample'
+  accounts: Array<{
+    category: 'liquid_asset' | 'investment_asset' | 'debt' | 'other'
+    type: string
+    subtype: string
+    currentBalance: number | null
+    currency: string
+  }>
+}
 export type AppState = {
   profile: Profile
   form: Form
@@ -17,6 +29,8 @@ export type AppState = {
   offline?: boolean
   // Set while this browser is paired with the Quest app (see intake/pair.ts).
   vr?: { id: string; code: string; codeUntil: number } | null
+  // Set after connecting accounts on the Basics form; it fills in answers the person then checks.
+  plaid?: FinancialSnapshot | null
 }
 
 const KEY = 'linclife:v1'
@@ -25,7 +39,7 @@ const listeners = new Set<() => void>()
 function initial(): AppState {
   return {
     profile: emptyProfile(),
-    form: { income: null, marital: null, dependents: null, debt: null, coverage: null },
+    form: { age: null, income: null, marital: null, dependents: null, debt: null, coverage: null },
     messages: [],
     pending: null,
     started: false,
@@ -37,7 +51,10 @@ function load(): AppState {
   try {
     const raw = sessionStorage.getItem(KEY)
     // "typing" is transient; a reload mid-message shouldn't leave it on.
-    if (raw) return { ...initial(), ...JSON.parse(raw), typing: false }
+    if (raw) {
+      const saved = JSON.parse(raw)
+      return { ...initial(), ...saved, form: { ...initial().form, ...saved.form }, typing: false }
+    }
   } catch { /* storage blocked: start fresh */ }
   return initial()
 }

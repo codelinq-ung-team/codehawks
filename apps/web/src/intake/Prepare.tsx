@@ -1,7 +1,8 @@
-// Before the chat: five short form questions, one at a time (same layout as the team's
+// Before the chat: six short form questions, one at a time (same layout as the team's
 // assessment form). Answers fill in the profile so Abe only asks the follow-ups. After the
 // last one comes the choice between typing with Abe here and talking with him in VR.
-// Abe stands beside each question in a pose: on the left for the first three, then on the right.
+// Abe stands beside each question in a pose.
+// An optional Plaid step comes first; its balances fill in the debt answer. Then age starts the questions.
 import { useState, type FormEvent } from 'react'
 import { Button, Icon } from '../kit/Kit.tsx'
 import { Page } from '../lib/Chrome.tsx'
@@ -9,6 +10,8 @@ import { go, setState, useStore, type Form } from '../lib/store.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { applyForm } from './script.ts'
+import { PlaidConnect } from './PlaidConnect.tsx'
+import { applyPlaid, debtFromPlaid, plaidFill } from './plaidFill.ts'
 
 type Option = { label: string; value: Form[keyof Form] }
 type Question = { id: keyof Form; prompt: string; helper: string; pose: PoseName; side: 'left' | 'right' } & (
@@ -17,6 +20,11 @@ type Question = { id: keyof Form; prompt: string; helper: string; pose: PoseName
 )
 
 const QUESTIONS: Question[] = [
+  {
+    id: 'age', type: 'number', max: 120, placeholder: '35', pose: 'wave', side: 'left',
+    prompt: 'How old are you?',
+    helper: 'Enter your age in whole years.',
+  },
   {
     id: 'income', type: 'number', money: true, max: 100_000_000, placeholder: '75,000', pose: 'wave', side: 'left',
     prompt: 'What is your yearly income?',
@@ -49,22 +57,25 @@ const QUESTIONS: Question[] = [
 const digits = (text: string) => text.replace(/\D/g, '').slice(0, 9)
 
 export function Prepare() {
-  const { form } = useStore()
+  const { form, plaid } = useStore()
+  // The Basics form always opens on the Plaid step; it shows what's connected, or offers to connect.
+  const [connecting, setConnecting] = useState(true)
   const [index, setIndex] = useState(0)
   const q = QUESTIONS[index]
   const answer = form[q.id]
   const last = index === QUESTIONS.length - 1
-  // Counts the question on screen, so Basics opens at 20% before any answer and is full on the last question.
+  // Counts the question on screen; the bar is full on the last question.
   const progress = Math.round(((index + 1) / QUESTIONS.length) * 100)
   const tooBig = q.type === 'number' && typeof answer === 'number' && answer > q.max
   // Abe cheers once the last question is answered.
   const pose: PoseName = last && answer != null ? 'cheer' : q.pose
+  const fromPlaid = q.id === 'debt' && debtFromPlaid(form, plaid)
 
   const save = (value: Form[keyof Form]) => setState((s) => ({ form: { ...s.form, [q.id]: value } }))
 
   function next() {
     if (last) {
-      setState((s) => ({ ...applyForm(s), started: true }))
+      setState((s) => ({ profile: applyPlaid(applyForm(s).profile ?? s.profile, s.form, s.plaid), started: true }))
       go('mode')
     } else {
       setIndex(index + 1)
@@ -76,11 +87,13 @@ export function Prepare() {
     if (answer != null && !tooBig) next()
   }
 
-  // "Not sure" leaves the answer empty (never zero); Abe asks again in the chat.
+  // Skipping leaves the answer empty, never zero.
   function skip() {
     save(null)
     next()
   }
+
+  if (connecting) return <PlaidConnect onDone={() => setConnecting(false)} />
 
   return (
     <Page className="qform-screen">
@@ -125,17 +138,29 @@ export function Prepare() {
                   aria-labelledby="q-heading" aria-describedby="q-helper" aria-invalid={tooBig || undefined}
                   placeholder={q.placeholder}
                   value={typeof answer === 'number' ? (q.money ? answer.toLocaleString('en-US') : String(answer)) : ''}
-                  onChange={(e) => { const d = digits(e.target.value); save(d === '' ? null : Number(d)) }}
+                  onChange={(e) => {
+                    const text = e.target.value
+                    if (q.id === 'age' && !/^\d*$/.test(text)) return
+                    const d = q.id === 'age' ? text : digits(text)
+                    save(d === '' ? null : Number(d))
+                  }}
                 />
               </div>
+              {fromPlaid && (
+                <p className="qform__filled"><Icon name="check-circle" size={16} />
+                  Filled in from {plaid?.environment === 'sample' ? 'sample accounts' : 'your Plaid accounts'} ({plaidFill(plaid)?.accounts} connected). Change it if it’s off.
+                </p>
+              )}
               {tooBig && <p className="qform__error" role="alert"><Icon name="exclamation" size={15} />Please enter a number up to {q.max.toLocaleString('en-US')}.</p>}
-              <button type="button" className="link-button subhead qform__skip" onClick={skip}>Not sure? Skip, and {GUIDE_NAME} will ask later</button>
+              <button type="button" className="link-button subhead qform__skip" onClick={skip}>
+                {q.id === 'age' ? 'Prefer not to say? Skip this question' : `Not sure? Skip, and ${GUIDE_NAME} will ask later`}
+              </button>
             </>
           )}
         </div>
 
         <div className="qform__actions">
-          <Button variant="bordered" className={index === 0 ? 'is-hidden' : ''} onClick={() => setIndex(index - 1)}>Back</Button>
+          <Button variant="bordered" onClick={() => index === 0 ? setConnecting(true) : setIndex(index - 1)}>Back</Button>
           <Button type="submit" disabled={answer == null || tooBig}>
             {last ? `Meet ${GUIDE_NAME}` : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} />
           </Button>

@@ -10,7 +10,7 @@ import backend.pairing
 from backend.app import app
 from backend.pairing import CODE_SECONDS, ID_ALPHABET, SESSION_SECONDS
 
-FORM = {"income": 85000, "marital": "married", "dependents": 2, "debt": 280000, "coverage": True}
+FORM = {"age": 35, "income": 85000, "marital": "married", "dependents": 2, "debt": 280000, "coverage": True}
 PROFILE = {"income": {"status": "proposed", "value": 85000, "source": "form"}}
 
 
@@ -73,6 +73,14 @@ class PairingTests(unittest.TestCase):
             response = self.http.get("/api/pair/" + bad)
             self.assertEqual((response.status_code, response.json), (404, {"error": "That pairing was not found, or it has expired."}))
 
+    def test_age_is_a_whole_number_from_zero_to_120(self):
+        for value, expected in ((0, 0), (120, 120), (35.0, 35), (None, None),
+                                (-1, None), (121, None), (35.5, None), (True, None), ("35", None)):
+            with self.subTest(age=value):
+                created = self.create(form={**FORM, "age": value})
+                seen = self.http.get("/api/pair/" + created.json["id"]).json
+                self.assertEqual(seen["form"]["age"], expected)
+
     def test_only_expected_values_are_kept(self):
         created = self.create(
             form={"income": -5, "marital": "<b>", "dependents": 2.0, "debt": 10 ** 12, "coverage": "yes", "extra": "x"},
@@ -81,7 +89,7 @@ class PairingTests(unittest.TestCase):
                      "savings": {"status": "skipped", "value": 99}, "mortgage": {"status": "confirmed", "value": 240000.0},
                      "notes": {"status": "confirmed", "value": "call me"}, "education": "soon"})
         seen = self.http.get("/api/pair/" + created.json["id"]).json
-        self.assertEqual(seen["form"], {"income": None, "marital": None, "dependents": 2, "debt": None, "coverage": None})
+        self.assertEqual(seen["form"], {"age": None, "income": None, "marital": None, "dependents": 2, "debt": None, "coverage": None})
         empty = {"status": "empty", "value": None}
         for name in ("income", "years", "household", "support", "education"):
             self.assertEqual(seen["profile"][name], empty)
