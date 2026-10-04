@@ -278,8 +278,7 @@ account and institution ids never leave the backend, and the access token is not
 
 Locally, set `PLAID_CLIENT_ID` and `PLAID_SECRET` (Sandbox keys from the Plaid dashboard) in the
 environment; `PLAID_ENV` must be `sandbox`. Without them the routes return 503, and the site
-offers clearly labeled sample accounts instead. In Link, pick any test bank and sign in with
-`user_bank_income` / `{}` so Plaid generates Bank Income data.
+offers clearly labeled sample accounts instead. In Link, sign in with `user_good` / `pass_good`.
 
 On AWS the keys live in the Secrets Manager secret `codelinc-hackathon-app-plaid`, which the app
 stack creates. The function's environment holds only its ARN (`PLAID_CREDENTIALS_SECRET`), plus
