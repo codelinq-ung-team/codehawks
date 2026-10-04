@@ -209,6 +209,8 @@ namespace Advisor3D.EditorTools
                 UnityEngine.Object.DestroyImmediate(image);
             }
 
+            Screens.Jump("connect");
+            Shot("0-connect");
             Screens.Jump("home");
             Shot("1-home");
             Screens.Jump("prepare");

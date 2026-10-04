@@ -66,9 +66,11 @@ before they come round to face you; tapping B or Y brings them at once.
 ## Starting on the site
 
 Someone who fills in the Basics form on the site can choose **VR voice chat** there. The site
-shows a QR code; the app looks for it from the moment it opens, for as long as the Home screen
-is up. Look at the computer's screen and the app loads those answers, skips its own Basics
-form, and opens the chat. Each answer Abe hears is saved back, the site lists them as they
+shows a QR code, and looking for it is the first thing the app does: it opens on a connect
+screen, in passthrough so the wearer can see their computer, with a live picture of what the
+headset's cameras see. Look at the computer's screen and the app loads those answers, skips
+its own Basics form, and opens the chat. **Use the Headset on Its Own** goes to the Home
+screen instead, and Start Over comes back to the connect screen. Each answer Abe hears is saved back, the site lists them as they
 arrive, and when Abe has said his closing words the site moves on to its Review screen. **Not
 yet tried on a headset**: the camera, the permission prompt and the scan are unconfirmed there.
 
@@ -76,8 +78,8 @@ yet tried on a headset**: the camera, the permission prompt and the scan are unc
   (`Assets/Plugins/ZXing/`, Apache 2.0) a few times a second, on a background thread. It needs
   a Quest 3 or 3S on Horizon OS v74 or later, and asks for the camera the first time. In the
   editor it uses the computer's webcam, so a code on a phone held up to it works.
-- If the camera is refused or missing, **Enter a Code** on Home takes the six digits shown
-  under the QR code instead.
+- **Enter a Code Instead** takes the six digits shown under the QR code, for when the camera
+  is refused or can't read the screen.
 - `Sync.cs` joins the pairing, saves the answers after every change, and marks it done when
   the conversation ends. `Pairing.cs` holds the shapes it shares with the site, and is tested.
   Starting over, or the headset being off for ten seconds, ends the pairing; the site can then
@@ -163,7 +165,7 @@ The logic files are ports of the site's, and keep its order, so the two can be r
 | `Backend.cs` | `intake/ai.ts` |
 | `Store.cs` | `lib/store.ts` |
 | `Guide.cs` | `guide/Avatar.tsx` |
-| `Screens.cs` | `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
+| `Screens.cs` | nothing for the connect screen; `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
 | `Voice.cs`, `VoiceScript.cs` | nothing: the site has no voice |
 | `Pairing.cs`, `Sync.cs`, `Scanner.cs` | `intake/pair.ts`, `intake/Vr.tsx` (the other end of the pairing) |
 | `Picture.cs` | `results/charts.tsx` (the year charts), as posts around the wearer |

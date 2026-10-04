@@ -392,6 +392,161 @@ namespace Advisor3D
             return p;
         }
 
+        // ---------- Connect: the first screen. Pair with a browser by looking at its QR code ----------
+        static readonly (string title, string text)[] CONNECT =
+        {
+            ("Open the site on your computer", "codelinc.codehawks.org. Answer the five quick questions there."),
+            ("Choose VR voice chat", "A QR code comes up on the screen."),
+            ("Look at the QR code", "Face the screen from about an arm’s length. The headset’s cameras find it."),
+            ("Talk with " + GUIDE_NAME, "Your answers go back to your computer as he hears them."),
+        };
+
+        static bool roomWasOn; // the connect screen turned on the real room, to show the computer
+
+        static void SetRoom(bool real)
+        {
+            if (roomToggle == null || App.Passthrough == real) return;
+            App.SetPassthrough(real);
+            roomToggle.Set(o => o.label = real ? "Show the VR Room" : "Show My Real Room");
+        }
+
+        static Screen Connect()
+        {
+            var main = MainPanel();
+            const float VIEW_W = 400, VIEW_H = 300, VIEW_X = (MAIN_W - VIEW_W) / 2, VIEW_Y = 212;
+            var entering = false;
+            Action how = null;
+
+            // The wearer has to see their computer to look at it, so this screen shows the real room.
+            if (Application.isPlaying && !App.Passthrough) { roomWasOn = true; SetRoom(true); }
+
+            string Note() => Sync.Status == "joining" ? "Found your computer. Connecting…"
+                : Sync.Status == "failed" ? "That code didn’t work. Refresh the page on your computer and try again."
+                : Scanner.Status == "looking" ? "Looking for the QR code…"
+                : Scanner.Status == "asking" ? "Allow the camera, so the headset can see the code."
+                : "The cameras aren’t available. Enter the code shown under the QR code instead.";
+
+            main.Add(Ui.Paint(MAIN_W, 200, ctx =>
+            {
+                ctx.Text("Look at the QR code", M, 26, Fn(800, 46), T.tint, lineH: 50, spacing: -1.4f);
+                ctx.Text("on your computer.", M, 76, Fn(800, 46), T.highlightText, lineH: 50, spacing: -1.4f);
+                ctx.Text($"On the LincLife site, choose VR voice chat. {GUIDE_NAME} picks up where you left off.",
+                    M + 2, 140, Fn(400, 19), T.label2, maxW: MAIN_W - M * 2, lineH: 28);
+            }), 0, 0);
+
+            // What the headset's cameras see, so it is plain that they are looking and where to aim.
+            var frame = main.Add(new El(VIEW_W + 16, VIEW_H + 16, ctx =>
+            {
+                ctx.Rect(0, 0, VIEW_W + 16, VIEW_H + 16, 22, T.grouped3);
+                ctx.Rect(8, 8, VIEW_W, VIEW_H, 14, Ui.C("#1c1c1e"));
+                var waiting = Scanner.Status == "asking" || Scanner.Status == "looking";
+                ctx.Text(waiting ? "Opening the headset’s cameras…" : "No camera picture", (VIEW_W + 16) / 2, VIEW_H - 40, Fn(400, 15), Ui.C("#aeaeb2"), lineH: 30, align: Align.Center);
+            }), VIEW_X - 8, VIEW_Y - 8).Redraw();
+            var view = main.Add(new El(VIEW_W, VIEW_H, null), VIEW_X, VIEW_Y);
+            var feed = view.go.AddComponent<UnityEngine.UI.RawImage>();
+            feed.raycastTarget = false;
+            feed.enabled = false;
+            // Corner marks over the picture, like a viewfinder.
+            main.Add(Ui.Paint(VIEW_W, VIEW_H, ctx =>
+            {
+                const float S = 140, L = 32, W = 5;
+                var cx = VIEW_W / 2;
+                var cy = VIEW_H / 2;
+                foreach (var (sx, sy) in new[] { (-1, -1), (1, -1), (-1, 1), (1, 1) })
+                {
+                    var x = cx + sx * S / 2;
+                    var y = cy + sy * S / 2;
+                    ctx.Fill(sx < 0 ? x : x - L, sy < 0 ? y : y - W, L, W, T.highlight);
+                    ctx.Fill(sx < 0 ? x : x - W, sy < 0 ? y : y - L, W, L, T.highlight);
+                }
+            }), VIEW_X, VIEW_Y);
+
+            var note = main.Add(new El(MAIN_W, 30, ctx =>
+            {
+                var text = Note();
+                var f = Fn(600, 17);
+                var w = Ui.Measure(text, f);
+                var busy = Scanner.Status == "looking" || Sync.Status == "joining";
+                if (busy) ctx.Circle(MAIN_W / 2 - w / 2 - 12, 15, 5, T.highlight);
+                ctx.Text(text, MAIN_W / 2, 0, f, Sync.Status == "failed" ? T.danger : busy ? T.label : T.label2, lineH: 30, align: Align.Center);
+            }), 0, VIEW_Y + VIEW_H + 18).Redraw();
+
+            void EnterCode()
+            {
+                entering = true;
+                ClearRight();
+                CodePad(Sync.JoinCode, () => { entering = false; how(); });
+            }
+            main.Add(Ui.Button(250, 50, new BtnO { label = "Enter a Code Instead", variant = "bordered", size = 17, onSelect = EnterCode }), M, 588);
+            main.Add(Ui.Button(330, 50, new BtnO { label = "Use the Headset on Its Own", variant = "plain", size = 17, onSelect = () => Store.Go("home") }), MAIN_W - M - 330, 588);
+
+            how = () =>
+            {
+                ClearRight();
+                right.Add(Ui.Card(SIDE_W, 600), 0, 30);
+                right.Add(Ui.Paint(SIDE_W, 600, ctx =>
+                {
+                    ctx.Text("How to connect", 30, 28, Fn(800, 28), T.tint, lineH: 34, spacing: -0.6f);
+                    ctx.Text("Start on your computer, finish the conversation here.", 30, 68, Fn(400, 16), T.label2, maxW: 350, lineH: 23);
+                    for (var i = 0; i < CONNECT.Length; i++)
+                    {
+                        var (title, text) = CONNECT[i];
+                        var y = 136 + i * 98;
+                        ctx.Rect(30, y, 42, 42, 12, T.rose);
+                        ctx.Text((i + 1).ToString(), 51, y, Fn(700, 18), T.tint, lineH: 42, align: Align.Center);
+                        ctx.Text(title, 88, y - 2, Fn(600, 18), lineH: 24);
+                        ctx.Text(text, 88, y + 24, Fn(400, 15), T.label2, maxW: 300, lineH: 21);
+                    }
+                    ctx.Fill(30, 530, SIDE_W - 60, 1, T.edge);
+                    ctx.Text("To select, point and pinch your thumb and index finger together, or pull the trigger.", 30, 540, Fn(500, 13), T.tint, maxW: 360, lineH: 18);
+                }), 0, 30);
+            };
+            how();
+
+            Scanner.Found = Sync.Join;
+            Scanner.Start();
+            var key = Scanner.Status + Sync.Status;
+            Texture shown = null;
+            Say(Bot($"Hi, I’m {GUIDE_NAME}! Look at the QR code on your computer and I’ll pick up where you left off."));
+
+            return new Screen
+            {
+                main = main,
+                dispose = () =>
+                {
+                    Scanner.Stop();
+                    Scanner.Found = null;
+                    if (roomWasOn) { roomWasOn = false; SetRoom(false); }
+                },
+                resume = Scanner.Start,
+                tick = (t, dt) =>
+                {
+                    var next = Scanner.Status + Sync.Status;
+                    if (next != key)
+                    {
+                        key = next;
+                        note.Redraw();
+                        frame.Redraw();
+                        if (entering && Sync.Status == "failed") pad?.fail("That code wasn’t found, or it has expired. Check the site’s VR screen and try again.");
+                    }
+                    var live = Scanner.View;
+                    // Until the first real picture arrives the texture is a 16 by 16 placeholder.
+                    if (live && live.width < 100) live = null;
+                    if (live != shown)
+                    {
+                        shown = live;
+                        feed.texture = live;
+                        feed.enabled = live;
+                    }
+                    if (!live) return;
+                    // Cameras can hand their picture over turned or upside down; show it upright.
+                    view.rt.localEulerAngles = new Vector3(0, 0, -live.videoRotationAngle);
+                    feed.uvRect = live.videoVerticallyMirrored ? new Rect(0, 1, 1, -1) : new Rect(0, 0, 1, 1);
+                },
+                mood = () => Sync.Status == "joining" ? "typing" : "idle",
+            };
+        }
+
         // ---------- Home ----------
         static readonly Message[] DEMO =
         {
@@ -456,53 +611,26 @@ namespace Advisor3D
             if (resume) main.Add(Ui.Button(210, 44, new BtnO { label = "Start fresh instead", variant = "plain", size = 16, onSelect = () => { Store.Reset(); Store.Go("prepare"); } }), M + 424, 361);
             main.Add(Ui.Button(250, 46, new BtnO { label = "See a sample family", variant = "bordered", size = 17, onSelect = () => { Store.LoadSample(); Store.Go("results"); } }), M, 428);
 
-            // Started on the site? The app looks for the QR code on its VR screen from the moment
-            // it opens, and joins that browser's session; the code can be typed instead.
-            Action how = null;
-            var entering = false;
-            string PairNote() => Sync.Status == "joining" ? "Found your computer.\nConnecting…"
-                : Sync.Status == "failed" ? "That code didn’t work.\nCheck it and try again."
-                : Scanner.Status == "looking" ? "Started on a computer?\nJust look at its QR code."
-                : Scanner.Status == "asking" ? "Allow the camera to read\nyour computer’s QR code."
-                : "Started on a computer?\nEnter the code it shows.";
-            var pairNote = main.Add(new El(250, 46, ctx =>
-            {
-                if (Scanner.Status == "looking" || Sync.Status == "joining") ctx.Circle(6, 13, 4, T.highlight);
-                ctx.Text(PairNote(), 18, 2, Fn(400, 14), Sync.Status == "failed" ? T.danger : T.label2, lineH: 21);
-            }), M + 444, 428).Redraw();
-            void EnterCode()
-            {
-                entering = true;
-                ClearRight();
-                CodePad(Sync.JoinCode, () => { entering = false; how(); });
-            }
-            main.Add(Ui.Button(170, 46, new BtnO { label = "Enter a Code", variant = "bordered", size = 17, onSelect = EnterCode }), M + 262, 428);
-            Scanner.Found = Sync.Join;
-            if (!Sync.Paired) Scanner.Start();
-            var pairKey = Scanner.Status + Sync.Status;
+            // Started on the site? The connect screen pairs with that browser.
+            main.Add(Ui.Button(250, 46, new BtnO { label = "Connect to a Computer", variant = "bordered", size = 17, onSelect = () => Store.Go("connect") }), M + 262, 428);
 
-            how = () =>
+            right.Add(Ui.Card(SIDE_W, 600), 0, 30);
+            right.Add(Ui.Paint(SIDE_W, 600, ctx =>
             {
-                ClearRight();
-                right.Add(Ui.Card(SIDE_W, 600), 0, 30);
-                right.Add(Ui.Paint(SIDE_W, 600, ctx =>
+                ctx.Text("How it works", 30, 28, Fn(800, 28), T.tint, lineH: 34, spacing: -0.6f);
+                ctx.Text("A calm, step-by-step chat. You stay in control of every answer.", 30, 68, Fn(400, 16), T.label2, maxW: 350, lineH: 23);
+                for (var i = 0; i < HOW.Length; i++)
                 {
-                    ctx.Text("How it works", 30, 28, Fn(800, 28), T.tint, lineH: 34, spacing: -0.6f);
-                    ctx.Text("A calm, step-by-step chat. You stay in control of every answer.", 30, 68, Fn(400, 16), T.label2, maxW: 350, lineH: 23);
-                    for (var i = 0; i < HOW.Length; i++)
-                    {
-                        var (ic, hue, title, text) = HOW[i];
-                        var y = 136 + i * 98;
-                        ctx.Rect(30, y, 42, 42, 12, hue);
-                        ctx.Icon(ic, 51, y + 21, 22, T.white, 2.2f);
-                        ctx.Text(title, 88, y - 2, Fn(600, 18), lineH: 24);
-                        ctx.Text(text, 88, y + 24, Fn(400, 15), T.label2, maxW: 300, lineH: 21);
-                    }
-                    ctx.Fill(30, 530, SIDE_W - 60, 1, T.edge);
-                    ctx.Text("Point and pinch, or pull the trigger. Lost the panels? Look away for a moment, or tap B or Y. Hold B or Y to start over.", 30, 538, Fn(500, 13), T.tint, maxW: 360, lineH: 18);
-                }), 0, 30);
-            };
-            how();
+                    var (ic, hue, title, text) = HOW[i];
+                    var y = 136 + i * 98;
+                    ctx.Rect(30, y, 42, 42, 12, hue);
+                    ctx.Icon(ic, 51, y + 21, 22, T.white, 2.2f);
+                    ctx.Text(title, 88, y - 2, Fn(600, 18), lineH: 24);
+                    ctx.Text(text, 88, y + 24, Fn(400, 15), T.label2, maxW: 300, lineH: 21);
+                }
+                ctx.Fill(30, 530, SIDE_W - 60, 1, T.edge);
+                ctx.Text("Point and pinch, or pull the trigger. Lost the panels? Look away for a moment, or tap B or Y. Hold B or Y to start over.", 30, 538, Fn(500, 13), T.tint, maxW: 360, lineH: 18);
+            }), 0, 30);
 
             // Abe previews the chat, one message at a time, like the Home page of the 2D site.
             var shown = 0;
@@ -511,17 +639,8 @@ namespace Advisor3D
             return new Screen
             {
                 main = main,
-                dispose = () => { Scanner.Stop(); Scanner.Found = null; },
-                resume = () => { if (!Sync.Paired) Scanner.Start(); },
                 tick = (t, dt) =>
                 {
-                    var key = Scanner.Status + Sync.Status;
-                    if (key != pairKey)
-                    {
-                        pairKey = key;
-                        pairNote.Redraw();
-                        if (entering && Sync.Status == "failed") pad?.fail("That code wasn’t found, or it has expired. Check the site’s VR screen and try again.");
-                    }
                     if (shown >= DEMO.Length) return;
                     next -= dt;
                     if (next > 0) return;
@@ -1744,11 +1863,11 @@ namespace Advisor3D
             ClearRight();
             ResetStartOver();
             var route = Store.Route;
-            startOver.Visible = route != "home";
+            startOver.Visible = route != "home" && route != "connect";
             stepper.Redraw();
             var at = Array.FindIndex(STEPS, st => st.id == route);
             for (var i = 0; i < stepLinks.Length; i++) stepLinks[i].Visible = i < at;
-            current = route switch { "prepare" => Prepare(), "chat" => Chat(), "review" => Review(), "results" => Results(), _ => Home() };
+            current = route switch { "prepare" => Prepare(), "chat" => Chat(), "review" => Review(), "results" => Results(), "home" => Home(), _ => Connect() };
             appear = 0;
             Fade(0);
         }
@@ -1772,7 +1891,7 @@ namespace Advisor3D
             if (!Application.isPlaying) { appear = 1; Fade(1); }
         }
 
-        // The headset is back on after a pause: the Home screen starts looking for a pairing code again.
+        // The headset is back on after a pause: the connect screen starts looking for a pairing code again.
         public static void Resume() => current?.resume?.Invoke();
 
         // For the editor's screenshot pass: show a screen fully faded in.

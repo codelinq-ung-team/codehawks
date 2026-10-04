@@ -17,12 +17,18 @@ namespace Advisor3D
     {
         public static string Status { get; private set; } = "off"; // off | asking | looking | unavailable
         public static Action<string> Found; // called with a pairing id (see Pairing.ReadQr)
+        public static WebCamTexture View => Status == "looking" ? camera : null; // what the cameras see, to show the wearer
 
         const int WIDTH = 1280, HEIGHT = 960; // the largest size the Quest's cameras offer
         const float EVERY = 0.3f;             // seconds between frames handed to the reader
         const string HEADSET_CAMERA = "horizonos.permission.HEADSET_CAMERA";
 
+        // Spend longer on each frame: a code on a bright monitor, seen at an angle, is not an easy read.
+        static readonly System.Collections.Generic.Dictionary<DecodeHintType, object> HARDER =
+            new System.Collections.Generic.Dictionary<DecodeHintType, object> { [DecodeHintType.TRY_HARDER] = true };
+
         static WebCamTexture camera;
+        static bool seen; // the first frame has arrived (logged once)
         static Color32[] pixels;
         static Task<string> reading;
         static float wait;
@@ -81,6 +87,7 @@ namespace Advisor3D
             camera = new WebCamTexture(WebCamTexture.devices[0].name, WIDTH, HEIGHT, 30);
             camera.Play();
             wait = 0;
+            seen = false;
             Status = "looking";
             Debug.Log($"Advisor3D: looking for a pairing code with the camera \"{camera.deviceName}\".");
         }
@@ -95,6 +102,7 @@ namespace Advisor3D
                 reading = null;
                 var id = Pairing.ReadQr(text);
                 if (id != null) { Found?.Invoke(id); return; }
+                if (text != null) Debug.Log("Advisor3D: read a QR code that is not a LincLife pairing.");
             }
             wait -= dt;
             // Until the first real frame arrives the texture reports a 16 by 16 placeholder.
@@ -102,6 +110,7 @@ namespace Advisor3D
             wait = EVERY;
 
             int w = camera.width, h = camera.height;
+            if (!seen) { seen = true; Debug.Log($"Advisor3D: the camera is sending {w} by {h} pictures."); }
             if (pixels == null || pixels.Length != w * h) pixels = new Color32[w * h];
             camera.GetPixels32(pixels);
             // Green is close enough to brightness for black on white. Unity's rows run bottom to
@@ -120,7 +129,7 @@ namespace Advisor3D
         public static string Read(byte[] gray, int width, int height)
         {
             var source = new RGBLuminanceSource(gray, width, height, RGBLuminanceSource.BitmapFormat.Gray8);
-            var result = new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(source)));
+            var result = new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(source)), HARDER);
             return result?.Text;
         }
     }

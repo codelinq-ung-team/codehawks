@@ -34,10 +34,11 @@ namespace Advisor3D
 
     public static class Store
     {
-        public static readonly string[] ROUTES = { "home", "prepare", "chat", "review", "results" };
+        // The app opens on "connect", looking for a browser to pair with; "home" is the headset on its own.
+        public static readonly string[] ROUTES = { "connect", "home", "prepare", "chat", "review", "results" };
 
         public static AppState State { get; private set; } = new AppState();
-        public static string Route { get; private set; } = "home";
+        public static string Route { get; private set; } = "connect";
         public static event Action Changed;
         public static event Action RouteChanged;
 
@@ -65,7 +66,7 @@ namespace Advisor3D
 
         public static void Go(string route)
         {
-            Route = Array.IndexOf(ROUTES, route) >= 0 ? route : "home";
+            Route = Array.IndexOf(ROUTES, route) >= 0 ? route : "connect";
             RouteChanged?.Invoke();
         }
 
@@ -91,7 +92,7 @@ namespace Advisor3D
         public static void Restart()
         {
             State = new AppState();
-            Route = "home";
+            Route = "connect";
             Changed = null;
             RouteChanged = null;
         }

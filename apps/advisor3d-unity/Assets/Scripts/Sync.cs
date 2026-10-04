@@ -66,8 +66,8 @@ namespace Advisor3D
             Status = "joining";
             Backend.Call("/api/pair/" + pairing, null, (status, reply) =>
             {
-                // Tapping Start while the answers were on their way wins: the wearer is doing it by hand.
-                if (Store.Route != "home") { Status = "off"; return; }
+                // Leaving the connect screen while the answers were on their way wins: the wearer chose another way.
+                if (Store.Route != "connect") { Status = "off"; return; }
                 var state = status == 200 ? Read(reply) : null;
                 if (state == null)
                 {
