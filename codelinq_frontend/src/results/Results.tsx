@@ -1,4 +1,4 @@
-// Results: a slide deck. Abe stands in a little scene and presents one chart per step,
+// Results: a slide deck. Abe presents one chart per step on an easel, and reacts to it,
 // so the estimate is explained a piece at a time instead of all at once.
 // Every number here comes from calculate(); the page does no math of its own.
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react'
@@ -7,16 +7,15 @@ import { Page } from '../lib/Chrome.tsx'
 import { go, setField, useStore } from '../lib/store.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
-import { Prop, type PropName } from '../guide/Props.tsx'
 import { FIELDS, calculate, formatMoney, summaryText, type Estimate, type FieldId, type Profile } from '../domain/calculator.ts'
 import { CoverageChart, NeedsChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
 import './results.css'
 
 type Ready = Extract<Estimate, { ready: true }>
 type ChartId = 'summary' | 'years' | 'needs' | 'have' | 'gap' | 'time'
-// x: % across the scene. y: px above the ground (floating props). sky: pinned near the top.
-type ScenePropSpec = { name: PropName; x: number; y?: number; sky?: boolean; small?: boolean; float?: boolean }
-type Step = { id: string; pose: PoseName; chart: ChartId; eyebrow: string; title: string; props: ScenePropSpec[]; body: ReactNode }
+// Where Abe is, relative to the easel: standing in front of it at its left edge, or peeking over the top.
+type Spot = 'side' | 'top'
+type Step = { id: string; pose: PoseName; spot: Spot; chart: ChartId; eyebrow: string; title: string; body: ReactNode }
 
 const CHART_TITLES: Record<ChartId, string> = {
   summary: 'Your estimate',
@@ -69,14 +68,12 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
 
   const steps: Step[] = [
     {
-      id: 'hello', pose: 'wave', chart: 'summary', eyebrow: 'The short version',
-      props: [{ name: 'family', x: 30 }, { name: 'heart', x: 33, y: 64, float: true }, { name: 'sun', sky: true, x: 6 }],
+      id: 'hello', pose: 'wave', spot: 'side', chart: 'summary', eyebrow: 'The short version',
       title: gap ? `About ${formatMoney(r.additional)} more coverage would help protect your family` : 'You’re covered for everything you listed',
       body: <>This is a starting point for a conversation, not a verdict, and nothing here needs a decision today. Tap the arrow and I’ll show you where the number comes from, one piece at a time.</>,
     },
     {
-      id: 'years', pose: 'calendar', chart: 'years', eyebrow: 'Everyday costs',
-      props: [{ name: 'house', x: 27 }, { name: 'tree', x: 39 }, { name: 'cloud', sky: true, x: 8 }],
+      id: 'years', pose: 'shocked', spot: 'side', chart: 'years', eyebrow: 'Everyday costs',
       title: 'Keeping life steady at home',
       body: <>
         You said your family would need <strong>{formatMoney(support)} a year</strong> for <strong>{yearsText(years)}</strong>.
@@ -86,40 +83,33 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
       </>,
     },
     {
-      id: 'needs', pose: 'clipboard', chart: 'needs', eyebrow: 'One-time costs',
-      props: [{ name: 'receipt', x: 28 }, { name: 'receipt', x: 33, small: true }, { name: 'house', x: 40, small: true }],
+      id: 'needs', pose: 'peek', spot: 'top', chart: 'needs', eyebrow: 'One-time costs',
       title: extras.length ? 'Costs that only come up once' : 'No one-time costs to add',
       body: extras.length
         ? <>On top of everyday costs, you listed {listJoin(extras.map((t) => `${t.label.toLowerCase()} (${formatMoney(t.value)})`))}. All together, your family would need <strong>{formatMoney(r.totalNeeds)}</strong>.</>
         : <>You didn’t list any debts or one-time costs, so the total your family would need stays at <strong>{formatMoney(r.totalNeeds)}</strong>.</>,
     },
     {
-      id: 'have', pose: 'coin', chart: 'have', eyebrow: 'What you already have',
-      props: r.totalResources > 0
-        ? [{ name: 'piggy', x: 28 }, { name: 'coins', x: 38 }, { name: 'spark', x: 36, y: 60, float: true }]
-        : [{ name: 'piggy', x: 30 }],
+      id: 'have', pose: 'thumbs', spot: 'side', chart: 'have', eyebrow: 'What you already have',
       title: r.totalResources > 0 ? `Good news: ${formatMoney(r.totalResources)} is already in place` : 'Starting from zero is common',
       body: r.totalResources > 0
         ? <>Your {listJoin(resources.filter((t) => t.value > 0).map((t) => `${t.label.toLowerCase()} (${formatMoney(t.value)})`))} would go toward that total. That’s <strong>{covered}%</strong> of it already taken care of.</>
         : <>Many families don’t have coverage or savings set aside yet. That’s exactly what an estimate like this is for.</>,
     },
     {
-      id: 'gap', pose: gap ? 'umbrella' : 'heart', chart: 'gap', eyebrow: 'The gap',
-      props: [{ name: 'family', x: 29 }, { name: 'cloud', sky: true, x: 10 }, { name: 'spark', x: 41, y: 50, float: true }],
+      id: 'gap', pose: gap ? 'point' : 'heart', spot: 'side', chart: 'gap', eyebrow: 'The gap',
       title: gap ? `What’s left: ${formatMoney(r.additional)}` : 'No gap for what you listed',
       body: gap
-        ? <>The orange piece is the difference between what your family would need and what you already have. Think of it as the size of the umbrella: the amount of additional coverage worth talking through with a licensed professional.</>
+        ? <>The orange piece is the difference between what your family would need and what you already have. It’s the amount of additional coverage worth talking through with a licensed professional.</>
         : <>What you have meets the needs you listed. It’s still worth checking again when life changes, like a new home or a new baby.</>,
     },
     {
-      id: 'time', pose: 'hourglass', chart: 'time', eyebrow: 'Over time',
-      props: [{ name: 'plant', x: 26, small: true }, { name: 'plant', x: 32 }, { name: 'tree', x: 40 }, { name: 'sun', sky: true, x: 8 }],
+      id: 'time', pose: 'ponder', spot: 'side', chart: 'time', eyebrow: 'Over time',
       title: 'The need gets smaller every year',
       body: <>Everyday costs only matter for the years your family depends on your income. Each year that passes leaves one less year to cover, so after {yearsText(years)} that part reaches zero. Term insurance is built around this idea: it covers a set number of years.</>,
     },
     {
-      id: 'try', pose: 'cheer', chart: 'gap', eyebrow: 'Try it yourself',
-      props: [{ name: 'spark', x: 27, y: 40, float: true }, { name: 'coins', x: 31 }, { name: 'plant', x: 39 }, { name: 'spark', x: 42, y: 70, float: true }],
+      id: 'try', pose: 'cheer', spot: 'side', chart: 'gap', eyebrow: 'Try it yourself',
       title: 'See how a change moves the number',
       body: <WhatIf p={p} />,
     },
@@ -173,56 +163,46 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
         <h1 className="large-title">Here’s what we found</h1>
       </header>
 
-      <section
-        className={'deck deck--' + step.id} style={{ ['--dir' as string]: dir }}
-        aria-roledescription="carousel" aria-label={`Your results, explained by ${GUIDE_NAME}`}
-        onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
-        onTouchEnd={onTouchEnd}
-      >
-        <div className="deck__sky" aria-hidden="true">
-          <Prop name="cloud" className="deck__cloud deck__cloud--a" />
-          <Prop name="cloud" className="deck__cloud deck__cloud--b" />
-        </div>
-        <div className="deck__ground" aria-hidden="true" />
+      <div className="deck-wrap">
+        <section
+          className={'deck deck--' + step.id} style={{ ['--dir' as string]: dir }}
+          aria-roledescription="carousel" aria-label={`Your results, explained by ${GUIDE_NAME}`}
+          onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="deck__ground" aria-hidden="true" />
 
-        <div className="deck__scene">
-          <div className="deck__talk" key={step.id} data-dir={dir} aria-live="polite" aria-roledescription="slide" aria-label={`${index + 1} of ${steps.length}`}>
-            <p className="deck__eyebrow">{step.eyebrow} <span className="deck__count">· {index + 1} of {steps.length}</span></p>
-            <h2 className="deck__title">{step.title}</h2>
-            <div className="deck__body">{step.body}</div>
-          </div>
+          <div className="deck__scene">
+            <div className="deck__talk" key={step.id} data-dir={dir} aria-live="polite" aria-roledescription="slide" aria-label={`${index + 1} of ${steps.length}`}>
+              <p className="deck__eyebrow">{step.eyebrow} <span className="deck__count">· {index + 1} of {steps.length}</span></p>
+              <h2 className="deck__title">{step.title}</h2>
+              <div className="deck__body">{step.body}</div>
+            </div>
 
-          <div className="deck__board">
-            <div className="board">
-              <h3 className="board__title">{CHART_TITLES[step.chart]}</h3>
-              <div className="board__charts">
-                <ChartSlot on={step.chart === 'summary'}><SummaryChart additional={r.additional} totalNeeds={r.totalNeeds} totalResources={r.totalResources} /></ChartSlot>
-                <ChartSlot on={step.chart === 'years'}><YearsChart support={support} years={years} startAge={startAge} /></ChartSlot>
-                <ChartSlot on={step.chart === 'needs'}><NeedsChart items={needItems} total={r.totalNeeds} /></ChartSlot>
-                <ChartSlot on={step.chart === 'have' || step.chart === 'gap'}>
-                  <CoverageChart totalNeeds={r.totalNeeds} resources={resources} additional={r.additional} showGap={step.chart === 'gap'} />
-                </ChartSlot>
-                <ChartSlot on={step.chart === 'time'}><TimeChart support={support} years={years} startAge={startAge} /></ChartSlot>
+            <div className={'deck__board deck__board--' + step.spot}>
+              <div className={'board-abe board-abe--' + step.spot} key={step.id + '-abe'} aria-hidden="true">
+                <GuidePose name={step.pose} size={192} />
+              </div>
+              <div className="board">
+                <h3 className="board__title">{CHART_TITLES[step.chart]}</h3>
+                <div className="board__charts">
+                  <ChartSlot on={step.chart === 'summary'}><SummaryChart additional={r.additional} totalNeeds={r.totalNeeds} totalResources={r.totalResources} /></ChartSlot>
+                  <ChartSlot on={step.chart === 'years'}><YearsChart support={support} years={years} startAge={startAge} /></ChartSlot>
+                  <ChartSlot on={step.chart === 'needs'}><NeedsChart items={needItems} total={r.totalNeeds} /></ChartSlot>
+                  <ChartSlot on={step.chart === 'have' || step.chart === 'gap'}>
+                    <CoverageChart totalNeeds={r.totalNeeds} resources={resources} additional={r.additional} showGap={step.chart === 'gap'} />
+                  </ChartSlot>
+                  <ChartSlot on={step.chart === 'time'}><TimeChart support={support} years={years} startAge={startAge} /></ChartSlot>
+                </div>
+                <span className="board__leg board__leg--l" aria-hidden="true" />
+                <span className="board__leg board__leg--r" aria-hidden="true" />
               </div>
             </div>
-            <span className="board__leg board__leg--l" aria-hidden="true" />
-            <span className="board__leg board__leg--r" aria-hidden="true" />
           </div>
-        </div>
-
-        <div className="deck__cast" key={step.id + '-cast'} aria-hidden="true">
-          <GuidePose name={step.pose} size={144} className="deck__abe" />
-          {step.props.map((pr, i) => (
-            <Prop
-              key={i} name={pr.name}
-              className={'deck__prop' + (pr.sky ? ' is-sky' : '') + (pr.small ? ' is-small' : '') + (pr.float ? ' is-float' : '')}
-              style={{ ['--x' as string]: `${pr.x}%`, ['--y' as string]: pr.y != null ? `${pr.y}px` : undefined, ['--i' as string]: i }}
-            />
-          ))}
-        </div>
+        </section>
 
         <nav className="deck-nav" aria-label="Move between steps">
-          <button type="button" className="deck-nav__arrow" onClick={() => goTo(index - 1)} disabled={index === 0} aria-label="Previous step">
+          <button type="button" className="deck-nav__arrow deck-nav__arrow--prev" onClick={() => goTo(index - 1)} disabled={index === 0} aria-label="Previous step">
             <Icon name="chevron-left" size={22} weight={2.6} />
           </button>
           <ol className="deck-nav__dots">
@@ -236,12 +216,10 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
             ))}
           </ol>
           <button type="button" className="deck-nav__arrow deck-nav__arrow--next" onClick={next} aria-label={last ? 'See the full math' : 'Next step'}>
-            <span className="deck-nav__label">{last ? 'See the full math' : index === 0 ? 'Show me' : 'Next'}</span>
             <Icon name="chevron-right" size={22} weight={2.6} />
           </button>
         </nav>
-      </section>
-
+      </div>
 
       <Wrap p={p} r={r} />
     </Page>

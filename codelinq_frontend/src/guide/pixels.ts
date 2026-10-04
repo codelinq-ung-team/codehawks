@@ -1,4 +1,4 @@
-// The shared palette and drawing helper for Abe's pixel art (poses and props).
+// The shared palette and drawing helper for Abe's pixel art.
 
 export const COLORS: Record<string, string> = {
   'A': '#2d2428', // hat
@@ -8,17 +8,14 @@ export const COLORS: Record<string, string> = {
   'E': '#2a1410', // eyes
   'F': '#1f171b', // boots
   'G': '#8a94a3', // clipboard clip
-  'I': '#c47f12', // gold dark
   'H': '#3a2820', // hair
   'J': '#262025', // coat
   'K': '#1c1316', // outline
   'L': '#38303a', // lapels
   'M': '#9a6248', // mole
-  'N': '#f2b33d', // gold
   'O': '#ff7a47', // lapel pin and accents, brand orange
   'P': '#3a3540', // trousers
   'Q': '#17111a', // trousers and sole outline
-  'R': '#00849b', // teal (umbrella, matches the "already have" chart color)
   'S': '#f8d5bb', // skin
   'T': '#650030', // hat band, brand burgundy
   'U': '#9a6a44', // clipboard
@@ -28,17 +25,13 @@ export const COLORS: Record<string, string> = {
   'Y': '#141012', // bow tie
   'Z': '#f4a9bf', // pink
   'a': '#4d4146', // hat shine, buttons
-  'b': '#7bb661', // leaf
   'c': '#fff7f0', // shirt, cuffs, paper
   'd': '#5c4134', // beard strands
   'e': '#ecdccf', // shirt shade, paper lines
   'f': '#4a3e44', // boot shine
   'g': '#77706b', // gray strands
   'h': '#52362a', // hair strands
-  'i': '#4a8a3a', // leaf dark
-  'j': '#c08552', // wood light
   'k': '#d993a8', // thought bubble outline
-  'l': '#ffe08a', // gold light
   'm': '#8e4a4f', // mouth
   'n': '#c07a72', // mouth corners
   'o': '#ffc7a8', // pin shine
@@ -47,8 +40,6 @@ export const COLORS: Record<string, string> = {
   'r': '#4f4655', // coat and sleeve light
   's': '#ecb89a', // skin shadow
   't': '#86193f', // band light
-  'u': '#5cc3d1', // teal light
-  'v': '#8a5a33', // wood
   'w': '#d9d2cd', // soft eye glint
   'x': 'rgba(60, 20, 30, 0.16)', // ground shadow
   'y': '#3a3236', // bow tie knot

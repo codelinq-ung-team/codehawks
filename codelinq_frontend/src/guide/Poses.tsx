@@ -1,11 +1,11 @@
 // Abe in a few poses for the Basics form and results: the same head as Avatar.tsx on a small body.
+// "peek" is just the head and hands, for looking over the top of the results easel.
 // 48×48, transparent. Show at multiples of 48 (96, 144) so the pixels stay crisp.
 
 import { toRects } from './pixels.ts'
 
 type DrawnPose = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer' | 'pointup' | 'ponder'
-export type HoldPose = 'heart' | 'coin' | 'calendar' | 'hourglass' | 'umbrella'
-export type PoseName = DrawnPose | HoldPose
+export type PoseName = DrawnPose | 'heart' | 'shocked' | 'peek'
 
 // One letter per pixel, '.' is transparent. Letters map to the colors in pixels.ts.
 const DRAWN: Record<DrawnPose, string[]> = {
@@ -413,92 +413,64 @@ const DRAWN: Record<DrawnPose, string[]> = {
 
 
 
-// Things Abe can hold up in his right hand. Each sits on his fist; the umbrella's shaft runs down into it.
-const ITEMS: Record<HoldPose, { rows: string[]; center: number }> = {
-  heart: { center: 40, rows: [
-    '..KKK...KKK..',
-    '.KXXXK.KXXXK.',
-    'KXZZXXKXXXXXK',
-    'KXZXXXXXXXXXK',
-    'KXXXXXXXXXXXK',
-    '.KXXXXXXXXXK.',
-    '..KXXXXXXXK..',
-    '...KXXXXXK...',
-    '....KXXXK....',
-    '.....KXK.....',
-    '......K......'
-  ] },
-  coin: { center: 40, rows: [
-    '...KKKKK...',
-    '.KKNNNNNKK.',
-    '.KNlNINNNK.',
-    'KNlNIIIINNK',
-    'KNlNINNNNIK',
-    'KNNNIIIINIK',
-    'KNNNNNNINIK',
-    'KNNNIIIINIK',
-    '.KNNNINNIK.',
-    '.KKNNNNIKK.',
-    '...KKKKK...'
-  ] },
-  calendar: { center: 40, rows: [
-    '..K.....K..',
-    'KKGKKKKKGKK',
-    'KXXXXXXXXXK',
-    'KXXXXXXXXXK',
-    'KcccccccccK',
-    'KcKcKcKcKcK',
-    'KcccccccccK',
-    'KcKcKcKcOcK',
-    'KcccccccccK',
-    'KcKcKceeecK',
-    'KKKKKKKKKKK'
-  ] },
-  hourglass: { center: 40, rows: [
-    'KKKKKKKKK',
-    'KvvvvvvvK',
-    '.KcccccK.',
-    '.KcNNNcK.',
-    '..KcNcK..',
-    '...KNK...',
-    '...KNK...',
-    '..KcNcK..',
-    '.KccNccK.',
-    '.KcNNNcK.',
-    '.KNNNNNK.',
-    'KvvvvvvvK',
-    'KKKKKKKKK'
-  ] },
-  umbrella: { center: 39, rows: [
-    '......KKKKK......',
-    '....KKRRuRRKK....',
-    '..KKRRRRuRRRRKK..',
-    '.KRRRRRuuuRRRRRK.',
-    'KRRRRRRuuuRRRRRRK',
-    'KKKKKKKKKKKKKKKKK',
-    ...Array.from({ length: 18 }, () => '........K........')
-  ] }
-}
+// Abe holding a heart up in his right hand: the head from "point" on the body from
+// "thumbs", with the thumb swapped for the heart.
+const HEART = [
+  '..KKK...KKK..',
+  '.KXXXK.KXXXK.',
+  'KXZZXXKXXXXXK',
+  'KXZXXXXXXXXXK',
+  'KXXXXXXXXXXXK',
+  '.KXXXXXXXXXK.',
+  '..KXXXXXXXK..',
+  '...KXXXXXK...',
+  '....KXXXK....',
+  '.....KXK.....',
+  '......K......'
+]
 
-// The holding poses: the head from "point" on the body from "thumbs", with the thumb
-// swapped for the item. Built once at load, same 48×48 grid as the drawn poses.
-function hold({ rows: item, center }: { rows: string[]; center: number }) {
-  const rows = [...DRAWN.point.slice(0, 26), ...DRAWN.thumbs.slice(26)]
-  rows[26] = rows[26].slice(0, 36) + '.'.repeat(12)
-  const x0 = center - Math.floor(item[0].length / 2)
-  const y0 = 26 - item.length + 1
-  item.forEach((line, dy) => {
+// Paint `art` onto a copy of `rows` with its top-left at (x0, y0). '.' in `art` leaves the pixel alone
+// unless `opaque` is set, in which case the whole string is written as-is (used to swap face rows).
+function paint(rows: string[], x0: number, y0: number, art: string[], opaque = false) {
+  art.forEach((line, dy) => {
     const row = rows[y0 + dy].split('')
-    line.split('').forEach((c, dx) => { if (c !== '.') row[x0 + dx] = c })
+    line.split('').forEach((c, dx) => { if (opaque || c !== '.') row[x0 + dx] = c })
     rows[y0 + dy] = row.join('')
   })
   return rows
 }
 
-const POSES: Record<PoseName, string[]> = {
-  ...DRAWN,
-  ...(Object.fromEntries(Object.entries(ITEMS).map(([name, item]) => [name, hold(item)])) as Record<HoldPose, string[]>),
+function heart() {
+  const rows = [...DRAWN.point.slice(0, 26), ...DRAWN.thumbs.slice(26)]
+  rows[26] = rows[26].slice(0, 36) + '.'.repeat(12)
+  return paint(rows, 40 - Math.floor(HEART[0].length / 2), 26 - HEART.length + 1, HEART)
 }
+
+// Shocked: the cheer pose's raised hands with raised brows, wide eyes, an "O" mouth and two "!" marks.
+function shocked() {
+  // Drop cheer's confetti (sparkles, plus orange and burgundy dots away from the body).
+  const rows = DRAWN.cheer.map((row) => row.split('').map((c, x) =>
+    c === 'V' || ((c === 'O' || c === 'T') && (x < 15 || x > 33)) ? '.' : c).join(''))
+  paint(rows, 15, 12, ['HHHHBBBSSSSBBBHHHH'], true)
+  paint(rows, 16, 13, ['hHSzzzSSSSzzzSHH', 'zHSWWWSSSSWWWSHz'], true)
+  paint(rows, 15, 15, ['zSHSWEWSSsSWEWSHSz', 'zSHSWWWSSsSWWWSHSz'], true)
+  paint(rows, 16, 19, ['DdDDDSmqqmSDdDDD', 'DDgDDDmqqmDDdDDD'], true)
+  const bang = ['T', 'T', 'T', 'T', 'T', '.', 'T']
+  paint(rows, 37, 2, bang)
+  return paint(rows, 40, 3, bang)
+}
+
+// Peeking over the top of something: just the head, eyes down, with both hands gripping the edge
+// at rows 23–26. Everything below is transparent, so it can sit on top of the easel.
+function peek() {
+  const rows = [...DRAWN.point.slice(0, 26), ...Array.from({ length: 22 }, () => '.'.repeat(48))]
+  paint(rows, 15, 15, ['zSHSSwwSSsSwwSSHSz'], true)
+  const hand = ['.zzzz.', 'zSSSSz', 'zSsSsz', 'zSSSSz']
+  paint(rows, 10, 23, hand)
+  return paint(rows, 32, 23, hand)
+}
+
+const POSES: Record<PoseName, string[]> = { ...DRAWN, heart: heart(), shocked: shocked(), peek: peek() }
 
 const RECTS = Object.fromEntries(Object.entries(POSES).map(([name, rows]) => [name, toRects(rows)])) as Record<PoseName, ReturnType<typeof toRects>>
 
