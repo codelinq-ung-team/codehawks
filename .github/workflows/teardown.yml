@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type DELETE codelinq-hackathon 394270749442 (permanently deletes hackathon app data)
+        description: Type DELETE codelinc-hackathon 394270749442 (permanently deletes hackathon app data)
         type: string
         required: true
 permissions:

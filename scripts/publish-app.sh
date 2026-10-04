@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-stack_name="codelinq-hackathon-app"
+stack_name="codelinc-hackathon-app"
 assets_bucket="$(aws cloudformation describe-stacks --stack-name "$stack_name" --query "Stacks[0].Outputs[?OutputKey=='AssetsBucketName'].OutputValue | [0]" --output text)"
 distribution_id="$(aws cloudformation describe-stacks --stack-name "$stack_name" --query "Stacks[0].Outputs[?OutputKey=='SiteDistributionId'].OutputValue | [0]" --output text)"
 distribution_domain="$(aws cloudformation describe-stacks --stack-name "$stack_name" --query "Stacks[0].Outputs[?OutputKey=='SiteDistributionDomainName'].OutputValue | [0]" --output text)"

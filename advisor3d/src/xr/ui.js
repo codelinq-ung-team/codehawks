@@ -1,5 +1,5 @@
 // A small canvas-backed UI kit for WebXR, drawn to look like the 2D frontend's App Kit
-// (codelinq_frontend/src/kit). Layout is in design px, like CSS; PX converts to meters.
+// (codelinc_frontend/src/kit). Layout is in design px, like CSS; PX converts to meters.
 // Every element is a textured plane, so panels stay sharp and each control can lift on hover.
 import * as THREE from 'three';
 

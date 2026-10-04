@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# The LinqLife website goes in the root of app/public/. Keep it ABOVE the Advisor3D line,
+# The LincLife website goes in the root of app/public/. Keep it ABOVE the Advisor3D line,
 # and never clear app/public/advisor3d/ after that line runs.
 bash scripts/build-frontend.sh
 bash scripts/build-advisor3d.sh

@@ -1,4 +1,4 @@
 import { defineConfig } from 'vite';
 
-// Relative base so the build works under https://codelinq.codehawks.org/advisor3d/
+// Relative base so the build works under https://codelinc.codehawks.org/advisor3d/
 export default defineConfig({ base: './' });

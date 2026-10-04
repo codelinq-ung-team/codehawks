@@ -79,7 +79,7 @@ function AssessmentIcon({ children }: { children: ReactNode }) {
 
 export default function AssessmentPage({
   questions,
-  storageKey = 'linqlife-assessment-answers',
+  storageKey = 'linclife-assessment-answers',
   title = 'Your needs assessment',
   onExit,
   onComplete,
@@ -158,11 +158,11 @@ export default function AssessmentPage({
   return (
     <div className="assessment-page">
       <header className="assessment-header">
-        <button className="assessment-brand" onClick={onExit} aria-label="Return to LinqLife home">
+        <button className="assessment-brand" onClick={onExit} aria-label="Return to LincLife home">
           <span className="assessment-brand-mark">
             <AssessmentIcon><path d="M20.8 5.8a5.4 5.4 0 0 0-7.6 0L12 7l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 22l8.8-8.6a5.4 5.4 0 0 0 0-7.6Z" /></AssessmentIcon>
           </span>
-          <span>Linq<strong>Life</strong></span>
+          <span>Linc<strong>Life</strong></span>
         </button>
         <div className="assessment-header-title">{title}</div>
         <div className="assessment-save-state"><span /> Saved locally</div>
