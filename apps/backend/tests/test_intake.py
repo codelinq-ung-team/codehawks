@@ -43,6 +43,33 @@ class IntakeTests(unittest.TestCase):
         mixed = self.post(answer="13k now but I'll make 70k once I graduate")
         self.assertEqual((mixed.json["value"], mixed.json["extra"]), (13000, {"futureIncome": 70000}))
 
+    def test_a_monthly_answer_goes_back_as_the_typed_monthly_figure(self):
+        # Each row: what the user typed, what the model returned, what the site receives.
+        for answer, value, period, expected in (
+                ("about 6k a month", 6000, "month", (6000, "month")),             # read as asked
+                ("about 6k a month", 72000, "year", (6000, "month")),             # multiplied: divided back
+                ("I take home around 4500/mo", 54000, None, (4500, "month")),
+                ("6000 a month", 120000, None, (6000, "month")),                  # a slip: the typed figure stands
+                ("probably 5 or 6k a month", 55000, "year", (5500, "month")),     # a range is its midpoint
+                ("between 4 and 5 thousand per month", 45000, "month", (4500, "month")),
+                ("2,500 to 3,000 a month", 33000, "year", (2750, "month")),
+                ("like 7 a month", 14800, None, (7000, "month")),                 # a lone small number is thousands
+                ("five grand a month", 60000, "year", (5000, "month")),           # spelled out: a year's worth is divided back
+                ("six grand a month", 6000, None, (6000, "month")),
+                ("four thousand a month", 4000, "month", (4000, "month")),
+                ("6k a month and I owe 250k on the house", 9999, None, (9999, None)),  # two fields, no way to tell: left alone
+                ("6k a month, so 72k a year", 72000, None, (72000, None)),        # they did the sum themselves
+                ("85k", 85000, None, (85000, None)),
+                ("50k a year", 50000, "year", (50000, "year"))):
+            with self.subTest(answer=answer, value=value):
+                self.aws.converse.return_value = tool(intent="answer", value=value, say="", **({"period": period} if period else {}))
+                result = self.post(answer=answer).json
+                self.assertEqual((result["intent"], result["value"], result["period"]), ("answer", *expected))
+        # Only the yearly questions people answer by the month; a balance is never divided.
+        self.aws.converse.return_value = tool(intent="answer", value=1200, say="")
+        balance = self.post(step="mortgage", question="How much is left on your mortgage?", answer="I pay 1200 a month").json
+        self.assertEqual((balance["value"], balance["period"]), (1200, None))
+
     def test_plans_are_read_as_a_set_and_sent_as_one_number(self):
         ask = dict(step="plans", question="Looking ahead ten years, do you expect any of these?")
         self.aws.converse.return_value = tool(intent="answer", plans=["home", "kids", "kids"], say="")
