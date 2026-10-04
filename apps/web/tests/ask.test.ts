@@ -1,7 +1,7 @@
 // Ask Abe on the results page: written answers, the offline fallback, and what goes to the AI.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { calculate, emptyProfile, type Field, type FieldId, type Profile } from '../src/domain/calculator.ts'
+import { calculate, emptyProfile, summaryText, type Field, type FieldId, type Profile } from '../src/domain/calculator.ts'
 import { payload, topicFor, written, type Ready, type Said } from '../src/results/ask.ts'
 
 const ok = (value: Field['value']): Field => ({ status: 'confirmed', value })
@@ -52,6 +52,28 @@ test('the first question sent carries Abe and the estimate', () => {
   assert.match(sent[0].content, /You are Abe/)
   assert.match(sent[0].content, /Estimated additional coverage: \$500,000/)
   assert.match(sent[0].content, /My question: Is \$500k a lot\?$/)
+})
+
+test('restored summary and Abe context preserve existing assessment amounts', () => {
+  const { p, r } = sample({
+    support: ok(69000), years: ok(5), mortgage: ok(56302), otherDebts: ok(107404),
+    finalExpenses: ok(10000), education: ok(0), existing: ok(0), savings: ok(62589),
+  })
+  const saved = JSON.stringify(p)
+  const restored = JSON.parse(saved) as Profile
+  const result = calculate(restored)
+  assert.deepEqual(result, r)
+  assert.deepEqual([r.totalNeeds, r.additional], [518706, 456117])
+  const summary = summaryText(restored, result)
+  assert.match(summary, /\nThe math\n/)
+  assert.match(summary, /\+ Mortgage balance: \$56,302/)
+  assert.match(summary, /- Savings your family could use: \$62,589/)
+  assert.match(summary, /= Estimated additional coverage: \$456,117/)
+  assert.doesNotMatch(summary, /After setting aside costs|Remaining for ongoing support|How much additional coverage\?/)
+  const sent = payload([{ role: 'user', text: 'Explain my estimate.' }], restored, r)
+  assert.ok(sent[0].content.includes(summary))
+  assert.match(sent[0].content, /don’t work out new amounts/)
+  assert.equal(JSON.stringify(restored), saved)
 })
 
 test('long chats are trimmed and still start with the user', () => {

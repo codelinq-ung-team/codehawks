@@ -2,7 +2,7 @@
 // so the estimate is explained a piece at a time instead of all at once.
 // Every number here comes from calculate(); the page does no math of its own.
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react'
-import { Banner, Button, EmptyState, Icon } from '../kit/Kit.tsx'
+import { Banner, Button, EmptyState, Icon, ListRow, ListSection } from '../kit/Kit.tsx'
 import { Page } from '../lib/Chrome.tsx'
 import { go, useStore } from '../lib/store.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
@@ -11,7 +11,6 @@ import { FIELDS, NEW_CHILD, calculate, compareScenario, formatMoney, formatPerce
 import { CoverageChart, NeedsChart, ScenarioChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
 import { AskAbe, type AskHandle } from './AskAbe.tsx'
 import { Plans } from './Plans.tsx'
-import { FullMath } from './FullMath.tsx'
 import { ScenarioControls } from './Scenarios.tsx'
 import { listJoin, yearsText, type Ready } from './ask.ts'
 import { useRecommendation } from './useRecommendation.ts'
@@ -262,7 +261,15 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
         loading={recommendations.loading} failed={recommendations.failed} onRetry={recommendations.retry} />
 
       <div className="wrap__grid">
-        <FullMath r={r} />
+        <ListSection
+          header="The full math" className="wrap__math"
+          footer={r.leftOut.length ? `Not included: ${r.leftOut.join(', ').toLowerCase()}.` : undefined}
+        >
+          {r.needs.filter((t) => t.included).map((t) => <ListRow key={t.id} title={t.label} subtitle={t.detail} value={`+ ${formatMoney(t.value)}`} />)}
+          <ListRow title={<strong>What your family would need</strong>} value={<strong>{formatMoney(r.totalNeeds)}</strong>} />
+          {r.resources.filter((t) => t.included).map((t) => <ListRow key={t.id} title={t.label} value={`− ${formatMoney(t.value)}`} />)}
+          <ListRow title={<strong>Estimated additional coverage</strong>} value={<strong className="tint-text">{formatMoney(r.additional)}</strong>} />
+        </ListSection>
 
         <AskAbe p={p} r={r} ref={askRef} recommendation={recommendations.result} />
 
