@@ -7,6 +7,7 @@ import tempfile
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "apps/backend"
 RUNTIME_FILES = (
     "__init__.py", "app.py", "intake.py", "llm.py", "prompts.py", "rate_limit.py", "voice.py",
     "references/lincoln_calculator.md",
@@ -27,8 +28,8 @@ def package_backend(output, dependencies):
     output.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
         for name in RUNTIME_FILES:
-            write_entry(archive, "backend/" + name, (ROOT / "backend" / name).read_bytes())
-        launcher = (ROOT / "backend/run.sh").read_bytes().replace(b"\r\n", b"\n")
+            write_entry(archive, "backend/" + name, (BACKEND / name).read_bytes())
+        launcher = (BACKEND / "run.sh").read_bytes().replace(b"\r\n", b"\n")
         write_entry(archive, "run.sh", launcher, executable=True)
         for path in sorted(Path(dependencies).rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
@@ -46,7 +47,7 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         dependencies = Path(directory)
         subprocess.run([
-            sys.executable, "-m", "pip", "install", "--requirement", str(ROOT / "backend/requirements.txt"),
+            sys.executable, "-m", "pip", "install", "--requirement", str(BACKEND / "requirements.txt"),
             "--target", str(dependencies), "--only-binary=:all:", "--no-compile",
             "--platform", "manylinux2014_x86_64", "--implementation", "cp", "--python-version", "3.12",
         ], check=True)

@@ -61,8 +61,10 @@ The migration and normal workflows share the `hackathon-aws` concurrency group.
    streaming chat, offline fallback, WebXR, and the rebuilt Quest app. Rebuild Unity
    using its documented editor; its Android package ID remains unchanged.
 8. **Migrate hackathon namespace → cutover.** Check new-site health and legacy DNS,
-   release the old alias through its stack, claim it through the new app stack,
-   and transfer only the exact recorded CNAME. A brief old-host interruption is
+   release the old alias through its stack, transfer only the exact recorded
+   CNAME, wait for its DNS TTL to expire, then claim it through the new app stack.
+   Cloudflare's automatic TTL is five minutes for these DNS-only records.
+   A brief old-host interruption is
    expected between CloudFormation updates. Both hostnames then use the new backend;
    browser requests on the old hostname receive a 308 redirect preserving path and
    query. API paths keep working without a redirect. Verify bookmarks with hash
@@ -80,8 +82,13 @@ The migration and normal workflows share the `hackathon-aws` concurrency group.
 
 ## Recovery and final teardown
 
+If a cutover fails, run **Deploy hackathon → verify_only** to report the app's
+failed CloudFormation resource events without deploying or making model calls.
+Use the reported failure reason to fix the cause before retrying cutover.
+
 Before legacy cleanup, **rollback** releases the old alias from the new distribution,
-restores it to the old distribution, and restores the exact CNAME target. The new
+restores the exact CNAME target, waits for its DNS TTL, and restores the alias to
+the old distribution. The new
 hostname stays available. Rerun cutover after resolving the failure. If a phase
 stops between alias updates, rerun that phase or rollback; never force an unrelated
 DNS target. Preserve every inventory artifact, especially the first run before

@@ -1,0 +1,279 @@
+/* Results deck: Abe talks through one step at a time and acts around the chart's easel
+   (standing at its edge or peeking over the top). Arrows, keys or swipes move on.
+   Chart colors were checked with the dataviz palette validator (contrast + colorblind separation). */
+.story {
+  --viz-need: #9b2d5a;
+  --viz-have: #00849b;
+  --viz-have-soft: #d3eaee;
+  --viz-gap: #eb6834;
+  --viz-grid: #ece6df;
+  --viz-ease: cubic-bezier(.2, .7, .2, 1);
+  --wood: #c69468;
+  --wood-dark: #a8743f;
+}
+
+.story__intro { margin-bottom: var(--space-4); }
+
+/* ---------- Deck (the scene) ---------- */
+.deck {
+  --ground: 80px;
+  position: relative; isolation: isolate; overflow: clip; min-height: clamp(500px, calc(100svh - 200px), 620px); border-radius: 28px;
+  background: linear-gradient(180deg, #fde6d8 0%, #fcefe5 45%, #faf3ec 100%);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+  touch-action: pan-y;
+}
+.deck__ground {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 0; height: var(--ground);
+  background-color: #f0e3d5; background-image: radial-gradient(#e2cdb8 1px, transparent 1.6px); background-size: 16px 12px;
+  box-shadow: inset 0 3px 0 #e6d3c0;
+}
+.deck__scene {
+  position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: var(--space-8);
+  min-height: inherit; box-sizing: border-box; padding: var(--space-6) var(--space-8) var(--ground);
+}
+
+/* What Abe is saying */
+.deck__talk {
+  position: relative; align-self: center; display: grid; gap: var(--space-2); padding: 20px 24px;
+  border-radius: 20px; background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--card-edge), 0 8px 24px rgba(60, 30, 20, .06);
+  animation: talk-in .45s var(--viz-ease);
+}
+.deck__talk::after { /* tail, pointing at the easel */
+  content: ""; position: absolute; right: -9px; top: 50%; width: 18px; height: 18px; margin-top: -9px; background: var(--bg-primary);
+  box-shadow: inset -1px 1px 0 0 var(--card-edge); transform: rotate(45deg);
+}
+.deck__eyebrow { font: 600 13px/18px var(--font-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--highlight-text); }
+.deck__count { color: var(--label-secondary); letter-spacing: .02em; text-transform: none; font-weight: 400; }
+.deck__title { font: 700 26px/32px var(--font-sans); letter-spacing: -.01em; }
+.deck__body { font: 400 17px/25px var(--font-sans); color: var(--label-secondary); }
+.deck__body strong { color: var(--label-primary); font-weight: 600; }
+.deck__body > :is(p, div) + :is(p, div) { margin-top: var(--space-3); }
+.whatif { margin-top: var(--space-1); }
+@keyframes talk-in { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 40px)); } to { opacity: 1; transform: none; } }
+
+/* The chart, on an easel */
+/* Room above the board for Abe's head when he peeks, and to its left for him to stand. */
+.deck__board { position: relative; align-self: end; padding: 100px 0 40px 132px; }
+.board {
+  position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--space-3); min-height: 330px; box-sizing: border-box;
+  padding: 18px 22px 22px; border: 6px solid var(--wood); border-radius: 18px; background: var(--bg-primary);
+  box-shadow: 0 12px 28px rgba(80, 40, 20, .12);
+}
+.board__title { font: 600 15px/20px var(--font-sans); color: var(--label-secondary); }
+/* Charts share one grid cell, so the board is as tall as the tallest chart and never overflows. */
+.board__charts { display: grid; flex: 1; min-height: 230px; }
+.board__leg { position: absolute; top: calc(100% + 2px); z-index: -1; width: 9px; height: 48px; border-radius: 3px; background: var(--wood-dark); } /* hangs from the board's bottom edge down into the ground */
+.board__leg--l { left: 18%; transform: rotate(9deg); }
+.board__leg--r { right: 18%; transform: rotate(-9deg); }
+.stage__chart {
+  grid-area: 1 / 1; display: flex; flex-direction: column; justify-content: center;
+  opacity: 0; transform: translateY(10px) scale(.98); pointer-events: none; transition: opacity .35s ease, transform .45s var(--viz-ease);
+}
+.stage__chart.is-on { opacity: 1; transform: none; pointer-events: auto; transition-delay: .1s; }
+
+/* Abe, placed around the easel */
+.board-abe { position: absolute; z-index: 2; width: 192px; height: 192px; pointer-events: none; animation: abe-in .6s var(--viz-ease); }
+.board-abe svg { display: block; width: 100%; height: 100%; }
+/* In front of the board's left edge, on the ground, facing it (pointing hands reach the frame). */
+.board-abe--side { left: -42px; bottom: -18px; }
+/* Over the top: his hands (rows 23–26 of the sprite) land on the frame. */
+.board-abe--top { top: 0; right: 28px; animation-name: abe-peek; }
+/* Behind the left edge: mirrored so his waving hand is the side that shows. */
+@keyframes abe-in {
+  0% { opacity: 0; transform: translateX(calc(var(--dir, 1) * -28px)); }
+  40% { opacity: 1; transform: translate(calc(var(--dir, 1) * -8px), -16px); }
+  70% { transform: none; }
+  85% { transform: translateY(-4px); }
+  100% { transform: none; }
+}
+@keyframes abe-peek { 0% { opacity: 0; transform: translateY(24px); } 60% { opacity: 1; transform: translateY(-4px); } 100% { transform: none; } }
+
+/* ---------- Arrows + dots ---------- */
+/* Arrows sit on the scene's left and right edges, half outside it; the dots stay on the ground strip. */
+.deck-wrap { position: relative; }
+.deck-nav { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.deck-nav > * { pointer-events: auto; }
+.deck-nav__arrow {
+  position: absolute; top: 50%; display: grid; place-items: center; width: 52px; height: 52px; margin-top: -26px; padding: 0; border: 0;
+  border-radius: var(--radius-full); background: var(--bg-primary); color: var(--tint-text); cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--card-edge), 0 6px 16px rgba(60, 30, 20, .12); transition: transform .12s ease, opacity .2s;
+}
+.deck-nav__arrow--prev { left: -26px; }
+.deck-nav__arrow--next { right: -26px; background: var(--tint); color: var(--on-tint); box-shadow: 0 6px 16px rgba(101, 0, 48, .25); }
+.deck-nav__arrow:active:not(:disabled) { transform: scale(.95); }
+.deck-nav__arrow:disabled { opacity: .45; cursor: default; }
+.deck-nav__arrow:focus-visible, .deck-nav__dot:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.deck-nav__dots { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.deck-nav__dot { position: relative; display: block; width: 24px; height: 32px; padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--radius-full); }
+.deck-nav__dot::before {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; border-radius: var(--radius-full);
+  background: var(--gray-4); transform: translate(-50%, -50%); transition: width .3s var(--viz-ease), background .3s;
+}
+.deck-nav__dot.is-past::before { background: var(--gray-1); }
+.deck-nav__dot.is-on::before { width: 22px; background: var(--tint); }
+
+/* ---------- Charts ---------- */
+.viz-axis { display: flex; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-2); border-top: 1px solid var(--viz-grid); font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
+
+.viz-grow-x, .viz-grow-y { transition: transform .8s var(--viz-ease) var(--delay, 0ms), width .5s var(--viz-ease), height .5s var(--viz-ease); }
+.viz-grow-x { transform-origin: left center; }
+.viz-grow-y { transform-origin: center bottom; }
+.stage__chart:not(.is-on) .viz-grow-x { transform: scaleX(0); transition-duration: .2s; transition-delay: 0s; }
+.stage__chart:not(.is-on) .viz-grow-y { transform: scaleY(0); transition-duration: .2s; transition-delay: 0s; }
+
+/* Summary */
+.viz-summary { display: grid; gap: var(--space-2); }
+.viz-summary__label { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.viz-summary__value { font: 700 clamp(40px, 7vw, 56px)/1.05 var(--font-sans); letter-spacing: -.02em; color: var(--tint-text); }
+.viz-meter { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.viz-meter__head { display: flex; justify-content: space-between; font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.viz-meter__head strong { color: var(--label-primary); font-weight: 600; }
+.viz-meter__track { height: 12px; border-radius: var(--radius-full); background: var(--viz-have-soft); overflow: hidden; }
+.viz-meter__fill { display: block; height: 100%; border-radius: var(--radius-full); background: var(--viz-have); }
+.viz-meter__foot { font: 400 13px/18px var(--font-sans); color: var(--label-secondary); font-variant-numeric: tabular-nums; }
+
+/* Years: columns */
+.viz-years { display: flex; flex-direction: column; height: 100%; }
+.viz-years__plot {
+  position: relative; flex: 1; min-height: 120px; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  align-items: end; gap: 2px; padding-top: 26px;
+}
+.viz-years__col { display: flex; justify-content: center; align-items: flex-end; height: 100%; }
+.viz-years__bar { display: block; width: 100%; max-width: 24px; border-radius: 4px 4px 0 0; background: var(--viz-need); }
+.viz-years__cap {
+  position: absolute; top: 0; right: 0; font: 600 15px/20px var(--font-sans); color: var(--label-primary);
+  opacity: 0; transition: opacity .4s ease var(--delay, 0ms);
+}
+.stage__chart.is-on .viz-years__cap { opacity: 1; }
+
+/* Needs: horizontal bars, one series */
+.viz-bars { display: grid; gap: var(--space-2); }
+.viz-bars__row { display: grid; grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.viz-bars__label { font: 400 13px/16px var(--font-sans); color: var(--label-secondary); }
+.viz-bars__track { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.viz-bars__bar { display: block; height: 18px; min-width: 4px; max-width: calc(100% - 84px); border-radius: 0 4px 4px 0; }
+.viz-bars__bar--need { background: var(--viz-need); }
+.viz-bars__value { flex: none; font: 600 14px/18px var(--font-sans); font-variant-numeric: tabular-nums; }
+.viz-bars__total { display: flex; justify-content: space-between; padding-top: var(--space-2); border-top: 1px solid var(--viz-grid); font: 400 15px/20px var(--font-sans); }
+.viz-bars__total strong { font-weight: 700; }
+
+/* Coverage: needed vs. in place (+ gap) */
+.viz-coverage { display: grid; gap: var(--space-5); }
+.viz-coverage__row { display: grid; gap: var(--space-2); }
+.viz-coverage__head { display: flex; justify-content: space-between; gap: var(--space-3); font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.viz-coverage__head strong { color: var(--label-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.viz-coverage__track { display: flex; height: 24px; }
+.viz-seg { display: block; flex: none; height: 100%; }
+.viz-seg + .viz-seg { margin-left: 2px; }
+.viz-seg.is-end { border-radius: 0 4px 4px 0; }
+.viz-seg--need { background: var(--viz-need); border-radius: 0 4px 4px 0; }
+.viz-seg--have { background: var(--viz-have); }
+.viz-seg--gap { background: var(--viz-gap); transition: width .9s var(--viz-ease) .15s, margin .2s; }
+.viz-seg--gap:not(.is-shown) { margin-left: 0; }
+.viz-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: 0; padding: 0; list-style: none; font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
+.viz-legend li { display: flex; align-items: center; gap: 6px; }
+.viz-legend strong { color: var(--label-primary); font-weight: 600; }
+.viz-legend__gap { opacity: 0; transition: opacity .4s ease .5s; }
+.viz-legend__gap.is-shown { opacity: 1; }
+.viz-key { width: 10px; height: 10px; flex: none; border-radius: 3px; }
+.viz-key--need { background: var(--viz-need); }
+.viz-key--have { background: var(--viz-have); }
+.viz-key--gap { background: var(--viz-gap); }
+
+/* Time: everyday costs still ahead */
+.viz-time { display: flex; flex-direction: column; gap: var(--space-2); height: 100%; }
+.viz-time__labels { display: flex; justify-content: space-between; gap: var(--space-3); font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
+.viz-time__labels strong { color: var(--label-primary); font-weight: 600; font-size: 15px; }
+.viz-time__plot { position: relative; flex: 1; min-height: 120px; }
+.viz-time__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.viz-grid { stroke: var(--viz-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.viz-baseline { stroke: var(--separator-opaque); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.viz-time__area { fill: var(--viz-need); fill-opacity: .1; }
+.viz-time__line { fill: none; stroke: var(--viz-need); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.viz-time__svg .viz-time__reveal { clip-path: inset(0 100% 0 0); transition: clip-path 1s var(--viz-ease); }
+.stage__chart.is-on .viz-time__reveal { clip-path: inset(0 0 0 0); }
+.viz-time__dots { position: absolute; inset: 0; }
+.viz-time__dot {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--viz-need);
+  box-shadow: 0 0 0 2px var(--bg-primary); opacity: 0; transition: opacity .3s ease var(--delay, 0ms);
+}
+.viz-time__dot::after { content: ""; position: absolute; inset: -7px; } /* bigger hover target */
+.stage__chart.is-on .viz-time__dot { opacity: 1; }
+
+/* ---------- Wrap-up ---------- */
+.wrap { display: grid; gap: var(--space-6); margin-top: var(--space-8); }
+.wrap__hero { display: flex; align-items: center; gap: var(--space-4); }
+.wrap__abe { flex: none; width: 80px; height: 80px; }
+.wrap__hero-text { display: grid; gap: var(--space-1); max-width: 34em; }
+.wrap__hero-text .title-2 { font-weight: 700; }
+/* Phones: the math, then Ask Abe, then the buttons. Wide screens put Ask Abe beside the other two. */
+.wrap__grid { display: grid; gap: var(--space-6); grid-template-areas: "math" "ask" "actions"; }
+.wrap__math { grid-area: math; }
+.wrap__actions { grid-area: actions; align-content: start; }
+.wrap .limits { margin-top: 0; }
+
+/* ---------- Ask Abe ---------- */
+.ask { grid-area: ask; display: flex; flex-direction: column; min-width: 0; }
+.ask__card {
+  display: flex; flex-direction: column; height: min(600px, 80dvh);
+  border-radius: var(--radius-lg); background: var(--grouped-secondary); overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+/* Only the messages scroll; they sit at the bottom of the card, like the main chat. */
+.ask__body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-4); }
+.ask .composer { padding: var(--space-2) var(--space-4) var(--space-3); background: none; }
+.ask .composer__note { padding: 0 var(--space-2); }
+/* The main chat hides Abe's face on wide screens (its side panel shows him); here there's no panel. */
+.ask .msg-row__face { display: block; }
+.ask .msg { max-width: 88%; font-size: 16px; line-height: 22px; }
+.ask .msg :is(p, ul, ol) { margin: 0; }
+.ask .msg :is(p, ul, ol) + :is(p, ul, ol) { margin-top: var(--space-2); }
+.ask .msg :is(ul, ol) { padding-left: 1.25em; }
+.ask .msg li + li { margin-top: 2px; }
+.ask .msg a { color: var(--tint-text); }
+.ask .msg--user a { color: inherit; }
+.ask__cut { color: var(--label-secondary); }
+
+/* ---------- Wide screens ---------- */
+@media (min-width: 900px) {
+  .deck__title { font-size: 30px; line-height: 36px; }
+  /* Ask Abe fills the height of the math and buttons beside it (size containment keeps a long
+     chat from stretching the row). Any spare height goes under the buttons. */
+  .wrap__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
+    grid-template-areas: "math ask" "actions ask"; gap: var(--space-6) var(--space-8); align-items: start;
+  }
+  .ask { align-self: stretch; contain: size; min-height: 520px; }
+  .ask__card { flex: 1; min-height: 0; height: auto; }
+}
+
+/* ---------- Phones + tablets: chart on top, Abe talking underneath ---------- */
+@media (max-width: 899px) {
+  .deck { --ground: 20px; min-height: 0; border-radius: 24px; }
+  .deck__scene { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); padding: var(--space-2) var(--space-3) var(--space-3); }
+  /* No room beside the board on a phone: Abe stands on top of it, or peeks over it. */
+  .deck__board { order: -1; align-self: stretch; padding: 92px 0 0; }
+  .board-abe { width: 96px; height: 96px; }
+  .board-abe--side { top: 0; bottom: auto; left: var(--space-3); }
+  .board-abe--top { top: 42px; right: var(--space-4); }
+  .board { min-height: 0; padding: 14px 16px 16px; border-width: 5px; }
+  .board__charts { min-height: 0; }
+  .board__leg { display: none; }
+  .deck__talk { min-height: 200px; padding: 18px; align-content: start; }
+  .deck__talk::after { right: auto; left: 52px; top: -9px; margin-top: 0; box-shadow: inset 1px 1px 0 0 var(--card-edge); }
+  .deck__title { font-size: 22px; line-height: 28px; }
+  /* No room at the sides on a phone: arrows and dots share one bar under the scene, sticky while you read. */
+  .deck-nav {
+    position: sticky; inset: auto; bottom: 12px; display: flex; align-items: center; width: fit-content; margin: 12px auto 0; gap: var(--space-1);
+    padding: 4px; border-radius: var(--radius-full); background: rgba(250, 243, 236, .82);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 6px 20px rgba(60, 30, 20, .12);
+  }
+  .deck-nav__arrow, .deck-nav__dots { position: static; margin: 0; transform: none; }
+  .deck-nav__dot { width: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage__chart, .deck-nav__dot::before, .viz-grow-x, .viz-grow-y, .viz-seg--gap, .viz-legend__gap,
+  .viz-years__cap, .viz-time__svg .viz-time__reveal, .viz-time__dot { transition: none; }
+  .deck__talk, .board-abe { animation: none; }
+}
