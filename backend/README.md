@@ -43,14 +43,33 @@ rejects model settings that differ from the deployed bootstrap, packages pinned
 dependencies, and sets Lambda's `MODEL_ID` through CloudFormation. Lambda uses its
 own role to call Bedrock. Do not add a Bedrock key or long-lived AWS credentials.
 
-The function has 512 MB memory, a 120-second timeout, reserved concurrency of two,
-and seven-day logs. Concurrency limits simultaneous inference; it is not a daily
-budget or per-user rate limit. User authentication, WAF, guardrails, and frontend
-integration are outside this change.
+The function has 512 MB memory, a 120-second timeout, and seven-day logs. A shared
+DynamoDB admission limit allows **two Bedrock calls in any rolling 60 seconds**
+across all users, Lambda instances, and buffered/streaming requests. Additional
+requests return JSON HTTP 429 before inference; limiter failures return sanitized
+503 errors and never invoke Bedrock. Invalid requests and health checks consume
+no allowance. An admitted call consumes its allowance even if inference fails.
+The table stores only two admission timestamps and a revision token, not chat data.
+This limits request volume, not simultaneous calls or daily spending. Existing
+input and output bounds still apply. User authentication, WAF, guardrails, and
+frontend integration are outside this change.
+
+Israel reported that the bootstrap update succeeded, but the app stack reached
+`UPDATE_ROLLBACK_COMPLETE`: reserving two executions would leave fewer than the
+required ten unreserved executions in this account, whose quota is ten. AWS
+rejected a quota request of twelve because it must exceed the default of 1000.
+This template removes the reservation rather than increasing account capacity.
+Publishing and the Bedrock smoke check never ran, so that deployment made no
+Nova Lite inference calls. Keep deployment paused until this fix is reviewed and
+merged and Israel gives the go-ahead. No bootstrap permission changes are needed
+for this fix; the existing boundary already covers the limiter table operations.
 
 The deployment smoke check verifies health, JSON input errors, one buffered model
 reply, one streaming reply, and anonymous denial at the direct Function URL. It
 makes two small, billable Bedrock requests and prints no conversation content.
+Both requests use the same limiter. Keep demo traffic idle for at least 60 seconds
+before the check and throughout it; do not bypass the limit or retry model calls
+automatically when the allowance is exhausted.
 `verify_only` skips backend packaging, deployment, and inference. Live smoke checks
 run only through the main-branch deployment workflow. See
 [the AWS guide](../docs/agent-aws.md) for account boundaries and teardown.
@@ -131,6 +150,11 @@ Production ignores `.env`. Local mode can serve the existing demo assets, but no
 frontend files are packaged or modified. Consult Israel before making live model
 calls in the shared account; otherwise use the offline tests. Local AWS use
 remains read-only, and deployments run through Actions.
+
+CloudFormation sets `CHAT_RATE_LIMIT_TABLE` on Lambda. Missing table configuration
+fails closed whenever `AWS_LAMBDA_FUNCTION_NAME` is present. The local harness
+bypasses the limiter only when neither variable is present; setting a table name
+enables the shared limiter locally too. Offline tests stub DynamoDB and Bedrock.
 
 The prompt and `references/lincoln_calculator.md` retain the life insurance
 education rules and reviewed CalcXML guidance. There are no policy uploads, live

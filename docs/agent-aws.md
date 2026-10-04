@@ -73,7 +73,8 @@ bootstrap boundary before deploying the app. Deploy refuses differing settings.
 
 The bootstrap owns the retained `codelinq-hackathon-app-chat-oac`, which signs
 requests to the app's IAM-protected streaming Function URL. The runtime role has
-only the two scoped Bedrock inference actions and access to its own logs, with
+only the two scoped Bedrock inference actions, access to its own logs, and
+`dynamodb:GetItem`/`dynamodb:PutItem` on its admission-limit table, with
 the exported runtime boundary attached. CloudFormation can read only the pinned
 Lambda Web Adapter layer version in addition to the existing app permissions.
 The backend artifact is packaged in Actions with `scripts/build_backend.py` and
@@ -92,8 +93,26 @@ two small billable model requests. It does not log prompt or reply bodies.
 The `/api/*` behavior has caching disabled and forwards the required request
 headers without the viewer Host. Callers must supply `x-amz-content-sha256` on
 POST requests; see [the backend contract](../backend/README.md). Global 403/404
-HTML rewrites are removed to preserve API errors. Reserved concurrency of two
-limits parallel inference; user authentication, WAF, and guardrails are deferred.
+HTML rewrites are removed to preserve API errors. A DynamoDB-backed global rolling
+limit admits two Bedrock calls per 60 seconds across buffered and streaming
+requests. Excess requests return JSON 429 before inference; unavailable limiter
+storage/configuration returns sanitized 503 and blocks inference. Failed admitted
+calls still consume allowance. This is a request-volume control, not a cap on
+simultaneous inference or a daily budget. User authentication, WAF, and guardrails
+are deferred. The table stores admission timestamps and a revision token only,
+uses on-demand billing and encryption, and is deleted with the app stack.
+
+Israel reported a successful bootstrap update followed by an app stack in
+`UPDATE_ROLLBACK_COMPLETE`. `ReservedConcurrentExecutions: 2` failed because the
+account quota of ten must leave ten executions unreserved. AWS rejected a quota
+request of twelve because requests must exceed the default quota of 1000; no
+request for 1001 was made. The template now removes the reservation and uses the
+shared request limit without changing account capacity or bootstrap permissions.
+The failed deployment stopped before publishing and the Bedrock smoke check, so
+no Nova Lite inference calls ran. Keep deployment on hold until this fix is
+reviewed and merged and Israel explicitly gives the go-ahead. Keep other chat
+traffic idle for at least 60 seconds before the two-call smoke check and throughout
+it; both smoke calls remain subject to the same allowance.
 
 ## End-of-hackathon teardown
 

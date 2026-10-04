@@ -11,6 +11,7 @@ from botocore.exceptions import (
 )
 
 from .prompts import SYSTEM_PROMPT
+from .rate_limit import AdmissionError, admit
 
 MAX_REPLY_BYTES = 1024 * 1024
 
@@ -20,6 +21,13 @@ class ChatError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+def reserve_inference():
+    try:
+        admit()
+    except AdmissionError as error:
+        raise ChatError(error.status, error.message) from None
 
 
 @lru_cache(maxsize=1)
@@ -90,6 +98,7 @@ def generate_reply(payload, emit=None):
             events.close()
         return {"reply": "".join(parts)}
     request = model_request(payload)
+    reserve_inference()
     with provider_errors():
         response = get_client().converse(**request)
         check_stop_reason(response["stopReason"])
@@ -131,6 +140,7 @@ def provider_errors():
 
 def iter_reply_events(payload):
     request = model_request(payload)
+    reserve_inference()
     with provider_errors():
         stream = get_client().converse_stream(**request)["stream"]
         try:
