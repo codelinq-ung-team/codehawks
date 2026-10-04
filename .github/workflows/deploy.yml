@@ -104,7 +104,8 @@ jobs:
         if: inputs.verify_only != true
         run: python scripts/smoke_backend.py
       - name: Report app resource failures
-        if: failure()
+        # Read-only verification also exposes failures from earlier stack updates.
+        if: failure() || inputs.verify_only == true
         run: |
           aws cloudformation describe-stack-events \
             --stack-name codelinc-hackathon-app \
