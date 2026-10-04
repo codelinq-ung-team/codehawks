@@ -234,6 +234,59 @@
 .ask .msg--user a { color: inherit; }
 .ask__cut { color: var(--label-secondary); }
 
+/* ---------- Term vs. permanent ---------- */
+/* Phones: the cards stack with the "?" between them. 720px and up: side by side, "?" in the middle. */
+.plans { display: grid; gap: var(--space-3); }
+.plans__head { display: grid; gap: var(--space-1); }
+.plans__head .ck-list__header { margin: 0; }
+.plans__head .callout { margin: 0; padding: 0 var(--space-4); }
+.plans__row { display: grid; gap: var(--space-3); }
+.plan {
+  display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; padding: var(--space-6) var(--space-5) var(--space-5);
+  border-radius: var(--radius-lg); background: var(--grouped-secondary); box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+/* The top of the card (icon to cost) is centered; the list and estimate box below stay left-aligned to read easily. */
+.plan__icon { display: grid; place-items: center; align-self: center; width: 44px; height: 44px; border-radius: 12px; background: #f3e3e8; color: var(--tint-text); }
+.plan__head { display: grid; gap: var(--space-1); text-align: center; }
+.plan__name { margin: 0; font: 800 28px/1.1 var(--font-sans); letter-spacing: -0.02em; color: var(--brand-tyrian); }
+.plan__tagline { margin: 0; font: 400 17px/1.4 var(--font-sans); color: var(--label-secondary); }
+.plan__big { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0 var(--space-2); margin: var(--space-2) 0 0; }
+.plan__big strong { font: 800 44px/1 var(--font-sans); letter-spacing: -0.03em; color: var(--label-primary); font-variant-numeric: tabular-nums; }
+.plan__big span { font: 400 16px/21px var(--font-sans); color: var(--label-secondary); }
+.plan__cost { display: flex; justify-content: center; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-2)) 0 0; font: 600 15px/20px var(--font-sans); color: var(--label-secondary); }
+.plan__meter { display: inline-flex; gap: 3px; }
+.plan__meter i { width: 14px; height: 6px; border-radius: 3px; background: var(--fill-secondary); }
+.plan__meter i.is-on { background: var(--highlight); }
+.plan__points { display: grid; gap: var(--space-3); margin: 0; padding: var(--space-4) 0 0; border-top: 1px solid var(--card-edge); list-style: none; }
+.plan__points li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: var(--space-3); align-items: start; font: 400 16px/22px var(--font-sans); }
+.plan__check { margin-top: 2px; color: var(--tint-text); }
+.plan__catch { color: var(--label-secondary); }
+.plan__dash { width: 12px; height: 2px; margin: 10px 3px 0; border-radius: 1px; background: var(--label-secondary); }
+/* How the plan lines up with this estimate. margin-top: auto keeps the two boxes level when the lists differ. */
+.plan__fit { display: grid; gap: 2px; margin-top: auto; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: #fbf3f5; }
+.plan__fit p { margin: 0; font: 400 15px/20px var(--font-sans); }
+.plan__fit .plan__fit-title { font-weight: 600; color: var(--tint-text); }
+
+/* The "?" between the cards: asks Abe about the difference. */
+.plans__ask {
+  display: grid; justify-items: center; gap: var(--space-2); align-self: center; justify-self: center;
+  padding: var(--space-2); border: 0; border-radius: var(--radius-md); background: none; cursor: pointer;
+  color: var(--tint-text); font: 600 14px/18px var(--font-sans);
+}
+.plans__ask-mark {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%;
+  background: var(--bg-primary); box-shadow: inset 0 0 0 2px var(--tint), 0 6px 18px rgba(60, 20, 30, .08);
+  font: 800 28px/1 var(--font-sans); transition: background-color .15s ease, color .15s ease, transform .15s ease;
+}
+.plans__ask:hover .plans__ask-mark { background: var(--tint); color: var(--on-tint); transform: scale(1.05); }
+.plans__ask:active .plans__ask-mark { transform: scale(.97); }
+.plans__ask:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.plans__ask-label { max-width: 7em; text-align: center; }
+
+@media (min-width: 720px) {
+  .plans__row { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: var(--space-4); }
+}
+
 /* ---------- Wide screens ---------- */
 @media (min-width: 900px) {
   .deck__title { font-size: 30px; line-height: 36px; }
@@ -276,4 +329,6 @@
   .stage__chart, .deck-nav__dot::before, .viz-grow-x, .viz-grow-y, .viz-seg--gap, .viz-legend__gap,
   .viz-years__cap, .viz-time__svg .viz-time__reveal, .viz-time__dot { transition: none; }
   .deck__talk, .board-abe { animation: none; }
+  .plans__ask-mark { transition: none; }
+  .plans__ask:hover .plans__ask-mark, .plans__ask:active .plans__ask-mark { transform: none; }
 }
