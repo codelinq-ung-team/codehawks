@@ -7,11 +7,12 @@ import { Page } from '../lib/Chrome.tsx'
 import { go, setField, useStore } from '../lib/store.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
-import { FIELDS, calculate, formatMoney, summaryText, type Estimate, type FieldId, type Profile } from '../domain/calculator.ts'
+import { FIELDS, calculate, formatMoney, summaryText, type FieldId, type Profile } from '../domain/calculator.ts'
 import { CoverageChart, NeedsChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
+import { AskAbe } from './AskAbe.tsx'
+import { listJoin, yearsText, type Ready } from './ask.ts'
 import './results.css'
 
-type Ready = Extract<Estimate, { ready: true }>
 type ChartId = 'summary' | 'years' | 'needs' | 'have' | 'gap' | 'time'
 // Where Abe is, relative to the easel: standing in front of it at its left edge, or peeking over the top.
 type Spot = 'side' | 'top'
@@ -25,10 +26,6 @@ const CHART_TITLES: Record<ChartId, string> = {
   gap: 'Needed vs. already in place',
   time: 'Everyday costs still ahead',
 }
-
-const listJoin = (items: string[]) =>
-  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
-const yearsText = (n: number) => `${n} ${n === 1 ? 'year' : 'years'}`
 
 export function Results() {
   const { profile: p } = useStore()
@@ -253,7 +250,7 @@ function WhatIf({ p }: { p: Profile }) {
   )
 }
 
-// After the story: the full math as a list, the summary to copy, and what to do next.
+// After the story: the full math as a list, questions for Abe beside it, and the summary to copy.
 function Wrap({ p, r }: { p: Profile; r: Ready }) {
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
   async function copy() {
@@ -276,7 +273,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
 
       <div className="wrap__grid">
         <ListSection
-          header="The full math"
+          header="The full math" className="wrap__math"
           footer={r.leftOut.length ? `Not included: ${r.leftOut.join(', ').toLowerCase()}.` : undefined}
         >
           {r.needs.filter((t) => t.included).map((t) => <ListRow key={t.id} title={t.label} subtitle={t.detail} value={`+ ${formatMoney(t.value)}`} />)}
@@ -285,22 +282,18 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
           <ListRow title={<strong>Estimated additional coverage</strong>} value={<strong className="tint-text">{formatMoney(r.additional)}</strong>} />
         </ListSection>
 
-        <div className="wrap__side">
-          <div className="stack">
-            <Button size="large" fullWidth icon="share" onClick={() => void copy()}>Copy Summary</Button>
-            {copied === 'ok' && <Banner tone="success" title="Summary copied" message="Paste it into a note or email to bring to a licensed professional." onDismiss={() => setCopied(null)} />}
-            {copied === 'fail' && (
-              <>
-                <Banner tone="warning" title="We couldn’t copy that" message="Your browser blocked the clipboard. Select the text in the summary and copy it yourself." />
-                <textarea className="summary-text" readOnly value={summaryText(p, r)} aria-label="Summary" onFocus={(e) => e.target.select()} />
-              </>
-            )}
-            <Button variant="bordered" fullWidth onClick={() => go('review')}>Change My Answers</Button>
-          </div>
-          <ListSection header="Good to know">
-            <ListRow icon="calendar" iconColor="orange" title="Term insurance" subtitle="Covers a set number of years. Often used for needs with an end date, like raising kids or paying off a mortgage." />
-            <ListRow icon="shield" iconColor="teal" title="Permanent insurance" subtitle="Designed to last longer, and may include features beyond the death benefit, depending on the product." />
-          </ListSection>
+        <AskAbe p={p} r={r} />
+
+        <div className="wrap__actions stack">
+          <Button size="large" fullWidth icon="share" onClick={() => void copy()}>Copy Summary</Button>
+          {copied === 'ok' && <Banner tone="success" title="Summary copied" message="Paste it into a note or email to bring to a licensed professional." onDismiss={() => setCopied(null)} />}
+          {copied === 'fail' && (
+            <>
+              <Banner tone="warning" title="We couldn’t copy that" message="Your browser blocked the clipboard. Select the text in the summary and copy it yourself." />
+              <textarea className="summary-text" readOnly value={summaryText(p, r)} aria-label="Summary" onFocus={(e) => e.target.select()} />
+            </>
+          )}
+          <Button variant="bordered" fullWidth onClick={() => go('review')}>Change My Answers</Button>
         </div>
       </div>
 
