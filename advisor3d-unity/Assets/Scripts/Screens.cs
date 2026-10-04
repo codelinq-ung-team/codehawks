@@ -42,6 +42,7 @@ namespace Advisor3D
         static Btn startOver, roomToggle;
         static float confirmUntil;
         static Guide guide;
+        static Transform guideHolder; // on the left panel, except in the chat, where Abe stands in the middle
         static List<Message> guideLines = new List<Message>();
         static El guideCard;
         static Screen current;
@@ -141,16 +142,15 @@ namespace Advisor3D
             }
 
             // ---------- Abe, on the left ----------
-            var guideHolder = new GameObject("Guide Holder").transform;
-            guideHolder.SetParent(left.group, false);
-            guideHolder.localPosition = left.At(SIDE_W / 2, 124, 0.02f);
+            guideHolder = new GameObject("Guide Holder").transform;
             guide = new Guide(0.36f, guideHolder);
+            GuideHome();
 
             guideCard = left.Add(new El(SIDE_W, 460, ctx =>
             {
-                // One card: Abe's name plate, then whatever he is saying on this screen, or (in the chat) what he knows.
-                var bubbles = knows != null ? new List<Bubble>() : guideLines.Select(m => BubbleLayout(m, 16, (SIDE_W - 36) * 0.88f)).ToList();
-                var h = knows != null ? KNOWS_TOP + KnowsHeight() : bubbles.Sum(b => b.h + 8) + 78 + (bubbles.Count > 0 ? 12 : -4);
+                // One card: Abe's name plate, then whatever he is saying on this screen. (The chat hides it.)
+                var bubbles = guideLines.Select(m => BubbleLayout(m, 16, (SIDE_W - 36) * 0.88f)).ToList();
+                var h = bubbles.Sum(b => b.h + 8) + 78 + (bubbles.Count > 0 ? 12 : -4);
                 ctx.Shadow(0, 0, SIDE_W, h, 24, Ui.C(60, 20, 30, 0.14f), 48, 20);
                 ctx.Rect(0, 0, SIDE_W, h, 24, T.bg);
                 ctx.Rect(0.5f, 0.5f, SIDE_W - 1, h - 1, 24, null, T.edge, 1);
@@ -160,9 +160,8 @@ namespace Advisor3D
                 var sw = Ui.Measure(sub, Fn(400, 15));
                 ctx.Circle(SIDE_W / 2 - sw / 2 - 4, 51, 4, T.success);
                 ctx.Text(sub, SIDE_W / 2 + 6, 40, Fn(400, 15), T.label2, align: Align.Center, lineH: 22);
-                if (bubbles.Count == 0 && knows == null) return;
+                if (bubbles.Count == 0) return;
                 ctx.Fill(18, 74, SIDE_W - 36, 1, T.edge);
-                if (knows != null) { DrawKnows(ctx); return; }
                 var y = 88f;
                 foreach (var b in bubbles)
                 {
@@ -170,6 +169,15 @@ namespace Advisor3D
                     y += b.h + 8;
                 }
             }), 0, 250);
+        }
+
+        // Abe's usual place: above his card on the left panel.
+        static void GuideHome()
+        {
+            guideHolder.SetParent(left.group, false);
+            guideHolder.localPosition = left.At(SIDE_W / 2, 124, 0.02f);
+            guideHolder.localRotation = Quaternion.identity;
+            guideHolder.localScale = Vector3.one;
         }
 
         static void ResetStartOver()
@@ -181,8 +189,6 @@ namespace Advisor3D
         static void Say(params Message[] lines)
         {
             guideLines = lines.ToList();
-            knows = null;
-            left.Clear("knows");
             guideCard.Redraw();
         }
 
@@ -675,7 +681,7 @@ namespace Advisor3D
             Run(BotSay(lines, m => m.done = true));
         }
 
-        // "What Abe knows": every answer Abe has so far, listed under him on the left, with a way
+        // "What Abe knows": every answer Abe has so far, listed on the right of the chat, with a way
         // to take each one back. Basics answers come first, then what Abe learned in the chat.
         class Fact
         {
@@ -728,7 +734,8 @@ namespace Advisor3D
 
         const int KNOWS_ROWS = 9;
         const float KNOWS_TOP = 118, KNOWS_ROW = 40;
-        static List<Fact> knows; // null when the left card shows Abe's speech bubbles instead
+        const float KNOWS_LIFT = 64; // the list was laid out under Abe's name plate; on its own card it starts higher
+        static List<Fact> knows; // null outside the chat
         static int knowsTotal;
 
         static void ShowKnows()
@@ -736,13 +743,21 @@ namespace Advisor3D
             var all = Facts(State.profile, State.form);
             knowsTotal = all.Count;
             knows = all.Skip(Math.Max(0, all.Count - KNOWS_ROWS)).ToList();
-            guideCard.Redraw();
-            left.Clear("knows");
-            var top = 250 + KNOWS_TOP + (knowsTotal > knows.Count ? 22 : 0);
+            right.Clear("knows");
+            const float Y = 20;
+            var h = KNOWS_TOP - KNOWS_LIFT + KnowsHeight();
+            right.Add(new El(SIDE_W, h, ctx =>
+            {
+                ctx.Shadow(0, 0, SIDE_W, h, 24, Ui.C(60, 20, 30, 0.14f), 48, 20);
+                ctx.Rect(0, 0, SIDE_W, h, 24, T.bg);
+                ctx.Rect(0.5f, 0.5f, SIDE_W - 1, h - 1, 24, null, T.edge, 1);
+                DrawKnows(ctx);
+            }), 0, Y, "knows").Redraw();
+            var top = Y + KNOWS_TOP - KNOWS_LIFT + (knowsTotal > knows.Count ? 22 : 0);
             for (var i = 0; i < knows.Count; i++)
             {
                 var fact = knows[i];
-                var x = left.Add(new El(30, 30, ctx =>
+                var x = right.Add(new El(30, 30, ctx =>
                 {
                     ctx.Circle(15, 15, 15, T.fill3);
                     ctx.Icon("xmark", 15, 15, 16, T.label2, 2);
@@ -754,13 +769,13 @@ namespace Advisor3D
 
         static void DrawKnows(Ctx ctx)
         {
-            ctx.Text($"What {GUIDE_NAME} knows", 18, 84, Fn(700, 17), lineH: 24);
+            ctx.Text($"What {GUIDE_NAME} knows", 18, 84 - KNOWS_LIFT, Fn(700, 17), lineH: 24);
             if (knows.Count == 0)
             {
-                ctx.Text("Nothing yet. Your answers show up here, and you can take any of them back.", 18, KNOWS_TOP, Fn(400, 14), T.label2, maxW: SIDE_W - 36, lineH: 20);
+                ctx.Text("Nothing yet. Your answers show up here, and you can take any of them back.", 18, KNOWS_TOP - KNOWS_LIFT, Fn(400, 14), T.label2, maxW: SIDE_W - 36, lineH: 20);
                 return;
             }
-            var y = KNOWS_TOP;
+            var y = KNOWS_TOP - KNOWS_LIFT;
             if (knowsTotal > knows.Count)
             {
                 ctx.Text($"The latest {knows.Count} of {knowsTotal}. All of them are on the Review screen.", 18, y - 2, Fn(400, 13), T.label2, lineH: 18);
@@ -829,35 +844,16 @@ namespace Advisor3D
             var voiceKey = "?";
             var voiceVersion = Voice.Version;
 
+            // Abe stands in the middle of the card, so the chat feels like talking with him. Under him
+            // is what he just said; the whole conversation is the transcript on the left.
+            const float ABE_Y = HEAD + 132, SAID_Y = HEAD + 288, SAID_LINE = 27;
+            guideCard.Visible = false;
+            guideHolder.SetParent(main.group, false);
+            guideHolder.localPosition = main.At(MAIN_W / 2, ABE_Y, 0.02f);
+            
             var log = main.Add(new El(MAIN_W, MAIN_H, ctx =>
             {
                 var s = State;
-                var msgs = s.messages;
-                // Newest at the bottom. Older messages scroll off under the header.
-                var clip = ctx.Clip(0, HEAD, MAIN_W, MAIN_H - HEAD - composer);
-                var y = MAIN_H - composer - 10;
-                var maxW = (MAIN_W - 56 - 44) * 0.8f;
-                if (s.typing)
-                {
-                    y -= 46;
-                    clip.Rect(72, y, 70, 46, new float[] { 20, 20, 20, 6 }, T.grouped);
-                    for (var i = 0; i < 3; i++) clip.Circle(93 + i * 14, y + 23 - (phase == i ? 3 : 0), 4, phase == i ? T.label2 : Ui.C("#c2c2c7"));
-                    clip.Face(28, y + 12, 34);
-                    y -= 8;
-                }
-                for (var i = msgs.Count - 1; i >= 0 && y > HEAD; i--)
-                {
-                    var m = msgs[i];
-                    var b = BubbleLayout(m, 20, maxW);
-                    y -= b.h;
-                    DrawBubble(clip, b, m.role == "user" ? MAIN_W - 28 - b.w : 72, y);
-                    // Abe's face sits beside the last bubble in each run of his messages.
-                    var face = m.role == "bot" && (i == msgs.Count - 1 ? !s.typing : msgs[i + 1].role != "bot");
-                    if (face) clip.Face(28, y + b.h - 34, 34);
-                    y -= i > 0 && msgs[i - 1].role != m.role ? 14 : 8;
-                }
-
-                ctx.Gradient(1, HEAD, MAIN_W - 2, 28, T.bg, new Color(1, 1, 1, 0));
                 ctx.Fill(0, HEAD - 1, MAIN_W, 1, T.edge);
                 ctx.Fill(0, MAIN_H - composer, MAIN_W, 1, T.edge);
                 ctx.Face(28, 16, 52);
@@ -865,8 +861,60 @@ namespace Advisor3D
                 ctx.Circle(98, 56, 4, T.success);
                 var doing = Voice.On ? (Voice.Speaking ? "Speaking…" : "Listening…") : Voice.Status == "connecting" ? "Connecting…" : "Here to help";
                 ctx.Text("Your guide · " + doing, 108, 46, Fn(400, 15), T.label2, lineH: 20);
+
+                var turn = Voice.On ? (Voice.Speaking ? $"{GUIDE_NAME} is speaking" : "Your turn. Just talk.")
+                    : Voice.Status == "connecting" ? $"{GUIDE_NAME} is getting ready…"
+                    : s.typing ? $"{GUIDE_NAME} is thinking…" : $"Tap an answer, or press Talk to {GUIDE_NAME}";
+                ctx.Text(turn, MAIN_W / 2, SAID_Y - 28, Fn(600, 15), Voice.On && !Voice.Speaking ? T.tint : T.label2, lineH: 22, align: Align.Center);
+                // The last thing Abe said, as much of it as fits above the reply area.
+                var said = s.messages.LastOrDefault(m => m.role == "bot")?.text;
+                if (said != null)
+                {
+                    var f = Fn(500, 20);
+                    var lines = Ui.Wrap(said, f, MAIN_W - 120);
+                    var room = Mathf.Max(1, Mathf.FloorToInt((MAIN_H - composer - 8 - SAID_Y) / SAID_LINE));
+                    if (lines.Count > room) { lines = lines.Take(room).ToList(); lines[room - 1] = lines[room - 1].TrimEnd() + "…"; }
+                    for (var i = 0; i < lines.Count; i++) ctx.Text(lines[i], MAIN_W / 2, SAID_Y + i * SAID_LINE, f, lineH: SAID_LINE, align: Align.Center);
+                }
                 ctx.Text(ChatNote(), MAIN_W / 2, MAIN_H - 30, Fn(400, 12.5f), T.label2, lineH: 18, align: Align.Center);
             }), 0, 0);
+
+            const float TOP = 58;
+            var transcript = left.Add(new El(SIDE_W, MAIN_H, ctx =>
+            {
+                var s = State;
+                var msgs = s.messages;
+                ctx.Shadow(0, 0, SIDE_W, MAIN_H, 24, Ui.C(60, 20, 30, 0.14f), 48, 20);
+                ctx.Rect(0, 0, SIDE_W, MAIN_H, 24, T.bg);
+                ctx.Rect(0.5f, 0.5f, SIDE_W - 1, MAIN_H - 1, 24, null, T.edge, 1);
+                // Newest at the bottom. Older messages scroll off under the title.
+                var clip = ctx.Clip(0, TOP, SIDE_W, MAIN_H - TOP - 14);
+                var y = MAIN_H - 24;
+                var maxW = (SIDE_W - 36 - 40) * 0.92f;
+                if (s.typing)
+                {
+                    y -= 40;
+                    clip.Rect(56, y, 64, 40, new float[] { 18, 18, 18, 6 }, T.grouped);
+                    for (var i = 0; i < 3; i++) clip.Circle(75 + i * 13, y + 20 - (phase == i ? 3 : 0), 3.5f, phase == i ? T.label2 : Ui.C("#c2c2c7"));
+                    clip.Face(18, y + 10, 30);
+                    y -= 8;
+                }
+                for (var i = msgs.Count - 1; i >= 0 && y > TOP; i--)
+                {
+                    var m = msgs[i];
+                    var b = BubbleLayout(m, 16, maxW);
+                    y -= b.h;
+                    DrawBubble(clip, b, m.role == "user" ? SIDE_W - 18 - b.w : 56, y);
+                    // Abe's face sits beside the last bubble in each run of his messages.
+                    var face = m.role == "bot" && (i == msgs.Count - 1 ? !s.typing : msgs[i + 1].role != "bot");
+                    if (face) clip.Face(18, y + b.h - 30, 30);
+                    y -= i > 0 && msgs[i - 1].role != m.role ? 12 : 6;
+                }
+                ctx.Gradient(1, TOP, SIDE_W - 2, 24, T.bg, new Color(1, 1, 1, 0));
+                ctx.Text("Transcript", 20, 16, Fn(700, 17), lineH: 26);
+                ctx.Fill(18, TOP - 1, SIDE_W - 36, 1, T.edge);
+                if (msgs.Count == 0 && !s.typing) ctx.Text("What you and Abe say shows up here.", 20, TOP + 16, Fn(400, 14), T.label2, maxW: SIDE_W - 40, lineH: 20);
+            }), 0, 0, "transcript");
 
             // Talk to Abe: start or stop the voice conversation (Voice.cs). Everything else on the
             // screen keeps working while it is on.
@@ -955,14 +1003,17 @@ namespace Advisor3D
                     }
                 }
 
-                // A number pad for the questions that take an amount, an age or a number of years.
+                // On the right: while you are talking with Abe, what he knows so far. With voice off, a
+                // number pad for the questions that take an amount, an age or a number of years.
                 var step = Script.NextStep(s);
-                var wantsNumber = replies != null && !finished && s.pending == null && step != null && Calc.FIELD[step].kind != "choice";
+                var wantsNumber = Voice.Status == "off" && replies != null && !finished && s.pending == null && step != null && Calc.FIELD[step].kind != "choice";
                 var nextPad = wantsNumber ? step : null;
                 if (nextPad != padKey)
                 {
                     padKey = nextPad;
+                    knowsKey = null;
                     ClearRight();
+                    right.Clear("knows");
                     if (wantsNumber)
                     {
                         var kind = Calc.FIELD[step].kind;
@@ -975,15 +1026,22 @@ namespace Advisor3D
                     }
                 }
 
-                var facts = Facts(s.profile, s.form);
-                var key = string.Join("\u0001", facts.Select(f => f.id + "=" + f.value)) + (s.typing ? "…" : "");
-                if (key != knowsKey) { knowsKey = key; ShowKnows(); }
+                if (!wantsNumber)
+                {
+                    var facts = Facts(s.profile, s.form);
+                    var key = string.Join("\u0001", facts.Select(f => f.id + "=" + f.value)) + (s.typing ? "…" : "");
+                    if (key != knowsKey) { knowsKey = key; ShowKnows(); }
+                }
                 draftEl?.Redraw();
                 log.Redraw();
+                transcript.Redraw();
             }
 
-            // The opening lines change state, and the screen is not built yet, so start them on the next frame.
-            var begin = State.messages.Count == 0 && !State.typing;
+            // The chat opens by talking: Abe greets you out loud and asks the open question. If voice
+            // can't start, his written opening lines appear instead and tapping and typing take over.
+            // Both change state, and the screen is not built yet, so they start on the next frame.
+            var begin = !State.typing && (State.messages.Count == 0 || Script.NextStep(State) != null);
+            var opening = false; // waiting to hear whether voice connected
             Update();
 
             return new Screen
@@ -993,16 +1051,31 @@ namespace Advisor3D
                 dispose = () =>
                 {
                     Voice.Stop();
+                    GuideHome();
+                    guideCard.Visible = true;
+                    left.Clear("transcript");
+                    right.Clear("knows");
+                    knows = null;
                     draftEl = null;
                     typingHere = false;
                     if (keyboard != null) { keyboard.active = false; keyboard = null; }
                 },
                 tick = (t, dt) =>
                 {
-                    if (begin) { begin = false; BeginChat(); }
-                    if (Voice.Version != voiceVersion) { voiceVersion = Voice.Version; VoiceButton(); log.Redraw(); }
+                    if (begin)
+                    {
+                        begin = false;
+                        Voice.Start(); // does nothing in the editor's screenshot pass
+                        opening = true;
+                    }
+                    if (opening && Voice.Status != "connecting")
+                    {
+                        opening = false;
+                        if (!Voice.On && State.messages.Count == 0) BeginChat();
+                    }
+                    if (Voice.Version != voiceVersion) { voiceVersion = Voice.Version; Update(); }
                     var p = Mathf.FloorToInt(t * 4) % 3;
-                    if (p != phase && State.typing) { phase = p; log.Redraw(); }
+                    if (p != phase && State.typing) { phase = p; transcript.Redraw(); }
                     if (keyboard == null) return;
                     if (keyboard.text != draft) { draft = keyboard.text ?? ""; draftEl?.Redraw(); }
                     if (keyboard.status == TouchScreenKeyboard.Status.Done) { keyboard = null; SendDraft(); }

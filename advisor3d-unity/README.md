@@ -48,19 +48,24 @@ answer line opens the headset's keyboard, where you can type or press its microp
 speak. That answer goes to the site's AI (`POST /api/intake`, see `Assets/Scripts/Backend.cs`),
 which reads it into a field; the app checks the reading and does all the math itself. Tapped
 suggestions and number-pad answers are read by the built-in script, and so is everything when
-the AI can't be reached. Or press **Talk to Abe** and have the whole chat out loud (see
-[Talking with Abe](#talking-with-abe)). **What Abe knows**, under Abe on the left, lists the answers so far;
-the x beside each one takes it back.
+the AI can't be reached. That is the fallback, though: the chat opens by talking (see
+[Talking with Abe](#talking-with-abe)). Abe stands in the middle of the card, the transcript is
+on the left, and **What Abe knows** on the right lists the answers so far; the x beside each one
+takes it back. With voice off, the number pad takes that side for questions that want a number.
 
 ## Talking with Abe
 
-**Talk to Abe**, at the top of the chat, starts a spoken conversation: you talk, Abe answers
-out loud, and each answer fills the same profile the tapped and typed ones fill. It uses
+The Basics form is tapped; the chat is spoken. Opening the chat starts a voice conversation:
+Abe, in the middle of the card, greets you and asks the open question out loud, his mouth
+moving as he speaks, and you just answer. Each answer fills the same profile the tapped and
+typed ones fill, and everything said is written to the transcript on the left. **Stop Talking**
+and **Talk to Abe**, at the top of the card, turn voice off and on. If voice can't start, Abe's
+written opening lines appear and the chat works by tapping and typing, as on the site. It uses
 OpenAI's Realtime API (`gpt-realtime-2.1`, voice `ash`). **Not yet tried with a real API key,
 in the editor or on a headset.** The code compiles and the logic is tested, nothing more.
 
-- `Voice.cs` sends the microphone to OpenAI over a WebSocket and plays what comes back. What
-  either side said appears in the chat log. Abe's sculpture swells with his voice.
+- `Voice.cs` sends the microphone to OpenAI over a WebSocket and plays what comes back.
+  `Guide.cs` opens and closes Abe's mouth with the loudness of his voice.
 - The app stays in charge. The model reports each answer by calling `record_answer`;
   `VoiceScript.cs` puts it through the chat script's own checks (`Script.Interpret`: the limits,
   the monthly check, the debt split), saves it, and tells the model what to ask next.
@@ -87,7 +92,7 @@ echo "http://localhost:8000/api/voice/session" > advisor3d-unity/Assets/Resource
 
 That file is git-ignored and only moves the voice request; delete it to use the site again.
 Then, in the editor, run **Advisor3D → Set Up Project** once (it allows plain http while the
-file is there), press Play, open the chat and press **Talk to Abe**. Wear headphones, or the
+file is there), press Play and open the chat. Wear headphones, or the
 computer's speakers feed its microphone. For the headset, keep it on USB:
 
 ```sh
@@ -125,7 +130,8 @@ What is different from the site:
   browser's system font.
 - Answers live in memory and are cleared when the app closes.
 - Amounts can be entered on a number pad, since a headset has no keyboard to hand.
-- Abe's poses on the Basics form are not here; he stands on the left as a small sculpture.
+- Abe's poses on the Basics form are not here; he stands on the left as a small sculpture, and
+  moves to the middle for the chat.
 - The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
 - There are no controller or hand models; you see the pointer rays. In passthrough you see
