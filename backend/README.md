@@ -166,14 +166,15 @@ Requires Python 3.12+. From the repository root:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
+python -m unittest discover -s backend/tests -v
 python -m unittest discover -s scripts/tests -v
 cfn-lint infra/bootstrap.json infra/app.json
 python scripts/validate_repo.py
 python scripts/build_backend.py
 ```
 
-The retained deployment tests in `scripts/tests/` run offline without credentials
-or model calls. Backend unit tests are no longer included. The build
+Backend tests stub Bedrock and DynamoDB and run offline without AWS credentials
+or paid inference. Deployment tests in `scripts/tests/` also run offline. The build
 downloads pinned Linux-compatible wheels and produces ignored `build/backend.zip`
 with an executable LF-terminated launcher and the reviewed reference files.
 

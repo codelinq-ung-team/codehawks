@@ -79,8 +79,8 @@ the exported runtime boundary attached. CloudFormation can read only the pinned
 Lambda Web Adapter layer version in addition to the existing app permissions.
 The backend artifact is packaged in Actions with `scripts/build_backend.py` and
 uploaded only to the hackathon artifact bucket by the existing packaging step.
-Retained deployment and frontend tests remain offline and receive no AWS credentials.
-Backend unit tests and the local demo harness are no longer included.
+Backend tests stub Bedrock and DynamoDB and run offline without paid inference.
+Pull-request tests receive no AWS credentials. The local demo harness is no longer included.
 Production runs the Flask API in Gunicorn through Lambda Web Adapter.
 
 After merging, wait for Israel to confirm configuration in both environments
