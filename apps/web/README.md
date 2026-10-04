@@ -13,7 +13,11 @@ with a **Recommended** banner above the preferred coverage type. Source links,
 eligibility qualifications and policy minimum mismatches are shown on the cards.
 No premium quotes or underwriting approval are generated. The result is cached only
 for the matching answers in this tab; edits invalidate it. Failed requests leave
-the educational cards visible without a badge and offer **Try Again**.
+named **Example policy** cards visible and offer **Try Again**. Missing term options
+show Lincoln TermAccel Level Term; missing permanent options show Lincoln WealthProtector
+IUL. These display-only examples include published features, limits and sources, even
+when unavailable for the user. They are never recommended, cached as selections, or
+included as personalized policies in Copy Summary or Ask Abe.
 
 To rehearse without paid inference, run the normal frontend tests and stub the endpoint
 using the response shape in `tests/recommendations.test.ts`. Demo family: age 35,
