@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { emptyProfile } from '../src/domain/calculator.ts'
 import type { AppState, Form } from '../src/lib/store.ts'
-import { applyForm, interpret, known, nextStep, respond, type Reading } from '../src/intake/script.ts'
+import { WHY, applyForm, interpret, known, nextStep, question, respond, type Reading } from '../src/intake/script.ts'
 
 function state(form: Partial<Form> = {}): AppState {
   const s: AppState = {
@@ -124,4 +124,25 @@ test('unsure, skip, why and side questions from the AI', () => {
 test('known() lists answered fields and the form’s total debt', () => {
   const s = state({ income: 75000, debt: 180000 })
   assert.deepEqual(known(s), { income: 75000, totalDebt: 180000 })
+})
+
+test('the support suggestion never offers the same figure twice', () => {
+  const ask = (income: number) => {
+    const s = state({ income })
+    s.profile.household = { status: 'proposed', value: 'none' }
+    assert.equal(nextStep(s), 'support')
+    return question('support', s)
+  }
+  const small = ask(5000)
+  assert.match(small.text, /about \$3,500 to \$4,000\.$/)
+  assert.deepEqual(small.replies, ['$3,500', '$4,000', 'Not sure', WHY])
+  const tiny = ask(100)
+  assert.match(tiny.text, /about \$100\.$/)
+  assert.deepEqual(tiny.replies, ['$100', 'Not sure', WHY])
+  const none = ask(1)
+  assert.doesNotMatch(none.text, /For you/)
+  assert.deepEqual(none.replies, ['Not sure', WHY])
+  const usual = ask(90000)
+  assert.match(usual.text, /about \$63,000 to \$72,000\.$/)
+  assert.deepEqual(usual.replies, ['$63,000', '$72,000', 'Not sure', WHY])
 })

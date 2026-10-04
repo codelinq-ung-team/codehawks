@@ -108,6 +108,7 @@ def validate_chat(template):
     variables = function["Environment"]["Variables"]
     assert variables["MODEL_ID"] == {"Ref": "BedrockModelId"}
     assert variables["CHAT_RATE_LIMIT_TABLE"] == {"Ref": "ChatRateLimitTable"}
+    assert variables["PAIRING_TABLE"] == {"Ref": "PairingTable"}
     assert variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
     assert variables["AWS_LWA_INVOKE_MODE"] == "response_stream"
     assert variables["AWS_LWA_READINESS_CHECK_PATH"] == "/health"
@@ -119,7 +120,7 @@ def validate_chat(template):
     assert secret["Properties"]["SecretString"] == {"Ref": "OpenAiApiKey"}
     key = template["Parameters"]["OpenAiApiKey"]
     assert key["NoEcho"] is True and key["Default"] == "unset", "The key is hidden, and voice is off until it is supplied"
-    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "OPENAI_API_KEY_SECRET", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "PAIRING_TABLE", "OPENAI_API_KEY_SECRET", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
                               "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
                               "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
     url = resources["ChatFunctionUrl"]["Properties"]
@@ -141,20 +142,32 @@ def validate_chat(template):
     assert table["Properties"]["SSESpecification"] == {"SSEEnabled": True}
     assert table["Properties"]["AttributeDefinitions"] == [{"AttributeName": "id", "AttributeType": "S"}]
     assert table["Properties"]["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
-    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable", "VoiceApiKeySecret"):
+    # A browser and a headset share answers through this table for up to two hours; expired items are removed.
+    pairing = resources["PairingTable"]
+    assert pairing["Type"] == "AWS::DynamoDB::Table"
+    assert pairing["Properties"]["TableName"] == "codelinc-hackathon-app-pairing"
+    assert pairing["Properties"]["BillingMode"] == "PAY_PER_REQUEST"
+    assert pairing["Properties"]["SSESpecification"] == {"SSEEnabled": True}
+    assert pairing["Properties"]["TimeToLiveSpecification"] == {"AttributeName": "expires", "Enabled": True}
+    assert pairing["Properties"]["AttributeDefinitions"] == [{"AttributeName": "id", "AttributeType": "S"}]
+    assert pairing["Properties"]["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
+    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable", "PairingTable", "VoiceApiKeySecret"):
         tags = {tag["Key"]: tag["Value"] for tag in resources[name]["Properties"]["Tags"]}
         assert tags == {"Project": CONFIG["prefix"], "Owner": "Israel Jauregui",
                         "Lifecycle": "ephemeral", "ManagedBy": "CloudFormation"}
     policies = resources["ChatRole"]["Properties"]["Policies"]
     statements = [s for policy in policies for s in policy["PolicyDocument"]["Statement"]]
     assert len(validate_bedrock_statements(statements)) == 1
-    assert len(statements) == 4, "Chat needs only scoped inference, admission control, logging, and its one secret"
+    assert len(statements) == 5, "Chat needs only scoped inference, admission control, pairing, logging, and its one secret"
     reading = [s for s in statements if s["Action"] == "secretsmanager:GetSecretValue"]
     assert reading == [{"Effect": "Allow", "Action": "secretsmanager:GetSecretValue",
                         "Resource": {"Ref": "VoiceApiKeySecret"}}], "Chat may read only the voice key"
     limiter = [s for s in statements if s["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem"]]
     assert limiter == [{"Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
                         "Resource": {"Fn::GetAtt": ["ChatRateLimitTable", "Arn"]}}], "Admission control may access only its own table"
+    sharing = [s for s in statements if "dynamodb:DeleteItem" in s["Action"]]
+    assert sharing == [{"Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"],
+                        "Resource": {"Fn::GetAtt": ["PairingTable", "Arn"]}}], "Pairing may access only its own table"
     logging = [s for s in statements if s["Action"] == ["logs:CreateLogStream", "logs:PutLogEvents"]]
     assert logging == [{"Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
                         "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinc-hackathon-app-chat:log-stream:*"}}], "Chat may write only its own log streams"

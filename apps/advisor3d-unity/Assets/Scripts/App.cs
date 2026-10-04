@@ -81,16 +81,19 @@ namespace Advisor3D
         void OnApplicationPause(bool paused)
         {
             // The headset is off: hang up so the microphone and the voice session are not left open.
-            if (paused) { pausedAt = DateTime.UtcNow; if (Voice.On) Voice.Stop(); return; }
+            // A paired browser gets the answers so far, and the camera is let go.
+            if (paused) { pausedAt = DateTime.UtcNow; if (Voice.On) Voice.Stop(); Sync.Flush(); Scanner.Stop(); return; }
             if (pausedAt == default) return;
             if ((DateTime.UtcNow - pausedAt).TotalSeconds >= NEW_PERSON_SECONDS) StartOver();
             else settle = 20;
             snap = true;
+            Screens.Resume();
         }
 
         void OnDestroy()
         {
             Voice.Stop();
+            Scanner.Stop();
             if (recenterButtons != null) foreach (var a in recenterButtons) { a.Disable(); a.Dispose(); }
             foreach (var p in pointers) p.Dispose();
         }
@@ -101,6 +104,11 @@ namespace Advisor3D
             I = this;
             El.all.Clear();
             Store.Restart();
+            Sync.Start();
+            // To try the app against a backend on your own computer, put its address in
+            // Assets/Resources/site.txt (see README.md).
+            var local = Resources.Load<TextAsset>("site");
+            if (local && local.text.Trim() != "") Backend.Site = local.text.Trim().TrimEnd('/');
 
             rig = new GameObject("Rig").transform;
             rig.SetParent(transform, false);
@@ -528,6 +536,8 @@ namespace Advisor3D
             }
 
             Voice.Tick(dt);
+            Scanner.Tick(dt);
+            Sync.Tick(dt);
             Screens.Frame(t, dt);
         }
     }

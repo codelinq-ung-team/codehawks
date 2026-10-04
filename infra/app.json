@@ -104,6 +104,50 @@
         ]
       }
     },
+    "PairingTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "codelinc-hackathon-app-pairing",
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "id",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "id",
+            "KeyType": "HASH"
+          }
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expires",
+          "Enabled": true
+        },
+        "SSESpecification": {
+          "SSEEnabled": true
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "codelinc-hackathon"
+          },
+          {
+            "Key": "Owner",
+            "Value": "Israel Jauregui"
+          },
+          {
+            "Key": "Lifecycle",
+            "Value": "ephemeral"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
     "ChatLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
@@ -163,6 +207,20 @@
                   "Resource": {
                     "Fn::GetAtt": [
                       "ChatRateLimitTable",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:DeleteItem"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "PairingTable",
                       "Arn"
                     ]
                   }
@@ -251,6 +309,9 @@
           "Variables": {
             "CHAT_RATE_LIMIT_TABLE": {
               "Ref": "ChatRateLimitTable"
+            },
+            "PAIRING_TABLE": {
+              "Ref": "PairingTable"
             },
             "OPENAI_API_KEY_SECRET": {
               "Ref": "VoiceApiKeySecret"

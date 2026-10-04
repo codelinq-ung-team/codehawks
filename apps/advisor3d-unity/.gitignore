@@ -21,3 +21,7 @@
 # Points voice at a backend on your own computer; never committed (see README.md).
 /Assets/Resources/voice-endpoint.txt
 /Assets/Resources/voice-endpoint.txt.meta
+
+# Points the whole app at a backend on your own computer; never committed (see README.md).
+/Assets/Resources/site.txt
+/Assets/Resources/site.txt.meta

@@ -108,10 +108,19 @@ const STEPS: Step[] = [
     ask(s) {
       const income = val(s.profile, 'income')
       if (typeof income === 'number' && income > 0) {
-        const lo = Math.round(income * 0.7 / 1000) * 1000
-        const hi = Math.round(income * 0.8 / 1000) * 1000
+        // Rounded to thousands, or to hundreds for a small income, where thousands would give
+        // the same figure twice ("$4,000 to $4,000").
+        const unit = income < 20000 ? 100 : 1000
+        const lo = Math.round(income * 0.7 / unit) * unit
+        const hi = Math.round(income * 0.8 / unit) * unit
+        const lead = 'If something happened to you, how much would your family need each year to keep their life on track? Many people start with 70–80% of their income.'
+        if (lo === hi) {
+          return lo > 0
+            ? { text: `${lead} For you, that’s about ${formatMoney(lo)}.`, replies: [formatMoney(lo), 'Not sure'] }
+            : { text: lead, replies: ['Not sure'] }
+        }
         return {
-          text: `If something happened to you, how much would your family need each year to keep their life on track? Many people start with 70–80% of their income. For you, that’s about ${formatMoney(lo)} to ${formatMoney(hi)}.`,
+          text: `${lead} For you, that’s about ${formatMoney(lo)} to ${formatMoney(hi)}.`,
           replies: [formatMoney(lo), formatMoney(hi), 'Not sure'],
         }
       }

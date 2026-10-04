@@ -46,8 +46,9 @@ function facts(profile: Profile, form: Form): Fact[] {
   return [...basics, ...chat]
 }
 
-export function Knows({ profile, form, busy, onForget }: {
-  profile: Profile; form: Form; busy: boolean; onForget: (fact: Fact) => void
+// Without onForget the list is read-only: the VR screen shows it while Abe listens in the headset.
+export function Knows({ profile, form, busy = false, onForget, className }: {
+  profile: Profile; form: Form; busy?: boolean; onForget?: (fact: Fact) => void; className?: string
 }) {
   const list = facts(profile, form)
   const listRef = useRef<HTMLUListElement>(null)
@@ -59,7 +60,7 @@ export function Knows({ profile, form, busy, onForget }: {
     count.current = list.length
   }, [list.length])
   return (
-    <aside className="knows" aria-labelledby="knows-title">
+    <aside className={'knows' + (className ? ' ' + className : '')} aria-labelledby="knows-title">
       <div className="knows__head">
         <ThinkingAbe size={192} className="knows__abe" />
         <h2 id="knows-title" className="knows__title">What {GUIDE_NAME} knows</h2>
@@ -72,9 +73,11 @@ export function Knows({ profile, form, busy, onForget }: {
               <span className="knows__label">{f.label}</span>
               <strong className="knows__value">{f.value}</strong>
             </span>
-            <button type="button" className="knows__forget" disabled={busy} onClick={() => onForget(f)} aria-label={`Remove ${f.label}`}>
-              <Icon name="xmark" size={18} weight={2.2} />
-            </button>
+            {onForget && (
+              <button type="button" className="knows__forget" disabled={busy} onClick={() => onForget(f)} aria-label={`Remove ${f.label}`}>
+                <Icon name="xmark" size={18} weight={2.2} />
+              </button>
+            )}
           </li>
         ))}
       </ul>

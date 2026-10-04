@@ -78,7 +78,8 @@ bootstrap boundary before deploying the app. Deploy refuses differing settings.
 The bootstrap owns the retained `codelinc-hackathon-app-chat-oac`, which signs
 requests to the app's IAM-protected streaming Function URL. The runtime role has
 only the two scoped Bedrock inference actions, access to its own logs, and
-`dynamodb:GetItem`/`dynamodb:PutItem` on its admission-limit table, with
+`dynamodb:GetItem`/`dynamodb:PutItem` on its admission-limit table,
+`GetItem`/`PutItem`/`DeleteItem` on the headset pairing table, with
 the exported runtime boundary attached. CloudFormation can read only the pinned
 Lambda Web Adapter layer version in addition to the existing app permissions.
 The backend artifact is packaged in Actions with `scripts/build_backend.py` and

@@ -275,6 +275,57 @@ static class Tests
             Match(Ask(90000).text, @"about \$63,000 to \$72,000\.");
         });
 
+        // ---------- pairing with a browser ----------
+        Test("a pairing code is read from the site's QR code and nothing else", () =>
+        {
+            Eq(Pairing.ReadQr("LINCLIFE:0123456789ABCDEFGHJKMNPQRS"), "0123456789ABCDEFGHJKMNPQRS");
+            Eq(Pairing.ReadQr(" LINCLIFE:0123456789ABCDEFGHJKMNPQRS\n"), "0123456789ABCDEFGHJKMNPQRS");
+            foreach (var other in new[] { null, "", "https://codelinc.codehawks.org", "LINCLIFE:", "LINCLIFE:SHORT", "linclife:0123456789ABCDEFGHJKMNPQRS",
+                "LINCLIFE:0123456789ABCDEFGHJKMNPQRSX", "LINCLIFE:0123456789ABCDEFGHIJKLMNOP", "LINCLIFE:0123456789abcdefghjkmnpqrs" })
+                Eq(Pairing.ReadQr(other), null);
+            Eq(Pairing.ReadCode("012345"), "012345");
+            foreach (var other in new[] { null, "", "12345", "1234567", "12345a" }) Eq(Pairing.ReadCode(other), null);
+        });
+
+        Test("answers travel to the site and back in its own shapes", () =>
+        {
+            var s = State(new Form { income = 85000, marital = "married", dependents = 2, debt = 280000, coverage = true });
+            s.profile["household"] = Field.Of(Status.Proposed, "both");
+            s.profile["years"] = Field.Unknown();
+            s.profile["savings"] = Field.Skipped();
+            var wire = Pairing.Wire(s.profile);
+            Eq(wire.Count, Calc.FIELDS.Length);
+            var income = (Dictionary<string, object>)wire["income"];
+            Eq((string)income["status"], "proposed");
+            Eq((long?)income["value"], 85000);
+            Eq((string)income["source"], "form");
+            var household = (Dictionary<string, object>)wire["household"];
+            Eq((string)household["value"], "both");
+            Ok(!household.ContainsKey("source"));
+            var years = (Dictionary<string, object>)wire["years"];
+            Eq((string)years["status"], "unknown");
+            Eq(years["value"], null);
+            Eq((string)((Dictionary<string, object>)wire["support"])["status"], "empty");
+            var form = Pairing.Wire(s.form);
+            Eq((long?)form["debt"], 280000);
+            Eq((string)form["marital"], "married");
+            Eq((bool?)form["coverage"], true);
+
+            var back = Pairing.ReadField("income", "proposed", 85000, null, true);
+            Ok(back.status == Status.Proposed && back.num == 85000 && back.fromForm);
+            var who = Pairing.ReadField("household", "confirmed", null, "kids", false);
+            Ok(who.status == Status.Confirmed && who.choice == "kids");
+            Eq(Pairing.ReadField("years", "unknown", null, null, false).status, Status.Unknown);
+            Eq(Pairing.ReadField("savings", "skipped", 5, null, false).num, null);
+            // Anything that does not fit the field is read as not answered, never as zero.
+            Eq(Pairing.ReadField("household", "proposed", null, "everyone", false).status, Status.Empty);
+            Eq(Pairing.ReadField("household", "proposed", 3, null, false).status, Status.Empty);
+            Eq(Pairing.ReadField("income", "proposed", null, "lots", false).status, Status.Empty);
+            Eq(Pairing.ReadField("income", "proposed", -5, null, false).status, Status.Empty);
+            Eq(Pairing.ReadField("income", "sideways", 5, null, false).status, Status.Empty);
+            Eq(Pairing.ReadField("notes", "proposed", 5, null, false).status, Status.Empty);
+        });
+
         // ---------- voice ----------
         Test("the voice briefing names what is known and what to find out next", () =>
         {

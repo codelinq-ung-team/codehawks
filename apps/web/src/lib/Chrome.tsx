@@ -33,7 +33,9 @@ export function Brand() {
 
 export function Header({ route }: { route: Route }) {
   const [confirming, setConfirming] = useState(false)
-  const index = STEPS.findIndex((s) => s.id === route)
+  // Choosing how to talk with Abe, and talking with him in VR, are both part of the Chat step.
+  const step = route === 'mode' || route === 'vr' ? 'chat' : route
+  const index = STEPS.findIndex((s) => s.id === step)
   return (
     <>
       <header className="top">

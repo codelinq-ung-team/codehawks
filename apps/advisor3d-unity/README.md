@@ -63,6 +63,32 @@ gap, and the posts around you become a staircase of the cost adding up, then ste
 the years pass. While the ring is up the panels give you about six seconds to look around
 before they come round to face you; tapping B or Y brings them at once.
 
+## Starting on the site
+
+Someone who fills in the Basics form on the site can choose **VR voice chat** there. The site
+shows a QR code; the app looks for it from the moment it opens, for as long as the Home screen
+is up. Look at the computer's screen and the app loads those answers, skips its own Basics
+form, and opens the chat. Each answer Abe hears is saved back, the site lists them as they
+arrive, and when Abe has said his closing words the site moves on to its Review screen. **Not
+yet tried on a headset**: the camera, the permission prompt and the scan are unconfirmed there.
+
+- `Scanner.cs` reads the headset's passthrough cameras as a webcam and hands a frame to ZXing
+  (`Assets/Plugins/ZXing/`, Apache 2.0) a few times a second, on a background thread. It needs
+  a Quest 3 or 3S on Horizon OS v74 or later, and asks for the camera the first time. In the
+  editor it uses the computer's webcam, so a code on a phone held up to it works.
+- If the camera is refused or missing, **Enter a Code** on Home takes the six digits shown
+  under the QR code instead.
+- `Sync.cs` joins the pairing, saves the answers after every change, and marks it done when
+  the conversation ends. `Pairing.cs` holds the shapes it shares with the site, and is tested.
+  Starting over, or the headset being off for ten seconds, ends the pairing; the site can then
+  finish by text with whatever was saved.
+- `Assets/Editor/HeadsetCamera.cs` adds the two camera permissions to the manifest at build time.
+- Pairing goes through the deployed site (`/api/pair`, see `apps/backend/README.md`), so it
+  works once that backend is deployed. To try it against a backend on your own computer, put
+  its address in `Assets/Resources/site.txt` (git-ignored), for example
+  `http://localhost:8000`, and run **Advisor3D → Set Up Project** once. That moves every
+  request, the chat's AI and voice included; on a headset add `adb reverse tcp:8000 tcp:8000`.
+
 ## Talking with Abe
 
 The Basics form is tapped; the chat is spoken. Opening the chat starts a voice conversation:
@@ -139,6 +165,7 @@ The logic files are ports of the site's, and keep its order, so the two can be r
 | `Guide.cs` | `guide/Avatar.tsx` |
 | `Screens.cs` | `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
 | `Voice.cs`, `VoiceScript.cs` | nothing: the site has no voice |
+| `Pairing.cs`, `Sync.cs`, `Scanner.cs` | `intake/pair.ts`, `intake/Vr.tsx` (the other end of the pairing) |
 | `Picture.cs` | `results/charts.tsx` (the year charts), as posts around the wearer |
 | `Hands.cs` | nothing |
 | `Ui.cs`, `App.cs`, `MeshGen.cs`, `Resources/Shaders/` | the headset UI kit and room (from `apps/advisor3d-web/src/xr/`) |
@@ -172,10 +199,13 @@ dotnet run --project Tests~
 ```
 
 These are the site's tests (`apps/web/tests/`) ported to C#, plus a run through the whole
-scripted chat and what the voice model is told (`VoiceScript.cs`).
+scripted chat, what the voice model is told (`VoiceScript.cs`), and the pairing shapes (`Pairing.cs`).
 
 ## Not checked yet
 
+- Pairing with a browser: the camera permission prompt, whether the passthrough cameras open
+  as a webcam, and how close the QR code has to be. The reader itself finds the site's code in
+  a 1280 by 960 picture where the code is under 90 pixels wide. Typing the code avoids the camera.
 - Talking with Abe, end to end: it has never run against OpenAI. First things to check are the
   microphone permission prompt in the headset, whether Abe's audio is smooth, and whether
   closing the microphone while he speaks is enough to stop him hearing himself.

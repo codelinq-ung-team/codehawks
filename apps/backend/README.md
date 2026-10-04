@@ -187,6 +187,38 @@ The route is unauthenticated like the others, so anyone who can reach it can sta
 sessions on the key: set a spend limit on the OpenAI project. For local work, set
 `OPENAI_API_KEY` in the environment instead; `apps/advisor3d-unity/README.md` has the steps.
 
+### Pairing a browser with the Quest app
+
+After the Basics form the site offers text chat or VR. For VR it saves the answers so far and
+shows a QR code; the headset reads it, has the conversation, and saves what Abe learned for
+the site to pick up (`apps/backend/pairing.py`). Send `POST /api/pair` with the usual headers:
+
+```json
+{"form":{"income":85000,"marital":"married","dependents":2,"debt":280000,"coverage":true},
+ "profile":{"income":{"status":"proposed","value":85000,"source":"form"}}}
+```
+
+The reply is `201` with `{"id":"<26 characters>","code":"097426","codeSeconds":600,"seconds":7200}`.
+The site's QR code holds `LINCLIFE:<id>`. The six-digit `code` is for typing in the headset
+when the camera can't read the QR code: `POST /api/pair/join` with `{"code":"097426"}`
+returns `{"id":"..."}` once, within ten minutes.
+
+`GET /api/pair/<id>` returns `{"status":"waiting","form":{...},"profile":{...}}`, with every
+profile field present. `POST /api/pair/<id>` with any of `status` (`waiting`, `joined`,
+`done`), `profile` and `form` replaces those and returns the same shape. The headset posts
+`joined` when it connects, the profile whenever an answer changes, and `done` when the
+conversation ends; the site polls every two seconds and moves to Review on `done`. An unknown
+or expired id returns 404.
+
+Pairings live in the DynamoDB table `codelinc-hackathon-app-pairing` (`PAIRING_TABLE`), which
+the app stack creates, and are deleted two hours after they are made. **This is the one place
+the site keeps answers on a server**: the form and the profile only, never the conversation,
+and nothing is logged. The server keeps only values that fit the site's fields. The id is the
+only credential, so anyone holding it can read or change that pairing until it expires; the
+typed code has a million possibilities and no attempt limit beyond its ten minutes and single
+use. These routes call no model and do not count against the admission limit. Without the
+table a deployed function returns 503; on a developer's computer pairings are kept in memory.
+
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
 failures return 502; provider timeouts return 504. Error details are sanitized.

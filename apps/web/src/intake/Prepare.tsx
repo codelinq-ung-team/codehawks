@@ -1,5 +1,6 @@
 // Before the chat: five short form questions, one at a time (same layout as the team's
-// assessment form). Answers fill in the profile so Abe only asks the follow-ups.
+// assessment form). Answers fill in the profile so Abe only asks the follow-ups. After the
+// last one comes the choice between typing with Abe here and talking with him in VR.
 // Abe stands beside each question in a pose: on the left for the first three, then on the right.
 import { useState, type FormEvent } from 'react'
 import { Button, Icon } from '../kit/Kit.tsx'
@@ -64,7 +65,7 @@ export function Prepare() {
   function next() {
     if (last) {
       setState((s) => ({ ...applyForm(s), started: true }))
-      go('chat')
+      go('mode')
     } else {
       setIndex(index + 1)
     }
@@ -136,7 +137,7 @@ export function Prepare() {
         <div className="qform__actions">
           <Button variant="bordered" className={index === 0 ? 'is-hidden' : ''} onClick={() => setIndex(index - 1)}>Back</Button>
           <Button type="submit" disabled={answer == null || tooBig}>
-            {last ? `Start Chat with ${GUIDE_NAME}` : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} />
+            {last ? `Meet ${GUIDE_NAME}` : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} />
           </Button>
         </div>
       </form>

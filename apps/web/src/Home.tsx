@@ -4,6 +4,7 @@ import { Button, Icon } from './kit/Kit.tsx'
 import { Avatar } from './guide/Avatar.tsx'
 import { GUIDE_NAME } from './guide/guide.ts'
 import { go, resetState, useStore } from './lib/store.ts'
+import { nextStep } from './intake/script.ts'
 
 // A short scripted exchange that shows how the chat works: ask, explain why, answer.
 const DEMO: { role: 'bot' | 'user'; text: string; why?: boolean }[] = [
@@ -18,7 +19,8 @@ export function Home() {
   const state = useStore()
   const resume = state.started
   const startLabel = resume ? 'Continue Where You Left Off' : 'Start Your Free Assessment'
-  const start = () => go(resume ? (state.messages.length ? 'chat' : 'prepare') : 'prepare')
+  // Back to wherever they were: the text chat, the headset pairing, or (answers back from VR) Review.
+  const start = () => go(!resume ? 'prepare' : state.messages.length ? 'chat' : state.vr ? 'vr' : nextStep(state) ? 'prepare' : 'review')
 
   return (
     <main className="lp">
