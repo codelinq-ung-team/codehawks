@@ -41,7 +41,7 @@ class PairingTests(unittest.TestCase):
         self.assertEqual((waiting["status"], waiting["form"]), ("waiting", FORM))
         self.assertEqual(waiting["profile"]["income"], {"status": "proposed", "value": 85000, "source": "form"})
         self.assertEqual(waiting["profile"]["support"], {"status": "empty", "value": None})
-        self.assertEqual(len(waiting["profile"]), 11)
+        self.assertEqual(len(waiting["profile"]), 13)
 
         # The headset joins, then saves what Abe learned. The form it was not sent stays.
         self.assertEqual(self.http.post("/api/pair/" + session_id, json={"status": "joined"}).json["status"], "joined")
@@ -52,6 +52,17 @@ class PairingTests(unittest.TestCase):
         self.assertEqual((seen["status"], seen["form"]), ("done", FORM))
         self.assertEqual(seen["profile"]["household"], {"status": "proposed", "value": "both"})
         self.assertEqual(seen["profile"]["years"], {"status": "unknown", "value": None})
+
+    def test_the_headset_hands_the_wearer_back_to_the_site(self):
+        session_id = self.create().json["id"]
+        confirmed = {"futureIncome": {"status": "confirmed", "value": 120000}, "plans": {"status": "confirmed", "value": 3}}
+        handed = self.http.post("/api/pair/" + session_id, json={"status": "handoff", "profile": confirmed})
+        self.assertEqual(handed.status_code, 200)
+        seen = self.http.get("/api/pair/" + session_id).json
+        self.assertEqual(seen["status"], "handoff")
+        self.assertEqual(seen["profile"]["futureIncome"], {"status": "confirmed", "value": 120000})
+        self.assertEqual(seen["profile"]["plans"], {"status": "confirmed", "value": 3})
+        self.assertEqual(self.http.post("/api/pair/" + session_id, json={"status": "finished"}).status_code, 400)
 
     def test_the_typed_code_works_once_and_expires(self):
         created = self.create().json

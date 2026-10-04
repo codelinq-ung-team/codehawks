@@ -64,3 +64,17 @@ test('long chats are trimmed and still start with the user', () => {
   assert.match(sent[0].content, /You are Abe/)
   assert.equal(sent.filter((m) => m.content.includes('You are Abe')).length, 1)
 })
+
+test('questions about the future get the outlook, or a pointer to add one', () => {
+  assert.equal(topicFor('what if I get a raise?'), 'future')
+  assert.equal(topicFor('we are planning to have kids'), 'future')
+  const { p, r } = sample()
+  assert.match(written('future', p, r), /snapshot of your life today/)
+  const planned = sample({ futureIncome: ok(170000), plans: ok(2) })
+  const text = written('future', planned.p, planned.r)
+  assert.match(text, /Today’s estimate is \$500,000\. From the changes you expect, it could be about \$1,260,000 in 10 years\./)
+  assert.match(text, /\*\*A higher income\*\*: \+\$400,000/)
+  assert.match(text, /\*\*A home\*\*: \+\$360,000/)
+  // The AI is told the same thing, so it explains the site's projection and doesn't make its own.
+  assert.match(payload([{ role: 'user', text: 'What about later?' }], planned.p, planned.r)[0].content, /Looking ahead \(about 10 years/)
+})

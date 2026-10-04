@@ -2,7 +2,9 @@
 
 The site saves the answers from its Basics form and shows the pairing id as a QR code (and a
 six-digit code to type). The headset reads the code, loads those answers, has the conversation
-with Abe, and saves what he learned. The site polls for it and carries on at Review.
+with Abe, and saves what he learned. The site polls for it: "done" means the conversation is
+over, and "handoff" that the wearer has seen their results and is coming back to the site,
+which then opens its results page.
 
 Only the form and the profile are held, for two hours, under an id nobody can guess. No
 conversation text is stored. Nothing here calls a model, so it does not use the admission limit.
@@ -24,7 +26,7 @@ SESSION_SECONDS = 2 * 60 * 60
 CODE_SECONDS = 10 * 60     # the typed code is easier to guess than the id, so it is short-lived and works once
 ID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32: fits a QR code's compact alphanumeric mode
 ID_LENGTH = 26             # 130 random bits
-STATUSES = ("waiting", "joined", "done")
+STATUSES = ("waiting", "joined", "done", "handoff")
 FIELD_STATUSES = ("empty", "unknown", "skipped", "proposed", "confirmed")
 FORM_LIMITS = {"age": 120, "income": 1_000_000_000, "dependents": 20, "debt": 1_000_000_000}
 MAX_CODE_TRIES = 5
@@ -196,7 +198,7 @@ def update(session_id, payload):
         raise ChatError(404, NOT_FOUND)
     if "status" in payload:
         if payload["status"] not in STATUSES:
-            raise ChatError(400, "status must be waiting, joined or done.")
+            raise ChatError(400, "status must be waiting, joined, done or handoff.")
         session["status"] = payload["status"]
     if "form" in payload:
         session["form"] = clean_form(payload["form"])

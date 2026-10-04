@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError, ReadTimeoutError
 from backend.app import app
 from backend.llm import ChatError
 from backend.policy_catalog import eligible, VERSION
-from backend.recommendations import validate, PROMPT, TOOL
+from backend.recommendations import outlook, validate, PROMPT, TOOL
 
 PREFERENCES = dict(state="TX", tobacco="no", goal="temporary", premium="low", cashValue="no")
 VALUES = dict(support=40000, years=10, mortgage=150000, otherDebts=30000, education=20000, existing=100000)
@@ -43,6 +43,25 @@ class RecommendationsTests(unittest.TestCase):
 
     def post(self, payload=None):
         return self.http.post("/api/recommendations", json=payload or body())
+
+    def test_the_outlook_reaches_the_model_as_a_projection_without_resizing_the_gap(self):
+        result = self.post(body({**VALUES, "income": 50000, "futureIncome": 100000, "plans": 2}))
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json["term"]["amount"], 500000)  # sized to today, never to the projection
+        sent = json.loads(self.model.converse.call_args.kwargs["messages"][0]["content"][0]["text"])
+        self.assertEqual(sent["gap"], 500000)
+        # Support doubles with income (400,000 more over 10 years) and a home is three times income.
+        self.assertEqual(sent["outlook"], {"inYears": 10, "plans": ["home"], "support": 80000, "years": 10, "mortgage": 300000, "gap": 1050000})
+
+    def test_the_outlook_matches_the_sites_calculator(self):
+        # The same cases as apps/web/tests/calculator.test.ts and the Quest app's Tests.cs.
+        self.assertIsNone(outlook(dict(VALUES), 500000))
+        self.assertIsNone(outlook({**VALUES, "income": 50000, "futureIncome": 50000, "plans": 0}, 500000))
+        self.assertIsNone(outlook({**VALUES, "income": 50000, "futureIncome": 30000}, 500000))
+        young = dict(income=13000, futureIncome=60000, plans=3, support=0, years=1, mortgage=0, otherDebts=8000, existing=0)
+        self.assertEqual(outlook(young, 8000), {"inYears": 10, "plans": ["kids", "home"], "support": 42000, "years": 22, "mortgage": 180000, "gap": 1112000})
+        partner = outlook({**VALUES, "income": 60000, "plans": 4}, 500000)
+        self.assertEqual((partner["support"], partner["years"], partner["gap"]), (42000, 10, 520000))
 
     def test_family_options_are_alternatives_and_facts_are_server_owned(self):
         result = self.post()

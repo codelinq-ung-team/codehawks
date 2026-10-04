@@ -3,7 +3,7 @@
 // fallback when the AI can't be reached. interpret() takes the AI's reading of a typed
 // answer and puts it through the same checks, so both return the same Reply shape.
 import {
-  FIELD, HOUSEHOLD, formatField, formatMoney, parseAmount, parseCount, isUnsure, isSkip, isWhy,
+  FIELD, HOUSEHOLD, NO_PLANS, PLANS, PLANS_MAX, formatField, formatMoney, formatPlans, parseAmount, parseCount, isUnsure, isSkip, isWhy,
   type Field, type FieldId, type Household, type Profile,
 } from '../domain/calculator.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
@@ -21,6 +21,11 @@ type Step = {
   ack: (v: number | Household, s: AppState) => string
   // Other fields this answer settles, like the debts left once the mortgage is known.
   also?: (v: number | Household, s: AppState) => Partial<Profile>
+  // The AI's number as words this step's reader takes, when the number alone would not do.
+  words?: (v: number) => string
+  // The reader also takes plain phrases ("double", "kids and a house"), so it gets a try at
+  // a typed answer the AI could not read.
+  phrases?: boolean
 }
 export type Reply = {
   updates?: Partial<Profile>
@@ -54,6 +59,29 @@ function countReader(min: number, max: number, noun: string) {
     if (r.kind !== 'amount') return { retry: `I didn’t catch ${noun}. Try a number like 10.` }
     return { value: r.value }
   }
+}
+
+// What someone expects in the next ten years, from their own words. A plan they rule out
+// ("no kids, but a house") is not counted.
+const PLAN_WORDS: Record<string, RegExp> = {
+  kids: /\b(kids?|child(ren)?|bab(y|ies)|son|daughter|pregnan\w*|expecting|start(ing)? a family|grow(ing)? (the|our|my) family)\b/,
+  home: /\b(homes?|houses?|condo|mortgage|property|place of (my|our) own)\b/,
+  partner: /\b(marr\w*|wedding|engaged|fianc\w*|partner|spouse|husband|wife)\b/,
+}
+const RULED_OUT = /\b(no|not|never|don'?t (want|plan on|expect))\s+((more|any|having|getting|buying|a|to have|to buy|to get)\s+)*(kids?|child(ren)?|bab(y|ies)|homes?|houses?|married|marr\w*)/g
+const NO_CHANGES = /^(none|no|nope|nah|nothing)\b|\bnone of (these|those|them)\b|\b(no|not any|nothing) (big )?(changes?|plans?|planned)\b|\bnot really\b/
+const SAME = /\b(same|no change|unchanged|stay(s|ing)? (put|flat|where it is)|about that|not much (more|different))\b/
+const TIMES: [RegExp, number][] = [[/\b(doubl\w*|twice|two times|2x)\b/, 2], [/\b(tripl\w*|three times|3x)\b/, 3], [/\bhalf again\b/, 1.5]]
+const roundTo = (v: number, unit: number) => Math.round(v / unit) * unit
+
+function readPlans(text: string): Read {
+  const said = text.toLowerCase().trim()
+  const t = said.replace(RULED_OUT, ' ')
+  const value = PLANS.reduce((sum, p) => sum + (PLAN_WORDS[p.id].test(t) ? p.bit : 0), 0)
+  if (value) return { value }
+  // Nothing left once the ruled-out plans are gone ("no kids"), or a plain "none of these".
+  if (NO_CHANGES.test(said) || t !== said) return { value: 0 }
+  return { retry: 'Which of these do you expect in the next ten years or so: kids, buying a home, getting married, or none of them?' }
 }
 
 const STEPS: Step[] = [
@@ -218,11 +246,61 @@ const STEPS: Step[] = [
   },
   {
     id: 'savings',
-    ask: () => ({ text: 'Last one. Do you have savings or investments your family could use? This one is optional.', replies: ['None', 'Skip this'] }),
+    ask: () => ({ text: 'Do you have savings or investments your family could use? This one is optional.', replies: ['None', 'Skip this'] }),
     why: 'Savings your family could draw on lowers how much insurance they’d need. Leave out retirement money you’d want them to keep.',
     optional: true,
     read: moneyReader(),
     ack: (v) => v === 0 ? 'Okay, no savings counted.' : `Thanks, ${money(v)} in savings.`,
+  },
+  // Two quick questions about tomorrow. They never change today's estimate: they add a second
+  // figure beside it (outlook() in the calculator), so both are optional and both are one tap.
+  {
+    id: 'plans',
+    ask: () => ({
+      text: 'That’s today covered. Life doesn’t stand still, though, so two quick ones about tomorrow. In the next ten years or so, do you expect any of these?',
+      replies: ['Kids', 'Buying a home', 'Kids and a home', 'Getting married', NO_PLANS, 'Skip this'],
+    }),
+    why: 'Everything so far is a snapshot of your life today. A first child, a home or a marriage can change what your family would need, so I’ll show that next to today’s number. It never changes today’s estimate, and you can skip it.',
+    optional: true,
+    phrases: true,
+    read: readPlans,
+    words: (v) => formatPlans(Math.min(PLANS_MAX, Math.max(0, v))),
+    ack: (v) => v === 0 ? 'Got it, no big changes on the horizon.' : `Got it: ${formatPlans(Number(v)).toLowerCase()}. I’ll show what that could mean next to today’s number.`,
+  },
+  {
+    id: 'futureIncome',
+    // Asked only when today's income is known: the answer is read against it.
+    when: (s) => Number(val(s.profile, 'income')) > 0,
+    ask(s) {
+      const income = Number(val(s.profile, 'income'))
+      // Someone early in a career, or on a small income, is likelier to expect a big change.
+      const early = (s.form.age != null && s.form.age < 30) || income < 30000
+      const unit = income < 20000 ? 1000 : 5000
+      const [a, b] = (early ? [2, 4] : [1.25, 1.5]).map((k) => formatMoney(roundTo(income * k, unit)))
+      return {
+        text: `Last one. You earn about ${formatMoney(income)} a year now. Where do you expect that to be in ten years? A rough guess is fine.`,
+        replies: ['About the same', a, b, 'Skip this'],
+      }
+    },
+    why: 'Today’s estimate uses what you earn now. If you expect to earn more, your family would come to rely on more, so I’ll also show the coverage you may grow into. It never changes today’s estimate, and you can skip it.',
+    optional: true,
+    phrases: true,
+    read(text, s) {
+      const income = Number(val(s.profile, 'income'))
+      const t = text.toLowerCase()
+      const r = parseAmount(text)
+      // A stated figure wins: "about the same, maybe 60k" is 60,000.
+      if (r.kind !== 'amount' || r.value === 0) {
+        if (SAME.test(t)) return { value: income }
+        const times = TIMES.find(([re]) => re.test(t))
+        if (times) return { value: roundTo(income * times[1], 100) }
+      }
+      return moneyReader({ monthlyCheck: true })(text)
+    },
+    ack: (v, s) => {
+      const income = Number(val(s.profile, 'income'))
+      return v === income ? 'Got it, about the same as today.' : `Got it, about ${money(v)} a year by then.`
+    },
   },
 ]
 
@@ -356,13 +434,20 @@ export function interpret(stepId: FieldId, reading: Reading, state: AppState, ty
   if (reading.intent === 'unsure') return respond(stepId, 'not sure', { ...state, pending: null })
   if (reading.intent === 'skip') return respond(stepId, step.optional ? 'skip' : 'not sure', { ...state, pending: null })
   if (reading.intent !== 'answer') {
+    // "Double", "kids and a house": plain phrases the step's own reader takes.
+    if (reading.intent === 'unclear' && step.phrases) {
+      const r = step.read(typed.trim(), state)
+      if ('value' in r) return settle(step, r, state)
+    }
     return { say: [reading.say.trim() || 'Sorry, I didn’t catch that. Could you say it another way?'], replies }
   }
 
   const household = HOUSEHOLD[reading.household as Household]
   const text = stepId === 'household'
     ? household
-    : reading.value == null ? undefined : String(reading.value) + (reading.period === 'month' ? ' a month' : '')
+    : reading.value == null ? undefined
+      : step.words ? step.words(reading.value)
+        : String(reading.value) + (reading.period === 'month' ? ' a month' : '')
   if (text === undefined) return { say: ['Sorry, I didn’t catch that. Could you say it another way?'], replies }
 
   const reply = settle(step, step.read(text, state), state)
@@ -372,7 +457,7 @@ export function interpret(stepId: FieldId, reading: Reading, state: AppState, ty
   const noted: string[] = []
   for (const [id, raw] of Object.entries(reading.extra)) {
     const other = STEP[id as FieldId]
-    if (!other || other.id === 'household' || typeof raw !== 'number') continue
+    if (!other || other.id === 'household' || other.id === 'plans' || typeof raw !== 'number') continue
     if (state.profile[other.id].status !== 'empty' || reply.updates[other.id]) continue
     const r = other.read(String(raw), state)
     if (!('value' in r)) continue

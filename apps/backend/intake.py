@@ -12,8 +12,11 @@ from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .prompts import INTAKE_PROMPT
 
 # Mirrors FIELDS in apps/web/src/domain/calculator.ts.
-MONEY = ("income", "support", "mortgage", "otherDebts", "finalExpenses", "education", "existing", "savings")
-LIMITS = {"youngestAge": (0, 30), "years": (1, 70), **{name: (0, 1_000_000_000) for name in MONEY}}
+MONEY = ("income", "futureIncome", "support", "mortgage", "otherDebts", "finalExpenses", "education", "existing", "savings")
+# plans: what the user expects in the next ten years, as bits (kids 1, home 2, partner 4). 0 is none of them.
+PLANS = ("kids", "home", "partner")
+LIMITS = {"youngestAge": (0, 30), "years": (1, 70), "plans": (0, 2 ** len(PLANS) - 1),
+          **{name: (0, 1_000_000_000) for name in MONEY}}
 HOUSEHOLD = ("both", "partner", "kids", "others", "none")
 STEPS = ("household", *LIMITS)
 INTENTS = ("answer", "unsure", "skip", "why", "question", "unclear")
@@ -30,6 +33,8 @@ TOOL = {"toolSpec": {
             "intent": {"type": "string", "enum": list(INTENTS)},
             "value": {"type": "number", "description": "Dollars, years or age for the current question. Omit for household or when not answered."},
             "household": {"type": "string", "enum": list(HOUSEHOLD)},
+            "plans": {"type": "array", "items": {"type": "string", "enum": list(PLANS)},
+                      "description": "Only for the plans field: what they expect in the next ten years. Empty for none."},
             "period": {"type": "string", "enum": ["month", "year"],
                        "description": "Only when the user said the amount is per month or per year."},
             "extra": {"type": "object", "description": "Other fields the user stated outright in the same message, as numbers.",
@@ -101,6 +106,13 @@ def clean(reading, step, answer):
             result["intent"] = "unclear"
             return result
         result["household"] = reading["household"]
+    elif step == "plans":
+        plans = reading.get("plans")
+        if not isinstance(plans, list) or any(plan not in PLANS for plan in plans):
+            result["intent"] = "unclear"
+            return result
+        result["value"] = sum(2 ** PLANS.index(plan) for plan in set(plans))
+        return result
     else:
         value = reading.get("value")
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:

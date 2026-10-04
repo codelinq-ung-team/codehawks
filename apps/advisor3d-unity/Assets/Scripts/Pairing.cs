@@ -48,7 +48,7 @@ namespace Advisor3D
 
         public static Dictionary<string, object> Wire(Form form) => new Dictionary<string, object>
         {
-            ["income"] = form.income, ["marital"] = form.marital, ["dependents"] = form.dependents,
+            ["age"] = form.age, ["income"] = form.income, ["marital"] = form.marital, ["dependents"] = form.dependents,
             ["debt"] = form.debt, ["coverage"] = form.coverage,
         };
 

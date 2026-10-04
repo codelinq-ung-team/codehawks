@@ -1,7 +1,8 @@
 // Talk with Abe in VR: shows a QR code (and a code to type) that the Quest app reads to pair
 // with this browser, and a short guide to using the headset. Once the headset joins, the
-// answers Abe hears appear here as he learns them. When the conversation ends, they are
-// handed back and this screen moves on to Review.
+// answers Abe hears appear here as he learns them. When the conversation ends the headset goes
+// on to show the results, and this screen keeps up with it; when the wearer chooses to continue
+// here (or takes the headset off on their results), it opens the same results in the browser.
 import { useEffect, useMemo, useState } from 'react'
 import qrcode from 'qrcode-generator'
 import { Banner, Button, Icon } from '../kit/Kit.tsx'
@@ -9,7 +10,7 @@ import { Page, Title } from '../lib/Chrome.tsx'
 import { getState, go, setState, useStore } from '../lib/store.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { Knows } from './Knows.tsx'
-import { createPairing, qrText, readPairing, type Pairing, type Shared } from './pair.ts'
+import { createPairing, landing, qrText, readPairing, type Pairing, type Shared } from './pair.ts'
 
 const POLL_MS = 2000
 
@@ -19,6 +20,12 @@ function pair() {
   const s = getState()
   creating ??= createPairing(s.form, s.profile).finally(() => { creating = null })
   return creating
+}
+
+// Back from the headset: carry on in this browser, on Results when the answers were confirmed there.
+function arrive() {
+  setState({ vr: null, started: true })
+  go(landing(getState().profile))
 }
 
 function Qr({ text }: { text: string }) {
@@ -98,12 +105,9 @@ export function Vr() {
       if (r) {
         setShared(r)
         // Keep what Abe has heard so far, so switching to text chat carries on from there.
-        if (r.status !== 'waiting') setState({ profile: r.profile, form: r.form })
-        if (r.status === 'done') {
-          setState({ vr: null })
-          go('review')
-          return
-        }
+        // (An older headset build doesn't send the age back; keep the one given here.)
+        if (r.status !== 'waiting') setState((s) => ({ profile: r.profile, form: { ...r.form, age: r.form.age ?? s.form.age } }))
+        if (r.status === 'handoff') return arrive()
       }
       timer = setTimeout(() => void tick(), POLL_MS)
     }
@@ -116,6 +120,27 @@ export function Vr() {
   const vr = state.vr
   const code = vr && now < vr.codeUntil ? `${vr.code.slice(0, 3)} ${vr.code.slice(3)}` : null
 
+  if (joined && shared.status === 'done') {
+    const confirmed = landing(state.profile) === 'results'
+    return (
+      <Page className="vr">
+        <Title sub={`He’s walking you through your results in the headset. Whenever you take it off, everything is waiting right here.`}>{GUIDE_NAME} has what he needs</Title>
+        <div className="vr__grid vr__grid--live">
+          <Knows profile={state.profile} form={state.form} className="knows--live" />
+          <aside className="vr__side">
+            <Banner
+              tone="success" title="Your answers are saved here"
+              message={confirmed
+                ? 'You confirmed them in the headset, so your full results are ready: the charts, your summary to copy, and questions for ' + GUIDE_NAME + '.'
+                : 'Finish in the headset, or carry on here: check your answers, then see your results.'}
+            />
+            <Button size="large" fullWidth onClick={arrive}>{confirmed ? 'See My Results Here' : 'Check My Answers Here'}<Icon name="chevron-right" size={18} weight={2.6} /></Button>
+          </aside>
+        </div>
+      </Page>
+    )
+  }
+
   if (joined) {
     return (
       <Page className="vr">
@@ -123,7 +148,7 @@ export function Vr() {
         <div className="vr__grid vr__grid--live">
           <Knows profile={state.profile} form={state.form} className="knows--live" />
           <aside className="vr__side">
-            <Banner tone="success" title="Stay in the headset until he’s finished" message={`When ${GUIDE_NAME} says that’s everything, take the headset off. This screen will move on to checking your answers.`} />
+            <Banner tone="success" title="Stay in the headset until he’s finished" message={`When ${GUIDE_NAME} says that’s everything, he’ll show your results in the room around you. This screen opens them here when you’re ready to come back.`} />
             <Button variant="bordered" fullWidth icon="message" onClick={() => go('chat')}>Finish by Text Instead</Button>
           </aside>
         </div>

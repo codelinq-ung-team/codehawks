@@ -434,6 +434,8 @@ namespace Advisor3D
             static List<string> Names(JToken t) => t is JArray a ? a.Where(x => x.Type == JTokenType.String).Select(x => (string)x).ToList() : null;
             var amounts = new Dictionary<string, long>();
             foreach (var f in Calc.FIELDS) if (f.kind != "choice" && Number(args[f.id])) amounts[f.id] = (long)Math.Round((double)args[f.id]);
+            // What they expect in the next ten years arrives as a list; the app keeps it as one number.
+            if (Names(args["plans"]) is List<string> plans) amounts["plans"] = Calc.PLANS.Where(p => plans.Contains(p.id)).Sum(p => p.bit);
             var household = args["household"]?.Type == JTokenType.String ? (string)args["household"] : null;
             var (updates, tell) = VoiceScript.Save(amounts, household, Names(args["unsure"]), Names(args["skip"]), Store.State);
             // How many answers came in and how many were kept. Not the answers themselves.

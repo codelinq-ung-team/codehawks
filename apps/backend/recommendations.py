@@ -4,7 +4,7 @@ import math
 import os
 from pathlib import Path
 
-from .intake import HOUSEHOLD, LIMITS
+from .intake import HOUSEHOLD, LIMITS, PLANS
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .policy_catalog import VERSION, STATES, eligible
 
@@ -33,6 +33,16 @@ duration covering years of support; if none is long enough use the longest and e
 the shorter protection. Do not recommend an unavailable option. If both are unavailable,
 recommendedType is null. Explain the reasons using only the supplied facts and identify
 important uncertainty. A licensed professional must confirm eligibility and quotes.
+The request may include outlook: the site's projection of the gap in about ten years,
+built from what the user expects by then (outlook.plans: kids, home, partner; and
+facts.futureIncome, the yearly income they expect). The recommendation is still sized
+to the gap today: never size it to the projection, and ignore facts.plans, which is
+only a code. When outlook is present, say in the reason, in one short sentence, that
+the need may grow with the changes they named and is worth revisiting when they
+happen, and that converting or adding coverage later depends on the policy and must
+be confirmed. Plans are not facts yet: do not treat a planned child or home as a
+current need, or expected income as affordability. Say nothing of this when outlook
+is null.
 """
 
 TOOL = {"toolSpec": {"name": "recommend", "description": "Record the two policy options and preferred coverage type.",
@@ -85,6 +95,30 @@ def validate(payload):
     return facts, age, preferences, gap
 
 
+def outlook(facts, gap):
+    """What the gap could grow into in about ten years, from the user's plans and expected income.
+
+    Mirrors outlook() in apps/web/src/domain/calculator.ts: support keeps its share of income;
+    kids or a partner mean at least 70% of income for at least 22 or 10 years; a home is a
+    mortgage of three times income. None unless the gap grows.
+    """
+    plans = [plan for bit, plan in enumerate(PLANS) if facts.get("plans", 0) >> bit & 1]
+    now = facts.get("income", 0)
+    then = facts.get("futureIncome", now)
+    support, years, mortgage = facts["support"], facts["years"], facts["mortgage"]
+    if now and support and "futureIncome" in facts:
+        support = math.floor(support * then / now / 100 + 0.5) * 100
+    for plan, least in (("kids", 22), ("partner", 10)):
+        if plan in plans:
+            years = max(years, least)
+            support = max(support, math.floor(then * 0.7 / 100 + 0.5) * 100)
+    if "home" in plans:
+        mortgage = max(mortgage, math.floor(then * 3 / 1000 + 0.5) * 1000)
+    ahead = max(0, support * years + mortgage + facts["otherDebts"] + facts.get("finalExpenses", 0)
+                + facts.get("education", 0) - facts["existing"] - facts.get("savings", 0))
+    return {"inYears": 10, "plans": plans, "support": support, "years": years, "mortgage": mortgage, "gap": ahead} if ahead > gap else None
+
+
 def clean(reading, candidates, facts, gap):
     if not isinstance(reading, dict) or set(reading) != set(TOOL["toolSpec"]["inputSchema"]["json"]["required"]):
         raise ValueError("Invalid recommendation")
@@ -135,7 +169,7 @@ def recommend(payload):
         response = get_client().converse(modelId=model,
             system=[{"text": PROMPT + "\n\nReviewed research:\n" + REFERENCE}],
             messages=[{"role": "user", "content": [{"text": json.dumps(dict(facts=facts, age=age,
-                preferences=preferences, gap=gap, candidates=candidates))}]}],
+                preferences=preferences, gap=gap, outlook=outlook(facts, gap), candidates=candidates))}]}],
             inferenceConfig={"maxTokens": 1400, "temperature": 0},
             toolConfig={"tools": [TOOL], "toolChoice": {"tool": {"name": "recommend"}}})
         if response.get("stopReason") != "tool_use":
