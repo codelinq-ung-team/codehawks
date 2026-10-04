@@ -1,9 +1,8 @@
-// Home: a short pitch, a preview of the chat with Abe, then the details further down.
+// Home: a short pitch and a preview of the chat with Abe.
 import { useEffect, useState } from 'react'
-import { Button, Icon, ListRow, ListSection, StatCard, type HueName, type IconName } from './kit/Kit.tsx'
+import { Button, Icon } from './kit/Kit.tsx'
 import { Avatar } from './guide/Avatar.tsx'
 import { GUIDE_NAME } from './guide/guide.ts'
-import { Footer } from './lib/Chrome.tsx'
 import { go, resetState, useStore } from './lib/store.ts'
 
 // A short scripted exchange that shows how the chat works: ask, explain why, answer.
@@ -13,13 +12,6 @@ const DEMO: { role: 'bot' | 'user'; text: string; why?: boolean }[] = [
   { role: 'bot', why: true, text: 'It’s the paycheck your family would lose. It’s a starting point, not the final number.' },
   { role: 'user', text: 'Makes sense. About $75,000.' },
   { role: 'bot', text: 'Thanks! Next, let’s talk about any debts.' },
-]
-
-const STEPS: { icon: IconName; hue: HueName; title: string; text: string }[] = [
-  { icon: 'info', hue: 'blue', title: 'Start with the basics', text: 'Five quick questions about your income, family, debts and coverage.' },
-  { icon: 'people', hue: 'indigo', title: 'Chat in your own words', text: 'Ask “why?” any time. “Not sure” is always an answer.' },
-  { icon: 'check-circle', hue: 'green', title: 'Check your answers', text: 'Fix anything before we do the math.' },
-  { icon: 'trend-up', hue: 'orange', title: 'See the math', text: 'Try different numbers and copy a summary to keep.' },
 ]
 
 export function Home() {
@@ -48,59 +40,7 @@ export function Home() {
         <Preview onStart={start} />
       </section>
 
-      <section className="lp-band" aria-label="At a glance">
-        <ul>
-          <li><strong>~10</strong> short questions</li>
-          <li><strong>100%</strong> free</li>
-          <li><strong>0</strong> accounts needed</li>
-          <li><strong>1</strong> summary to keep</li>
-        </ul>
-      </section>
-
-      <section className="lp-section" id="how" aria-labelledby="how-title">
-        <div className="lp-section__head">
-          <h2 id="how-title" className="lp-h2">How it works</h2>
-          <p className="body muted">A calm, step-by-step chat. You stay in control of every answer.</p>
-        </div>
-        <ul className="lp-steps">
-          {STEPS.map((s) => (
-            <li key={s.title} className="lp-step">
-              <span className="lp-step__tile" style={{ background: `var(--hue-${s.hue})` }} aria-hidden="true"><Icon name={s.icon} size={20} weight={2.2} /></span>
-              <h3 className="headline">{s.title}</h3>
-              <p className="subhead muted">{s.text}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="lp-section lp-get" id="get" aria-labelledby="get-title">
-        <div className="lp-get__copy">
-          <h2 id="get-title" className="lp-h2">An estimate you can actually follow</h2>
-          <p className="body muted">No black box. You’ll see what goes in, what comes out, and how changing one number changes the result.</p>
-          <ul className="lp-checks">
-            {['Every line of the math, in plain language', 'Try different scenarios instantly', 'A summary to bring to a licensed professional'].map((t) => (
-              <li key={t} className="body"><Icon name="check" size={18} weight={2.6} />{t}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="lp-get__example">
-          <StatCard tone="brand" value="$500,000" label="Estimated additional coverage for a sample family" />
-          <ListSection footer="A sample household with one child. Your numbers will be different.">
-            <ListRow title="Yearly support" subtitle="$40,000 × 10 years" value="$400,000" />
-            <ListRow title="Mortgage and other debts" value="+ $180,000" />
-            <ListRow title="Education" value="+ $20,000" />
-            <ListRow title="Coverage you already have" value="− $100,000" />
-          </ListSection>
-        </div>
-      </section>
-
-      <section className="lp-final" aria-labelledby="final-title">
-        <h2 id="final-title" className="lp-h2">Ready when you are</h2>
-        <p className="body">It takes about 10 short questions. You can stop, go back, or start over any time.</p>
-        <Button size="large" onClick={start} className="lp-final__btn">{startLabel}</Button>
-      </section>
-
-      <Footer />
+      <footer className="lp-band" />
     </main>
   )
 }

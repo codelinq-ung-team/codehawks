@@ -1,7 +1,8 @@
-// Shared page chrome: the top bar (section links on Home, step progress elsewhere).
+// Shared page chrome: the top bar (a brand bar with a chat link on Home, step progress elsewhere).
 import { useState, type ReactNode } from 'react'
-import { Alert, Button, Icon, PartnerBadge } from '../kit/Kit.tsx'
-import { go, resetState, type Route } from './store.ts'
+import { Alert, Button, Icon } from '../kit/Kit.tsx'
+import { getState, go, resetState, type Route } from './store.ts'
+import { GUIDE_NAME } from '../guide/guide.ts'
 
 const STEPS: { id: Route; label: string }[] = [
   { id: 'prepare', label: 'Basics' },
@@ -10,17 +11,31 @@ const STEPS: { id: Route; label: string }[] = [
   { id: 'results', label: 'Results' },
 ]
 
-function jump(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+// Abe's face for the brand tile: an outlined stovepipe hat over a solid chin-curtain beard.
+function AbeMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 8.5V2.3a.8.8 0 0 1 .8-.8h5.4a.8.8 0 0 1 .8.8v6.2M5 8.5h14" />
+      <path d="M7.5 11.5c0 5.6 2 10 4.5 10s4.5-4.4 4.5-10c-.9 3.2-2.5 5-4.5 5s-3.6-1.8-4.5-5z" fill="currentColor" />
+      <circle cx="10.2" cy="11.6" r=".95" fill="currentColor" stroke="none" />
+      <circle cx="13.8" cy="11.6" r=".95" fill="currentColor" stroke="none" />
+    </svg>
+  )
 }
 
 export function Brand() {
   return (
     <a className="brand headline" href="#/">
-      <span className="brand__mark" aria-hidden="true"><Icon name="heart" size={18} weight={2.4} /></span>
+      <span className="brand__mark" aria-hidden="true"><AbeMark /></span>
       <span>Linc<span className="brand__accent">Life</span></span>
     </a>
   )
+}
+
+// Same destination as the hero's start button: back into the chat if it's under way.
+function startChat() {
+  const s = getState()
+  go(s.started && s.messages.length ? 'chat' : 'prepare')
 }
 
 export function Header({ route }: { route: Route }) {
@@ -33,11 +48,9 @@ export function Header({ route }: { route: Route }) {
         {index >= 0
           ? <Button variant="plain" size="small" onClick={() => setConfirming(true)}>Start Over</Button>
           : (
-            <nav className="top__nav" aria-label="Page sections">
-              <button type="button" className="top__link" onClick={() => jump('how')}>How it works</button>
-              <button type="button" className="top__link" onClick={() => jump('get')}>What you get</button>
-              <Button size="small" onClick={() => go('prepare')}>Start Assessment</Button>
-            </nav>
+            <button type="button" className="top__cta" onClick={startChat}>
+              Chat with {GUIDE_NAME}<Icon name="chevron-right" size={14} weight={2.8} />
+            </button>
           )}
       </header>
       {index >= 0 && <Stepper index={index} />}
@@ -89,14 +102,5 @@ export function Title({ children, sub }: { children: ReactNode; sub?: ReactNode 
       <h1 className="large-title">{children}</h1>
       {sub && <p className="body muted">{sub}</p>}
     </div>
-  )
-}
-
-export function Footer() {
-  return (
-    <footer className="lp-footer">
-      <p className="footnote muted">LincLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security.</p>
-      <PartnerBadge prefix="Built at" name="codeLinc 11" />
-    </footer>
   )
 }

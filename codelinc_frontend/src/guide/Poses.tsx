@@ -1,10 +1,14 @@
-// Abe in a few poses for the Basics form: the same head as Avatar.tsx on a small body.
+// Abe in a few poses for the Basics form and results: the same head as Avatar.tsx on a small body.
+// "peek" is just the head and hands, for looking over the top of the results easel.
 // 48×48, transparent. Show at multiples of 48 (96, 144) so the pixels stay crisp.
 
-export type PoseName = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer' | 'pointup' | 'ponder'
+import { toRects } from './pixels.ts'
 
-// One letter per pixel, '.' is transparent. Letters map to the colors below.
-const POSES: Record<PoseName, string[]> = {
+type DrawnPose = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer' | 'pointup' | 'ponder'
+export type PoseName = DrawnPose | 'heart' | 'shocked' | 'peek'
+
+// One letter per pixel, '.' is transparent. Letters map to the colors in pixels.ts.
+const DRAWN: Record<DrawnPose, string[]> = {
   wave: [
     '................................................',
     '..................KKKKKKKKKKKK..................',
@@ -407,65 +411,66 @@ const POSES: Record<PoseName, string[]> = {
   ]
 }
 
-const COLORS: Record<string, string> = {
-  'A': '#2d2428', // hat
-  'B': '#33211b', // brows
-  'C': '#f2bfa6', // blush
-  'D': '#3a2820', // beard
-  'E': '#2a1410', // eyes
-  'F': '#1f171b', // boots
-  'G': '#8a94a3', // clipboard clip
-  'H': '#3a2820', // hair
-  'J': '#262025', // coat
-  'K': '#1c1316', // outline
-  'L': '#38303a', // lapels
-  'M': '#9a6248', // mole
-  'O': '#ff7a47', // lapel pin and accents, brand orange
-  'P': '#3a3540', // trousers
-  'Q': '#17111a', // trousers and sole outline
-  'S': '#f8d5bb', // skin
-  'T': '#650030', // hat band, brand burgundy
-  'U': '#9a6a44', // clipboard
-  'V': '#ffb43c', // sparkle
-  'W': '#ffffff', // white
-  'Y': '#141012', // bow tie
-  'a': '#4d4146', // hat shine, buttons
-  'c': '#fff7f0', // shirt, cuffs, paper
-  'd': '#5c4134', // beard strands
-  'e': '#ecdccf', // shirt shade, paper lines
-  'f': '#4a3e44', // boot shine
-  'g': '#77706b', // gray strands
-  'h': '#52362a', // hair strands
-  'k': '#d993a8', // thought bubble outline
-  'm': '#8e4a4f', // mouth
-  'n': '#c07a72', // mouth corners
-  'o': '#ffc7a8', // pin shine
-  'p': '#4f4858', // trousers light
-  'q': '#b8405e', // open mouth
-  'r': '#4f4655', // coat and sleeve light
-  's': '#ecb89a', // skin shadow
-  't': '#86193f', // band light
-  'w': '#d9d2cd', // soft eye glint
-  'x': 'rgba(60, 20, 30, 0.16)', // ground shadow
-  'y': '#3a3236', // bow tie knot
-  'z': '#dc9f80' // deep shadow, outlines on skin
+
+
+// Abe holding a heart up in his right hand: the head from "point" on the body from
+// "thumbs", with the thumb swapped for the heart.
+const HEART = [
+  '..KKK...KKK..',
+  '.KXXXK.KXXXK.',
+  'KXZZXXKXXXXXK',
+  'KXZXXXXXXXXXK',
+  'KXXXXXXXXXXXK',
+  '.KXXXXXXXXXK.',
+  '..KXXXXXXXK..',
+  '...KXXXXXK...',
+  '....KXXXK....',
+  '.....KXK.....',
+  '......K......'
+]
+
+// Paint `art` onto a copy of `rows` with its top-left at (x0, y0). '.' in `art` leaves the pixel alone
+// unless `opaque` is set, in which case the whole string is written as-is (used to swap face rows).
+function paint(rows: string[], x0: number, y0: number, art: string[], opaque = false) {
+  art.forEach((line, dy) => {
+    const row = rows[y0 + dy].split('')
+    line.split('').forEach((c, dx) => { if (opaque || c !== '.') row[x0 + dx] = c })
+    rows[y0 + dy] = row.join('')
+  })
+  return rows
 }
 
-// Merge each row's runs of one color into a single rect.
-function toRects(rows: string[]) {
-  const rects: { x: number; y: number; w: number; fill: string }[] = []
-  rows.forEach((row, y) => {
-    let x = 0
-    while (x < row.length) {
-      const c = row[x]
-      let w = 1
-      while (row[x + w] === c) w++
-      if (c !== '.') rects.push({ x, y, w, fill: COLORS[c] })
-      x += w
-    }
-  })
-  return rects
+function heart() {
+  const rows = [...DRAWN.point.slice(0, 26), ...DRAWN.thumbs.slice(26)]
+  rows[26] = rows[26].slice(0, 36) + '.'.repeat(12)
+  return paint(rows, 40 - Math.floor(HEART[0].length / 2), 26 - HEART.length + 1, HEART)
 }
+
+// Shocked: the cheer pose's raised hands with raised brows, wide eyes, an "O" mouth and two "!" marks.
+function shocked() {
+  // Drop cheer's confetti (sparkles, plus orange and burgundy dots away from the body).
+  const rows = DRAWN.cheer.map((row) => row.split('').map((c, x) =>
+    c === 'V' || ((c === 'O' || c === 'T') && (x < 15 || x > 33)) ? '.' : c).join(''))
+  paint(rows, 15, 12, ['HHHHBBBSSSSBBBHHHH'], true)
+  paint(rows, 16, 13, ['hHSzzzSSSSzzzSHH', 'zHSWWWSSSSWWWSHz'], true)
+  paint(rows, 15, 15, ['zSHSWEWSSsSWEWSHSz', 'zSHSWWWSSsSWWWSHSz'], true)
+  paint(rows, 16, 19, ['DdDDDSmqqmSDdDDD', 'DDgDDDmqqmDDdDDD'], true)
+  const bang = ['T', 'T', 'T', 'T', 'T', '.', 'T']
+  paint(rows, 37, 2, bang)
+  return paint(rows, 40, 3, bang)
+}
+
+// Peeking over the top of something: just the head, eyes down, with both hands gripping the edge
+// at rows 23–26. Everything below is transparent, so it can sit on top of the easel.
+function peek() {
+  const rows = [...DRAWN.point.slice(0, 26), ...Array.from({ length: 22 }, () => '.'.repeat(48))]
+  paint(rows, 15, 15, ['zSHSSwwSSsSwwSSHSz'], true)
+  const hand = ['.zzzz.', 'zSSSSz', 'zSsSsz', 'zSSSSz']
+  paint(rows, 10, 23, hand)
+  return paint(rows, 32, 23, hand)
+}
+
+const POSES: Record<PoseName, string[]> = { ...DRAWN, heart: heart(), shocked: shocked(), peek: peek() }
 
 const RECTS = Object.fromEntries(Object.entries(POSES).map(([name, rows]) => [name, toRects(rows)])) as Record<PoseName, ReturnType<typeof toRects>>
 
