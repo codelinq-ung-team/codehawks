@@ -47,6 +47,26 @@
       "Default": "unset",
       "Description": "OpenAI key for Abe's voice, from the OPENAI_VOICE_TOKEN Actions secret. Voice stays off while this is unset.",
       "AllowedPattern": "^(unset|sk-[A-Za-z0-9_-]{20,250})$"
+    },
+    "PlaidClientId": {
+      "Type": "String",
+      "NoEcho": true,
+      "Default": "unset",
+      "Description": "Plaid Sandbox client id, from the PLAID_CLIENT_ID Actions secret. Plaid stays off while this is unset.",
+      "AllowedPattern": "^(unset|[A-Za-z0-9]{16,64})$"
+    },
+    "PlaidSecret": {
+      "Type": "String",
+      "NoEcho": true,
+      "Default": "unset",
+      "Description": "Plaid Sandbox secret, from the PLAID_SECRET Actions secret. Plaid stays off while this is unset.",
+      "AllowedPattern": "^(unset|[A-Za-z0-9]{16,64})$"
+    },
+    "PlaidClientName": {
+      "Type": "String",
+      "Default": "LincLife",
+      "Description": "Name Plaid Link shows to the person, from the PLAID_CLIENT_NAME Actions variable.",
+      "AllowedPattern": "^[A-Za-z0-9 ]{1,30}$"
     }
   },
   "Resources": {
@@ -56,6 +76,20 @@
         "Name": "codelinc-hackathon-app-openai-api-key",
         "Description": "OpenAI key the chat function reads to start voice sessions. It never reaches the headset.",
         "SecretString": { "Ref": "OpenAiApiKey" },
+        "Tags": [
+          { "Key": "Project", "Value": "codelinc-hackathon" },
+          { "Key": "Owner", "Value": "Israel Jauregui" },
+          { "Key": "Lifecycle", "Value": "ephemeral" },
+          { "Key": "ManagedBy", "Value": "CloudFormation" }
+        ]
+      }
+    },
+    "PlaidCredentialsSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": "codelinc-hackathon-app-plaid",
+        "Description": "Plaid Sandbox client id and secret the chat function reads to start Link and fetch balances. They never reach the browser.",
+        "SecretString": { "Fn::Sub": "{\"client_id\":\"${PlaidClientId}\",\"secret\":\"${PlaidSecret}\"}" },
         "Tags": [
           { "Key": "Project", "Value": "codelinc-hackathon" },
           { "Key": "Owner", "Value": "Israel Jauregui" },
@@ -248,7 +282,10 @@
                 {
                   "Effect": "Allow",
                   "Action": "secretsmanager:GetSecretValue",
-                  "Resource": { "Ref": "VoiceApiKeySecret" }
+                  "Resource": [
+                    { "Ref": "VoiceApiKeySecret" },
+                    { "Ref": "PlaidCredentialsSecret" }
+                  ]
                 }
               ]
             }
@@ -315,6 +352,13 @@
             },
             "OPENAI_API_KEY_SECRET": {
               "Ref": "VoiceApiKeySecret"
+            },
+            "PLAID_CREDENTIALS_SECRET": {
+              "Ref": "PlaidCredentialsSecret"
+            },
+            "PLAID_ENV": "sandbox",
+            "PLAID_CLIENT_NAME": {
+              "Ref": "PlaidClientName"
             },
             "MODEL_ID": {
               "Ref": "BedrockModelId"

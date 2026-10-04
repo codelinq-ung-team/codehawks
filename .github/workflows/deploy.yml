@@ -86,6 +86,10 @@ jobs:
           BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
           BEDROCK_MODEL_ARNS: ${{ vars.BEDROCK_MODEL_ARNS }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_VOICE_TOKEN }} # optional; turns on Abe's voice in the Quest app
+          PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }} # optional; turns on Plaid Sandbox in the Basics form
+          PLAID_SECRET: ${{ secrets.PLAID_SECRET }}
+          PLAID_ENV: ${{ vars.PLAID_ENV }}
+          PLAID_CLIENT_NAME: ${{ vars.PLAID_CLIENT_NAME }}
         run: |
           if [ "$VERIFY_ONLY" = true ]; then
             python scripts/aws_actions.py verify-deploy

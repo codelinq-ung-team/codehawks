@@ -1,7 +1,10 @@
 """Offline Plaid request and normalization tests."""
+import json
 import os
 import unittest
 from unittest.mock import patch
+
+from botocore.exceptions import ClientError
 
 from backend.plaid import PlaidError, create_link_token, exchange_and_get_accounts, normalize_accounts
 
@@ -99,6 +102,32 @@ class PlaidTests(unittest.TestCase):
             with self.subTest(values=values), patch.dict(os.environ, values):
                 with self.assertRaises(PlaidError) as caught:
                     create_link_token()
+                self.assertEqual(caught.exception.status, 503)
+
+    def test_credentials_come_from_the_stack_secret(self):
+        import backend.plaid as plaid
+        secret = json.dumps({"client_id": "stored-id", "secret": "stored-secret"})
+        values = {"PLAID_CLIENT_ID": "", "PLAID_SECRET": "", "PLAID_CREDENTIALS_SECRET": "arn:aws:secretsmanager:us-east-1:1:secret:x"}
+        with patch.dict(os.environ, values), patch("backend.plaid.boto3.client") as client, \
+                patch("backend.plaid._stored", ("", "", 0.0)):
+            client.return_value.get_secret_value.return_value = {"SecretString": secret}
+            self.assertEqual(plaid._credentials(), ("stored-id", "stored-secret"))
+            self.assertEqual(plaid._credentials(), ("stored-id", "stored-secret"))
+            self.assertEqual(client.return_value.get_secret_value.call_count, 1, "keys are cached between requests")
+
+    def test_unset_or_unreadable_stack_secret_returns_503(self):
+        import backend.plaid as plaid
+        values = {"PLAID_CLIENT_ID": "", "PLAID_SECRET": "", "PLAID_CREDENTIALS_SECRET": "arn:aws:secretsmanager:us-east-1:1:secret:x"}
+        for read in ({"SecretString": json.dumps({"client_id": "unset", "secret": "unset"})}, {"SecretString": "not json"},
+                     ClientError({"Error": {"Code": "AccessDeniedException"}}, "GetSecretValue")):
+            with self.subTest(read=read), patch.dict(os.environ, values), patch("backend.plaid.boto3.client") as client, \
+                    patch("backend.plaid._stored", ("", "", 0.0)):
+                if isinstance(read, Exception):
+                    client.return_value.get_secret_value.side_effect = read
+                else:
+                    client.return_value.get_secret_value.return_value = read
+                with self.assertRaises(PlaidError) as caught:
+                    plaid._credentials()
                 self.assertEqual(caught.exception.status, 503)
 
 
