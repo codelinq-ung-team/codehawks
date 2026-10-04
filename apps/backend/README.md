@@ -122,6 +122,39 @@ without `done` means the reply is incomplete. Only retain completed replies in
 conversation history. Explicit `stream:false` returns a single JSON `{ "reply":
 "..." }` response instead.
 
+### Coverage recommendations for results
+
+`POST /api/recommendations` uses the same JSON headers and exact-body SHA-256 hash
+as other deployed POST routes. Send `profile` (calculator fields with confirmed
+values or explicit `unknown`/`skipped`/`empty` status and null value), `age`
+(0–120 whole years, or null), and `preferences`:
+
+```json
+{"state":"TX","tobacco":"no","goal":"temporary","premium":"low","cashValue":"no"}
+```
+
+Every preference can be null. State uses a US abbreviation (including DC);
+tobacco/cashValue are `yes`/`no`, goal is `temporary`/`lifelong`/`both`, and premium
+is `low`/`higher`. Required confirmed fields are support, years, mortgage, otherDebts
+and existing. Unknown optional amounts remain omitted from the calculation.
+
+The server calculates the gap, filters PR #39's versioned policy shortlist and
+uses one rate-limited Bedrock tool call to choose a term policy, a permanent policy
+and preferred type. It validates IDs and supported durations; all amounts, source
+links and published features come from server code. The response contains
+`catalogVersion`, `amount`, `term`, `permanent`, `recommendedType` and `reason`.
+Each non-null option has policyId, name, category, amount, minimum, termYears,
+fit, points, caveat, source and qualifications. The two options address the same
+gap, not a split or combined purchase. Below-minimum gaps are explicitly qualified
+without increasing the amount. Unknown eligibility details need confirmation.
+
+A zero gap or no supported shortlist candidates returns no preferred type and
+null options without inference. Other errors use the existing sanitized statuses.
+No automatic retries, quotes, storage or response-content logging are added.
+The reviewed research and catalog are packaged in the Lambda ZIP. The reference
+is supplied only to this dedicated recommendation prompt; the general chatbot
+keeps its existing educational restrictions.
+
 ### Guided intake for the website
 
 The LincLife chat sends each typed answer to `POST /api/intake` (same headers as

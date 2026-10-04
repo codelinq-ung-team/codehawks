@@ -6,6 +6,7 @@ import { Icon } from '../kit/Kit.tsx'
 import { Avatar } from '../guide/Avatar.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import type { Profile } from '../domain/calculator.ts'
+import { recommendationSummary, type Recommendation } from './recommendations.ts'
 import { GREETING, OFFLINE, askAI, payload, topicFor, written, type Ready, type Said } from './ask.ts'
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -15,7 +16,7 @@ type Line = Said & { cut?: boolean }
 // Lets other parts of the page (the term vs. permanent cards) ask Abe a question.
 export type AskHandle = { ask: (question: string) => void }
 
-export function AskAbe({ p, r, ref }: { p: Profile; r: Ready; ref?: Ref<AskHandle> }) {
+export function AskAbe({ p, r, ref, recommendation }: { p: Profile; r: Ready; ref?: Ref<AskHandle>; recommendation?: Recommendation | null }) {
   const [log, setLog] = useState<Line[]>([])
   // Abe's reply as it streams in; null when he isn't mid-reply.
   const [partial, setPartial] = useState<string | null>(null)
@@ -50,14 +51,14 @@ export function AskAbe({ p, r, ref }: { p: Profile; r: Ready; ref?: Ref<AskHandl
     setBusy(true)
     const ctrl = new AbortController()
     pending.current = ctrl
-    const answer = await askAI(payload(history, p, r), setPartial, ctrl.signal)
+    const answer = await askAI(payload(history, p, r, recommendation), setPartial, ctrl.signal)
     if (ctrl.signal.aborted) return
     setPartial(null)
     setOffline(!answer)
     const fallback = answer ? null : topicFor(question)
     const reply: Line = answer
       ? { role: 'assistant', text: answer.text, cut: !answer.complete }
-      : { role: 'assistant', text: fallback ? written(fallback, p, r) : OFFLINE }
+      : { role: 'assistant', text: fallback === 'term' && recommendation ? recommendationSummary(recommendation) : fallback ? written(fallback, p, r) : OFFLINE }
     setLog([...history, reply])
     setBusy(false)
   }

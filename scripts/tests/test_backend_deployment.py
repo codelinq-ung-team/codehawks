@@ -221,6 +221,9 @@ class DeploymentTests(unittest.TestCase):
             with ZipFile(output) as archive:
                 names = set(archive.namelist())
                 self.assertIn("backend/references/lincoln_calculator.md", names)
+                self.assertIn("backend/references/lincoln_policies.md", names)
+                self.assertIn("backend/recommendations.py", names)
+                self.assertIn("backend/policy_catalog.py", names)
                 self.assertIn("backend/app.py", names)
                 self.assertIn("backend/rate_limit.py", names)
                 self.assertIn("backend/intake.py", names)

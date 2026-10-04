@@ -235,6 +235,19 @@
 .ask__cut { color: var(--label-secondary); }
 
 /* ---------- Term vs. permanent ---------- */
+.plan-slot { display: flex; flex-direction: column; min-width: 0; }
+.plan-slot > .plan { flex: 1; }
+.plan-slot__banner { min-height: 32px; display: flex; justify-content: center; }
+.plan-slot__banner span { padding: 6px 18px; border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--brand-tyrian); color: var(--on-tint); font: 700 14px/20px var(--font-sans); }
+.plan-slot__banner .sr-only { padding: 0; }
+.plan-slot--recommended .plan { box-shadow: inset 0 0 0 2px var(--brand-tyrian); }
+.plan__big--amount strong { font-size: clamp(26px, 4vw, 38px); overflow-wrap: anywhere; }
+.plan__duration { margin: 0; text-align: center; font: 600 15px/21px var(--font-sans); color: var(--label-secondary); }
+.plan__qualifications { padding-left: 20px; margin: 0; display: grid; gap: 8px; font: 400 14px/20px var(--font-sans); color: var(--label-secondary); }
+.plan__source { font: 600 14px/20px var(--font-sans); color: var(--tint-text); }
+.plan__fit .plan__reason { margin-top: 10px; font-weight: 600; }
+.plans__status { padding: 0 var(--space-4); color: var(--label-secondary); }
+.plans__status p { margin: 0 0 8px; }
 /* Phones: the cards stack with the "?" between them. 720px and up: side by side, "?" in the middle. */
 .plans { display: grid; gap: var(--space-3); }
 .plans__head { display: grid; gap: var(--space-1); }

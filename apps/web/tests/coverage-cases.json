@@ -1,0 +1,7 @@
+[
+  {"name":"family support and mortgage", "values":{"support":40000,"years":10,"mortgage":150000,"otherDebts":30000,"education":20000,"existing":100000},"expected":500000},
+  {"name":"lifelong final expenses", "values":{"support":0,"years":1,"mortgage":0,"otherDebts":0,"finalExpenses":25000,"existing":0},"expected":25000},
+  {"name":"resources exceed needs", "values":{"support":20000,"years":10,"mortgage":0,"otherDebts":0,"existing":300000},"expected":0},
+  {"name":"all costs and resources", "values":{"support":30000,"years":25,"mortgage":230000,"otherDebts":18000,"finalExpenses":15000,"education":80000,"existing":250000,"savings":50000},"expected":793000},
+  {"name":"skipped optional fields are not zero answers", "values":{"support":1000,"years":70,"mortgage":0,"otherDebts":0,"existing":0},"expected":70000}
+]
