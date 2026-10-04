@@ -257,6 +257,24 @@ static class Tests
             Eq(string.Join(",", known.Select(kv => kv.Key + "=" + kv.Value)), "income=75000,totalDebt=180000");
         });
 
+        Test("the support suggestion never offers the same figure twice", () =>
+        {
+            Question Ask(long income)
+            {
+                var s = State(new Form { income = income });
+                s.profile["household"] = Field.Of(Status.Proposed, "none");
+                Eq(Script.NextStep(s), "support");
+                return Script.Ask("support", s);
+            }
+            var small = Ask(5000);
+            Match(small.text, @"about \$3,500 to \$4,000\.");
+            Eq(string.Join("|", small.replies), "$3,500|$4,000|Not sure|" + Script.WHY);
+            var tiny = Ask(100);
+            Match(tiny.text, @"about \$100\.$");
+            Eq(tiny.replies.Count(r => r == "$100"), 1);
+            Match(Ask(90000).text, @"about \$63,000 to \$72,000\.");
+        });
+
         // ---------- voice ----------
         Test("the voice briefing names what is known and the open question", () =>
         {

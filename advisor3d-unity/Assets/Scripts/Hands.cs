@@ -1,7 +1,8 @@
-// The wearer's hands in the VR room, drawn as soft white cartoon gloves with a burgundy cuff:
-// thick rounded fingers and a filled palm, so they read as a hand and not as a skeleton or as
-// floating dots (two earlier tries). They follow the headset's hand tracking (XR Hands).
-// While a controller is held there is no hand to track, so a closed glove shows where it is.
+// The wearer's hands in the VR room, drawn as a faint ghost of a glove: rounded fingers and a
+// filled palm in see-through white, enough to know where your hands are without drawing the eye.
+// (Solid gloves were too much; a skeleton and floating dots looked wrong.) They follow the
+// headset's hand tracking (XR Hands). While a controller is held there is no hand to track, so a
+// faint closed glove shows where it is.
 // In passthrough the real hands are visible, so these are hidden.
 using System.Collections.Generic;
 using UnityEngine;
@@ -14,14 +15,15 @@ namespace Advisor3D
         // Each finger from its knuckle to its tip, with how thick it is at the knuckle, in meters.
         static readonly (XRHandJointID[] joints, float width)[] FINGERS =
         {
-            (new[] { XRHandJointID.ThumbMetacarpal, XRHandJointID.ThumbProximal, XRHandJointID.ThumbDistal, XRHandJointID.ThumbTip }, 0.021f),
-            (new[] { XRHandJointID.IndexProximal, XRHandJointID.IndexIntermediate, XRHandJointID.IndexDistal, XRHandJointID.IndexTip }, 0.019f),
-            (new[] { XRHandJointID.MiddleProximal, XRHandJointID.MiddleIntermediate, XRHandJointID.MiddleDistal, XRHandJointID.MiddleTip }, 0.019f),
-            (new[] { XRHandJointID.RingProximal, XRHandJointID.RingIntermediate, XRHandJointID.RingDistal, XRHandJointID.RingTip }, 0.018f),
-            (new[] { XRHandJointID.LittleProximal, XRHandJointID.LittleIntermediate, XRHandJointID.LittleDistal, XRHandJointID.LittleTip }, 0.016f),
+            (new[] { XRHandJointID.ThumbMetacarpal, XRHandJointID.ThumbProximal, XRHandJointID.ThumbDistal, XRHandJointID.ThumbTip }, 0.018f),
+            (new[] { XRHandJointID.IndexProximal, XRHandJointID.IndexIntermediate, XRHandJointID.IndexDistal, XRHandJointID.IndexTip }, 0.016f),
+            (new[] { XRHandJointID.MiddleProximal, XRHandJointID.MiddleIntermediate, XRHandJointID.MiddleDistal, XRHandJointID.MiddleTip }, 0.016f),
+            (new[] { XRHandJointID.RingProximal, XRHandJointID.RingIntermediate, XRHandJointID.RingDistal, XRHandJointID.RingTip }, 0.015f),
+            (new[] { XRHandJointID.LittleProximal, XRHandJointID.LittleIntermediate, XRHandJointID.LittleDistal, XRHandJointID.LittleTip }, 0.013f),
         };
         const float TAPER = 0.8f;   // a fingertip is this much of the knuckle's width
-        const float PALM = 0.026f;  // how thick the palm is
+        const float PALM = 0.02f;   // how thick the palm is
+        const float FAINT = 0.3f;   // how much of the glove shows; the rest is see-through
 
         // One rounded piece of the glove: a ball at each end and a tube between them.
         class Segment
@@ -47,8 +49,17 @@ namespace Advisor3D
         public Hands(Transform parent)
         {
             if (!tube) tube = MeshGen.Cylinder(0.5f, 1, 20);
-            var glove = Mat.Lit(Color.white);
-            var cuff = Mat.Lit(T.tint);
+            // See-through, but still writing depth: the glove's pieces overlap, and without it every
+            // overlap would show as a brighter patch.
+            Material Ghost(Color color)
+            {
+                color.a = FAINT;
+                var m = Mat.Lit(color, transparent: true);
+                m.SetFloat("_ZWrite", 1);
+                return m;
+            }
+            var glove = Ghost(Color.white);
+            var cuff = Ghost(T.tint);
             left = Build("Left Hand", parent, glove, cuff);
             right = Build("Right Hand", parent, glove, cuff);
         }

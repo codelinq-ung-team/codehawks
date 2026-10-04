@@ -91,7 +91,8 @@ def session_config(model):
                 "format": {"type": "audio/pcm", "rate": 24000},
                 "transcription": {"model": "gpt-4o-mini-transcribe", "language": "en"},
                 "noise_reduction": {"type": "far_field"},
-                "turn_detection": {"type": "semantic_vad"},
+                # Wait until the user has clearly finished: people pause mid-sentence over a number.
+                "turn_detection": {"type": "semantic_vad", "eagerness": "low"},
             },
             "output": {"format": {"type": "audio/pcm", "rate": 24000}, "voice": VOICE},
         },

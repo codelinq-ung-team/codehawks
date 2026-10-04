@@ -142,9 +142,14 @@ namespace Advisor3D
                     var income = Known(s.profile, "income")?.num;
                     if (income > 0)
                     {
-                        var lo = Thousands(income.Value * 0.7);
-                        var hi = Thousands(income.Value * 0.8);
-                        return Q($"If something happened to you, how much would your family need each year to keep their life on track? Many people start with 70–80% of their income. For you, that’s about {Calc.FormatMoney(lo)} to {Calc.FormatMoney(hi)}.",
+                        // Rounded to thousands, or to hundreds for a small income, where thousands would give
+                        // the same figure twice ("$4,000 to $4,000").
+                        long Rounded(double v) => income.Value < 20000 ? (long)Math.Floor(v / 100 + 0.5) * 100 : Thousands(v);
+                        var lo = Rounded(income.Value * 0.7);
+                        var hi = Rounded(income.Value * 0.8);
+                        const string lead = "If something happened to you, how much would your family need each year to keep their life on track? Many people start with 70–80% of their income.";
+                        if (lo == hi) return lo > 0 ? Q($"{lead} For you, that’s about {Calc.FormatMoney(lo)}.", Calc.FormatMoney(lo), "Not sure") : Q(lead, "Not sure");
+                        return Q($"{lead} For you, that’s about {Calc.FormatMoney(lo)} to {Calc.FormatMoney(hi)}.",
                             Calc.FormatMoney(lo), Calc.FormatMoney(hi), "Not sure");
                     }
                     return Q("If something happened to you, how much would your family need each year to keep their life on track?", "$30,000", "$50,000", "Not sure");

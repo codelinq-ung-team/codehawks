@@ -80,8 +80,13 @@ in the editor or on a headset.** The code compiles and the logic is tested, noth
 - The API key never ships in the APK. The app asks the backend, `POST /api/voice/session`
   (`backend/voice.py`), for a secret that lasts a minute. The model, the voice, Abe's
   instructions and the tool are set there, so changing how Abe talks is a backend change.
-- The headset has no echo cancellation, so the microphone is closed while Abe speaks. You
-  can't talk over him; tap an answer if you want to cut in.
+- You can talk over Abe. The headset has no echo cancellation, so while he speaks the app does
+  not pass the microphone on (he would hear himself); it listens for a voice clearly louder
+  than his own echo, held for about a quarter of a second, then stops him and sends what you
+  said. If it stops him for a noise and nobody speaks, he asks his question again. The
+  thresholds are at the top of `Voice.cs` and have not been tuned on a headset.
+- Abe waits until you have clearly finished before he answers (`eagerness: low`), so a pause
+  in the middle of a number does not cut you off.
 - Voice hangs up after the closing words, when you leave the chat or take the headset off,
   and after ten minutes. Tapping, the number pad and typing all keep working while it is on,
   and are all that is left if voice can't start.
@@ -144,8 +149,8 @@ What is different from the site:
   moves to the middle for the chat.
 - The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
-- Your hands are drawn as white cartoon gloves with a burgundy cuff (`Hands.cs`); a hand that
-  holds a controller shows a closed glove. In passthrough you see your real hands.
+- Your hands are drawn as a faint, see-through glove (`Hands.cs`); a hand that holds a
+  controller shows a faint closed glove. In passthrough you see your real hands.
 - Results is the site's seven-slide deck, with the charts built in the room (`Picture.cs` and
   the stacks) in place of the easel. Abe's poses for each slide are not here.
 
