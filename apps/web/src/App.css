@@ -35,7 +35,10 @@ h1, h2, h3, p { margin: 0; }
 .stack { display: grid; gap: var(--space-3); }
 
 /* ---------- Top bar + stepper ---------- */
-.top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 60px; }
+/* The logo sits in the middle column, so it stays centered whether or not Start Over is showing. */
+.top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-3); min-height: 60px; }
+.top > .brand { grid-column: 2; }
+.top > .top__restart { grid-column: 3; justify-self: end; }
 .brand { color: var(--label-primary); text-decoration: none; padding: var(--space-2) 0; border-radius: var(--radius-sm); }
 .brand:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
@@ -281,26 +284,27 @@ h1, h2, h3, p { margin: 0; }
 .ck-btn { border-radius: var(--radius-md); }
 .ck-btn--small { border-radius: 10px; }
 
-/* ---------- Top bar on Home ---------- */
+/* ---------- Top bar ---------- */
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); }
 .brand__accent { color: var(--highlight-text); }
 .brand__mark { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; background: var(--tint); color: var(--on-tint); }
-/* Home: a full-bleed brand bar. The color sits on a viewport-wide layer behind the header's content. */
-.top--home { position: relative; isolation: isolate; min-height: 56px; color: var(--on-brand); }
-.top--home::before {
+/* A full-bleed brand bar on every page. The color sits on a viewport-wide layer behind the header's content. */
+.top { position: relative; isolation: isolate; min-height: 56px; color: var(--on-brand); }
+.top::before {
   content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: 50%; width: 100vw; transform: translateX(-50%);
   background: var(--brand-tyrian);
 }
-.top--home .brand { color: var(--on-brand); }
-.top--home .brand__accent { color: var(--on-brand-muted); }
-.top--home .brand__mark { width: 28px; height: 28px; border-radius: 8px; background: var(--on-brand); color: var(--brand-tyrian); }
-.top--home .brand:focus-visible, .top__cta:focus-visible { outline-color: var(--on-brand); }
-.top__cta {
-  display: inline-flex; align-items: center; gap: 4px; min-height: var(--tap-target); padding: 0 var(--space-2); border: 0;
-  border-radius: var(--radius-sm); background: none; color: var(--on-brand); font: 600 15px/20px var(--font-sans); cursor: pointer;
-}
-.top__cta:hover { text-decoration: underline; text-underline-offset: 3px; }
-.top__cta:focus-visible { outline: 2px solid; outline-offset: 2px; }
+.top .brand { color: var(--on-brand); }
+.top .brand__accent { color: var(--on-brand-muted); }
+.top .brand__mark { width: 28px; height: 28px; border-radius: 8px; background: var(--on-brand); color: var(--brand-tyrian); }
+.top .brand:focus-visible { outline-color: var(--on-brand); }
+/* The steps sit on the page background, under the bar. */
+.top + .stepper { margin-top: var(--space-4); }
+/* Start Over: the same button as "Review My Answers" at the small size, in the page's beige so it shows on the bar. */
+.top .top__restart { background: var(--grouped-primary); color: var(--brand-tyrian); }
+.top .top__restart:focus-visible { outline-color: var(--on-brand); }
+/* Phones: drop the icon so the centered logo keeps clear space on both sides. */
+@media (max-width: 420px) { .top__restart .ck-icon { display: none; } }
 
 /* ---------- Landing ---------- */
 .lp { display: block; }

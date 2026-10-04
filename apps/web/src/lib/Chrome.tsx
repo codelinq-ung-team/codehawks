@@ -1,8 +1,7 @@
-// Shared page chrome: the top bar (a brand bar with a chat link on Home, step progress elsewhere).
+// Shared page chrome: the brand bar (with Start Over during the steps), and step progress under it.
 import { useState, type ReactNode } from 'react'
 import { Alert, Button, Icon } from '../kit/Kit.tsx'
-import { getState, go, resetState, type Route } from './store.ts'
-import { GUIDE_NAME } from '../guide/guide.ts'
+import { go, resetState, type Route } from './store.ts'
 
 const STEPS: { id: Route; label: string }[] = [
   { id: 'prepare', label: 'Basics' },
@@ -32,26 +31,14 @@ export function Brand() {
   )
 }
 
-// Same destination as the hero's start button: back into the chat if it's under way.
-function startChat() {
-  const s = getState()
-  go(s.started && s.messages.length ? 'chat' : 'prepare')
-}
-
 export function Header({ route }: { route: Route }) {
   const [confirming, setConfirming] = useState(false)
   const index = STEPS.findIndex((s) => s.id === route)
   return (
     <>
-      <header className={'top' + (index < 0 ? ' top--home' : '')}>
+      <header className="top">
         <Brand />
-        {index >= 0
-          ? <Button variant="plain" size="small" onClick={() => setConfirming(true)}>Start Over</Button>
-          : (
-            <button type="button" className="top__cta" onClick={startChat}>
-              Chat with {GUIDE_NAME}<Icon name="chevron-right" size={14} weight={2.8} />
-            </button>
-          )}
+        {index >= 0 && <Button size="small" icon="restart" className="top__restart" onClick={() => setConfirming(true)}>Start Over</Button>}
       </header>
       {index >= 0 && <Stepper index={index} />}
       <Alert

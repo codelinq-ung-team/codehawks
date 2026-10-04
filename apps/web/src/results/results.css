@@ -206,15 +206,45 @@
 .wrap__abe { flex: none; width: 80px; height: 80px; }
 .wrap__hero-text { display: grid; gap: var(--space-1); max-width: 34em; }
 .wrap__hero-text .title-2 { font-weight: 700; }
-.wrap__grid { display: grid; gap: var(--space-6); }
-.wrap__side { display: grid; gap: var(--space-4); align-content: start; }
-.wrap__side .ck-list + .ck-list { margin-top: 0; }
+/* Phones: the math, then Ask Abe, then the buttons. Wide screens put Ask Abe beside the other two. */
+.wrap__grid { display: grid; gap: var(--space-6); grid-template-areas: "math" "ask" "actions"; }
+.wrap__math { grid-area: math; }
+.wrap__actions { grid-area: actions; align-content: start; }
 .wrap .limits { margin-top: 0; }
+
+/* ---------- Ask Abe ---------- */
+.ask { grid-area: ask; display: flex; flex-direction: column; min-width: 0; }
+.ask__card {
+  display: flex; flex-direction: column; height: min(600px, 80dvh);
+  border-radius: var(--radius-lg); background: var(--grouped-secondary); overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+/* Only the messages scroll; they sit at the bottom of the card, like the main chat. */
+.ask__body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-4); }
+.ask .composer { padding: var(--space-2) var(--space-4) var(--space-3); background: none; }
+.ask .composer__note { padding: 0 var(--space-2); }
+/* The main chat hides Abe's face on wide screens (its side panel shows him); here there's no panel. */
+.ask .msg-row__face { display: block; }
+.ask .msg { max-width: 88%; font-size: 16px; line-height: 22px; }
+.ask .msg :is(p, ul, ol) { margin: 0; }
+.ask .msg :is(p, ul, ol) + :is(p, ul, ol) { margin-top: var(--space-2); }
+.ask .msg :is(ul, ol) { padding-left: 1.25em; }
+.ask .msg li + li { margin-top: 2px; }
+.ask .msg a { color: var(--tint-text); }
+.ask .msg--user a { color: inherit; }
+.ask__cut { color: var(--label-secondary); }
 
 /* ---------- Wide screens ---------- */
 @media (min-width: 900px) {
   .deck__title { font-size: 30px; line-height: 36px; }
-  .wrap__grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+  /* Ask Abe fills the height of the math and buttons beside it (size containment keeps a long
+     chat from stretching the row). Any spare height goes under the buttons. */
+  .wrap__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
+    grid-template-areas: "math ask" "actions ask"; gap: var(--space-6) var(--space-8); align-items: start;
+  }
+  .ask { align-self: stretch; contain: size; min-height: 520px; }
+  .ask__card { flex: 1; min-height: 0; height: auto; }
 }
 
 /* ---------- Phones + tablets: chart on top, Abe talking underneath ---------- */
