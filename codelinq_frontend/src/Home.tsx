@@ -41,7 +41,7 @@ export function Home() {
               : <span className="subhead muted">5 quick questions, then a short chat</span>}
           </div>
           <ul className="lp-trust">
-            <li><Icon name="shield" size={22} /><span><strong>Private by design</strong><span>Answers stay in this session</span></span></li>
+            <li><Icon name="shield" size={22} /><span><strong>Private by design</strong><span>No account, and nothing is saved</span></span></li>
             <li><Icon name="check-circle" size={22} /><span><strong>Educational guidance</strong><span>No account, nothing to buy</span></span></li>
           </ul>
         </div>
@@ -138,7 +138,7 @@ function Preview({ onStart }: { onStart: () => void }) {
           {typing && <li className="lp-msg lp-msg--bot msg--typing" aria-hidden="true"><span /><span /><span /></li>}
         </ol>
         <Button fullWidth onClick={onStart} className="lp-chat__cta">Chat with {GUIDE_NAME}<Icon name="chevron-right" size={16} weight={2.6} /></Button>
-        <p className="lp-card__note caption-1"><Icon name="shield" size={13} />Your answers stay in this session</p>
+        <p className="lp-card__note caption-1"><Icon name="shield" size={13} />Your answers aren’t saved</p>
       </div>
     </div>
   )

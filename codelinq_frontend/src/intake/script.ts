@@ -1,8 +1,9 @@
 // Guided conversation: what to ask next, why we ask it, and how to read the answer.
-// This is the fallback engine. An AI endpoint should return the same Reply shape from
-// respond() so the chat screen doesn't change.
+// respond() reads an answer with fixed rules: it handles tapped suggestions and is the
+// fallback when the AI can't be reached. interpret() takes the AI's reading of a typed
+// answer and puts it through the same checks, so both return the same Reply shape.
 import {
-  HOUSEHOLD, formatMoney, parseAmount, parseCount, isUnsure, isSkip, isWhy,
+  FIELD, HOUSEHOLD, formatField, formatMoney, parseAmount, parseCount, isUnsure, isSkip, isWhy,
   type Field, type FieldId, type Household, type Profile,
 } from '../domain/calculator.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
@@ -294,8 +295,11 @@ export function respond(stepId: FieldId, text: string, state: AppState): Reply {
     return { updates: { [stepId]: { status: 'skipped', value: null } }, say: ['Okay, we’ll leave that out of the math.'] }
   }
 
-  const r = step.read(trimmed, state)
-  if ('retry' in r) return { say: [r.retry], replies: question(stepId, state).replies }
+  return settle(step, step.read(trimmed, state), state)
+}
+
+function settle(step: Step, r: Read, state: AppState): Reply {
+  if ('retry' in r) return { say: [r.retry], replies: question(step.id, state).replies }
   if ('clarify' in r) {
     return {
       say: [`Just to check: is ${formatMoney(r.clarify)} a month? That would be ${formatMoney(r.clarify * 12)} a year.`],
@@ -304,4 +308,68 @@ export function respond(stepId: FieldId, text: string, state: AppState): Reply {
     }
   }
   return done(step, r.value, [], state)
+}
+
+// What the AI endpoint returns for one typed answer.
+export type Reading = {
+  intent: 'answer' | 'unsure' | 'skip' | 'why' | 'question' | 'unclear'
+  value: number | null
+  household: string | null
+  period: 'month' | 'year' | null
+  extra: Record<string, unknown>
+  say: string
+}
+
+// The answers so far, sent with each question so the AI has context.
+export function known(state: AppState): Record<string, number | string> {
+  const facts: Record<string, number | string> = {}
+  for (const id of Object.keys(state.profile) as FieldId[]) {
+    const v = val(state.profile, id)
+    if (v != null) facts[id] = v
+  }
+  const total = debtTotal(state)
+  if (total) facts.totalDebt = total
+  return facts
+}
+
+// Turn the AI's reading into a Reply. Values go back through each step's own reader,
+// so the limits, the monthly check and the debt split apply exactly as they do for
+// the script. The AI's own words are shown only for explanations and re-asks; every
+// confirmation of an answer is the script's, so it can't disagree with the numbers.
+export function interpret(stepId: FieldId, reading: Reading, state: AppState, typed = ''): Reply {
+  const step = STEP[stepId]
+  // A monthly amount is read by the script, which asks before turning it into a yearly one.
+  const amount = parseAmount(typed)
+  if (reading.intent === 'answer' && amount.kind === 'amount' && amount.period === 'month') return respond(stepId, typed, state)
+  const replies = question(stepId, state).replies
+
+  if (reading.intent === 'why' || (reading.intent === 'question' && !reading.say.trim())) return { say: [reading.say.trim() || step.why], why: true }
+  if (reading.intent === 'unsure') return respond(stepId, 'not sure', { ...state, pending: null })
+  if (reading.intent === 'skip') return respond(stepId, step.optional ? 'skip' : 'not sure', { ...state, pending: null })
+  if (reading.intent !== 'answer') {
+    return { say: [reading.say.trim() || 'Sorry, I didn’t catch that. Could you say it another way?'], replies }
+  }
+
+  const household = HOUSEHOLD[reading.household as Household]
+  const text = stepId === 'household'
+    ? household
+    : reading.value == null ? undefined : String(reading.value) + (reading.period === 'month' ? ' a month' : '')
+  if (text === undefined) return { say: ['Sorry, I didn’t catch that. Could you say it another way?'], replies }
+
+  const reply = settle(step, step.read(text, state), state)
+  if (!reply.updates) return reply
+
+  // Other figures given in the same message fill empty fields only, and are named back.
+  const noted: string[] = []
+  for (const [id, raw] of Object.entries(reading.extra)) {
+    const other = STEP[id as FieldId]
+    if (!other || other.id === 'household' || typeof raw !== 'number') continue
+    if (state.profile[other.id].status !== 'empty' || reply.updates[other.id]) continue
+    const r = other.read(String(raw), state)
+    if (!('value' in r)) continue
+    Object.assign(reply.updates, other.also?.(r.value, state), { [other.id]: { status: 'proposed', value: r.value } })
+    noted.push(`${FIELD[other.id].label.toLowerCase()} (${formatField(other.id, reply.updates[other.id])})`)
+  }
+  if (noted.length) reply.say.push(`I also noted your ${noted.join(' and ')}. You can change anything during review.`)
+  return reply
 }

@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { emptyProfile } from '../src/domain/calculator.ts'
 import type { AppState, Form } from '../src/lib/store.ts'
-import { applyForm, nextStep, respond } from '../src/intake/script.ts'
+import { applyForm, interpret, known, nextStep, respond, type Reading } from '../src/intake/script.ts'
 
 function state(form: Partial<Form> = {}): AppState {
   const s: AppState = {
@@ -67,4 +67,61 @@ test('re-running the form updates its own answers but not confirmed ones', () =>
   assert.equal(applyForm(again).profile?.income.value, 75000)
   const unconfirmed = state({ income: 75000 })
   assert.equal(applyForm({ ...unconfirmed, form: { ...unconfirmed.form, income: 90000 } }).profile?.income.value, 90000)
+})
+
+// The AI's reading of a typed answer goes through the same checks as the script.
+const reading = (r: Partial<Reading>): Reading => ({ intent: 'answer', value: null, household: null, period: null, extra: {}, say: '', ...r })
+
+test('an AI reading becomes a proposed answer with the script’s own confirmation', () => {
+  const r = interpret('income', reading({ value: 80000, say: 'Got it, $90,000!' }), state())
+  assert.deepEqual(r.updates?.income, { status: 'proposed', value: 80000 })
+  assert.deepEqual(r.say, ['Thanks, $80,000 a year.'])
+  const h = interpret('household', reading({ household: 'both' }), state())
+  assert.equal(h.updates?.household?.value, 'both')
+})
+
+test('a monthly amount from the AI is checked, not multiplied silently', () => {
+  const r = interpret('income', reading({ value: 6000, period: 'month' }), state())
+  assert.equal(r.updates, undefined)
+  assert.deepEqual(r.pending, { value: 6000 })
+  // Even if the AI already multiplied it, the typed monthly amount is what gets checked.
+  const m = interpret('income', reading({ value: 72000 }), state(), 'about 6k a month')
+  assert.equal(m.updates, undefined)
+  assert.deepEqual(m.pending, { value: 6000 })
+})
+
+test('AI values outside the limits ask again', () => {
+  assert.equal(interpret('years', reading({ value: 500 }), state()).updates, undefined)
+  assert.equal(interpret('income', reading({ value: -1 }), state()).updates, undefined)
+  assert.equal(interpret('mortgage', reading({ value: 200000 }), state({ debt: 180000 })).updates, undefined)
+  assert.equal(interpret('income', reading({}), state()).updates, undefined)
+  assert.equal(interpret('household', reading({ household: 'pets' }), state()).updates, undefined)
+})
+
+test('extra figures fill empty fields only and are named back', () => {
+  const s = state({ debt: 300000 })
+  s.profile.existing = { status: 'confirmed', value: 50000 }
+  const r = interpret('income', reading({ value: 90000, extra: { mortgage: 250000, existing: 1, years: 500, household: 'kids' } }), s)
+  assert.equal(r.updates?.mortgage?.value, 250000)
+  assert.equal(r.updates?.otherDebts?.value, 50000)
+  assert.equal(r.updates?.existing, undefined)
+  assert.equal(r.updates?.years, undefined)
+  assert.match(r.say[1], /mortgage balance \(\$250,000\)/)
+})
+
+test('unsure, skip, why and side questions from the AI', () => {
+  assert.equal(interpret('support', reading({ intent: 'unsure' }), state()).updates?.support?.status, 'unknown')
+  assert.equal(interpret('savings', reading({ intent: 'skip' }), state()).updates?.savings?.status, 'skipped')
+  // A required question can't be skipped; it's marked "not sure" instead.
+  assert.equal(interpret('support', reading({ intent: 'skip' }), state()).updates?.support?.status, 'unknown')
+  assert.equal(interpret('income', reading({ intent: 'why' }), state()).why, true)
+  const q = interpret('existing', reading({ intent: 'question', say: 'Term covers a set number of years, like 20.' }), state())
+  assert.equal(q.updates, undefined)
+  assert.deepEqual(q.say, ['Term covers a set number of years, like 20.'])
+  assert.ok(q.replies?.length)
+})
+
+test('known() lists answered fields and the form’s total debt', () => {
+  const s = state({ income: 75000, debt: 180000 })
+  assert.deepEqual(known(s), { income: 75000, totalDebt: 180000 })
 })

@@ -35,7 +35,7 @@ actual inference.
 
 After review and merge, wait for Israel to confirm configuration in both
 environments and explicitly give the deployment go-ahead. Keep deployment and
-its two billable smoke calls on hold until that confirmation. Then run
+its three billable smoke calls on hold until that confirmation. Then run
 **Update hackathon AWS bootstrap** on `main` and wait for it to succeed before
 running **Deploy hackathon** on `main`. Actions uses the existing OIDC roles.
 The bootstrap updates the runtime boundary and creates the Lambda-origin OAC. App deployment
@@ -43,14 +43,35 @@ rejects model settings that differ from the deployed bootstrap, packages pinned
 dependencies, and sets Lambda's `MODEL_ID` through CloudFormation. Lambda uses its
 own role to call Bedrock. Do not add a Bedrock key or long-lived AWS credentials.
 
-The function has 512 MB memory, a 120-second timeout, reserved concurrency of two,
-and seven-day logs. Concurrency limits simultaneous inference; it is not a daily
-budget or per-user rate limit. User authentication, WAF, guardrails, and frontend
-integration are outside this change.
+The function has 512 MB memory, a 120-second timeout, and seven-day logs. A shared
+DynamoDB admission limit allows **30 Bedrock calls in any rolling 60 seconds**
+across all users, Lambda instances, and buffered/streaming requests. Additional
+requests return JSON HTTP 429 before inference; limiter failures return sanitized
+503 errors and never invoke Bedrock. Invalid requests and health checks consume
+no allowance. An admitted call consumes its allowance even if inference fails.
+The table stores only admission timestamps and a revision token, not chat data.
+The limit is sized for the website, where each typed chat answer is one call; when
+it is reached the site falls back to its built-in script until the window clears.
+This limits request volume, not simultaneous calls or daily spending. Existing
+input and output bounds still apply. User authentication, WAF, and guardrails are
+not included.
 
-The deployment smoke check verifies health, JSON input errors, one buffered model
-reply, one streaming reply, and anonymous denial at the direct Function URL. It
-makes two small, billable Bedrock requests and prints no conversation content.
+Israel reported that the bootstrap update succeeded, but the app stack reached
+`UPDATE_ROLLBACK_COMPLETE`: reserving two executions would leave fewer than the
+required ten unreserved executions in this account, whose quota is ten. AWS
+rejected a quota request of twelve because it must exceed the default of 1000.
+This template removes the reservation rather than increasing account capacity.
+Publishing and the Bedrock smoke check never ran, so that deployment made no
+Nova Lite inference calls. Keep deployment paused until this fix is reviewed and
+merged and Israel gives the go-ahead. No bootstrap permission changes are needed
+for this fix; the existing boundary already covers the limiter table operations.
+
+The deployment smoke check verifies that the LinqLife site is published, health,
+JSON input errors, one buffered model reply, one intake reading, one streaming
+reply, and anonymous denial at the direct Function URL. It makes three small,
+billable Bedrock requests and prints no conversation content.
+The smoke requests use the same limiter; do not bypass the limit or retry model
+calls automatically when the allowance is exhausted.
 `verify_only` skips backend packaging, deployment, and inference. Live smoke checks
 run only through the main-branch deployment workflow. See
 [the AWS guide](../docs/agent-aws.md) for account boundaries and teardown.
@@ -72,7 +93,8 @@ to Bedrock. Earlier conversation messages provide context; clients own history.
 hex SHA-256 digest of the exact UTF-8 request body bytes.** CloudFront signs origin
 requests using its OAC, but Lambda requires a signed payload hash. This header is
 not an API key. Hash and send the same serialized bytes. The backend deployment
-client in `scripts/smoke_backend.py` demonstrates this; frontend files are unchanged.
+client in `scripts/smoke_backend.py` demonstrates this, and the website does the
+same in `codelinq_frontend/src/intake/ai.ts`.
 [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html)
 
 Streaming is the default. The response is `application/x-ndjson`, with each event
@@ -91,6 +113,35 @@ streaming starts, failures emit an error event without `done`. A connection clos
 without `done` means the reply is incomplete. Only retain completed replies in
 conversation history. Explicit `stream:false` returns a single JSON `{ "reply":
 "..." }` response instead.
+
+### Guided intake for the website
+
+The LinqLife chat sends each typed answer to `POST /api/intake` (same headers as
+above, not streamed):
+
+```json
+{"step":"income","question":"About how much do you earn in a year, before taxes?",
+ "answer":"around eighty grand","known":{"household":"kids","totalDebt":180000}}
+```
+
+`step` is one of the site's field ids (`household`, `youngestAge`, `income`,
+`support`, `years`, `mortgage`, `otherDebts`, `finalExpenses`, `education`,
+`existing`, `savings`). `question` (up to 600 characters) and `answer` (up to 1000)
+are required. `known` optionally lists answers so far by field id, plus `totalDebt`.
+The reply is the model's reading, checked by the server:
+
+```json
+{"intent":"answer","value":80000,"household":null,"period":null,"extra":{},"say":""}
+```
+
+`intent` is `answer`, `unsure`, `skip`, `why`, `question`, or `unclear`. `value` is
+dollars, years or age; `household` is `both`, `partner`, `kids`, `others` or `none`;
+`period` is `month` or `year` only when the user said so. `extra` holds other fields
+whose figures the user typed in the same message. `say` is Abe's wording for
+explanations and re-asks. A message ending in `?` is never returned as an answer,
+and a reading without a usable value comes back as `unclear`. The site validates
+ranges and confirms every figure itself; the model never does the estimate's math.
+Nothing is stored or logged. Errors use the same statuses as `/api/chat`.
 
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
@@ -124,6 +175,16 @@ with an executable LF-terminated launcher and the reviewed reference files.
 Gunicorn serves `backend.app:app` in production. The Lambda ZIP excludes the
 standard-library HTTP server and local environment loader.
 
+To run the website against the API locally, start the production app and the
+site's dev server, which proxies `/api` to port 8000:
+
+```sh
+MODEL_ID=amazon.nova-lite-v1:0 AWS_DEFAULT_REGION=us-east-1 python -m flask --app backend.app run --port 8000
+cd codelinq_frontend && npm ci && npm run dev
+```
+
+Without AWS credentials the API returns 503 and the chat falls back to its script.
+
 The optional local harness remains `python -m backend.server` on localhost.
 Copy `.env.example` to `backend/.env` for nonsecret `MODEL_ID`,
 `AWS_DEFAULT_REGION`, optional `AWS_PROFILE`, and `PORT`; shell variables win.
@@ -131,6 +192,11 @@ Production ignores `.env`. Local mode can serve the existing demo assets, but no
 frontend files are packaged or modified. Consult Israel before making live model
 calls in the shared account; otherwise use the offline tests. Local AWS use
 remains read-only, and deployments run through Actions.
+
+CloudFormation sets `CHAT_RATE_LIMIT_TABLE` on Lambda. Missing table configuration
+fails closed whenever `AWS_LAMBDA_FUNCTION_NAME` is present. The local harness
+bypasses the limiter only when neither variable is present; setting a table name
+enables the shared limiter locally too. Offline tests stub DynamoDB and Bedrock.
 
 The prompt and `references/lincoln_calculator.md` retain the life insurance
 education rules and reviewed CalcXML guidance. There are no policy uploads, live
