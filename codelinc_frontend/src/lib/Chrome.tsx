@@ -11,10 +11,22 @@ const STEPS: { id: Route; label: string }[] = [
   { id: 'results', label: 'Results' },
 ]
 
+// Abe's face for the brand tile: an outlined stovepipe hat over a solid chin-curtain beard.
+function AbeMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 8.5V2.3a.8.8 0 0 1 .8-.8h5.4a.8.8 0 0 1 .8.8v6.2M5 8.5h14" />
+      <path d="M7.5 11.5c0 5.6 2 10 4.5 10s4.5-4.4 4.5-10c-.9 3.2-2.5 5-4.5 5s-3.6-1.8-4.5-5z" fill="currentColor" />
+      <circle cx="10.2" cy="11.6" r=".95" fill="currentColor" stroke="none" />
+      <circle cx="13.8" cy="11.6" r=".95" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 export function Brand() {
   return (
     <a className="brand headline" href="#/">
-      <span className="brand__mark" aria-hidden="true"><Icon name="heart" size={18} weight={2.4} /></span>
+      <span className="brand__mark" aria-hidden="true"><AbeMark /></span>
       <span>Linc<span className="brand__accent">Life</span></span>
     </a>
   )
