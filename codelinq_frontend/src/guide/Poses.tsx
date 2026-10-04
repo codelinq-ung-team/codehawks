@@ -1,10 +1,14 @@
-// Abe in a few poses for the Basics form: the same head as Avatar.tsx on a small body.
+// Abe in a few poses for the Basics form and results: the same head as Avatar.tsx on a small body.
 // 48×48, transparent. Show at multiples of 48 (96, 144) so the pixels stay crisp.
 
-export type PoseName = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer' | 'pointup' | 'ponder'
+import { toRects } from './pixels.ts'
 
-// One letter per pixel, '.' is transparent. Letters map to the colors below.
-const POSES: Record<PoseName, string[]> = {
+type DrawnPose = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer' | 'pointup' | 'ponder'
+export type HoldPose = 'heart' | 'coin' | 'calendar' | 'hourglass' | 'umbrella'
+export type PoseName = DrawnPose | HoldPose
+
+// One letter per pixel, '.' is transparent. Letters map to the colors in pixels.ts.
+const DRAWN: Record<DrawnPose, string[]> = {
   wave: [
     '................................................',
     '..................KKKKKKKKKKKK..................',
@@ -407,64 +411,93 @@ const POSES: Record<PoseName, string[]> = {
   ]
 }
 
-const COLORS: Record<string, string> = {
-  'A': '#2d2428', // hat
-  'B': '#33211b', // brows
-  'C': '#f2bfa6', // blush
-  'D': '#3a2820', // beard
-  'E': '#2a1410', // eyes
-  'F': '#1f171b', // boots
-  'G': '#8a94a3', // clipboard clip
-  'H': '#3a2820', // hair
-  'J': '#262025', // coat
-  'K': '#1c1316', // outline
-  'L': '#38303a', // lapels
-  'M': '#9a6248', // mole
-  'O': '#ff7a47', // lapel pin and accents, brand orange
-  'P': '#3a3540', // trousers
-  'Q': '#17111a', // trousers and sole outline
-  'S': '#f8d5bb', // skin
-  'T': '#650030', // hat band, brand burgundy
-  'U': '#9a6a44', // clipboard
-  'V': '#ffb43c', // sparkle
-  'W': '#ffffff', // white
-  'Y': '#141012', // bow tie
-  'a': '#4d4146', // hat shine, buttons
-  'c': '#fff7f0', // shirt, cuffs, paper
-  'd': '#5c4134', // beard strands
-  'e': '#ecdccf', // shirt shade, paper lines
-  'f': '#4a3e44', // boot shine
-  'g': '#77706b', // gray strands
-  'h': '#52362a', // hair strands
-  'k': '#d993a8', // thought bubble outline
-  'm': '#8e4a4f', // mouth
-  'n': '#c07a72', // mouth corners
-  'o': '#ffc7a8', // pin shine
-  'p': '#4f4858', // trousers light
-  'q': '#b8405e', // open mouth
-  'r': '#4f4655', // coat and sleeve light
-  's': '#ecb89a', // skin shadow
-  't': '#86193f', // band light
-  'w': '#d9d2cd', // soft eye glint
-  'x': 'rgba(60, 20, 30, 0.16)', // ground shadow
-  'y': '#3a3236', // bow tie knot
-  'z': '#dc9f80' // deep shadow, outlines on skin
+
+
+// Things Abe can hold up in his right hand. Each sits on his fist; the umbrella's shaft runs down into it.
+const ITEMS: Record<HoldPose, { rows: string[]; center: number }> = {
+  heart: { center: 40, rows: [
+    '..KKK...KKK..',
+    '.KXXXK.KXXXK.',
+    'KXZZXXKXXXXXK',
+    'KXZXXXXXXXXXK',
+    'KXXXXXXXXXXXK',
+    '.KXXXXXXXXXK.',
+    '..KXXXXXXXK..',
+    '...KXXXXXK...',
+    '....KXXXK....',
+    '.....KXK.....',
+    '......K......'
+  ] },
+  coin: { center: 40, rows: [
+    '...KKKKK...',
+    '.KKNNNNNKK.',
+    '.KNlNINNNK.',
+    'KNlNIIIINNK',
+    'KNlNINNNNIK',
+    'KNNNIIIINIK',
+    'KNNNNNNINIK',
+    'KNNNIIIINIK',
+    '.KNNNINNIK.',
+    '.KKNNNNIKK.',
+    '...KKKKK...'
+  ] },
+  calendar: { center: 40, rows: [
+    '..K.....K..',
+    'KKGKKKKKGKK',
+    'KXXXXXXXXXK',
+    'KXXXXXXXXXK',
+    'KcccccccccK',
+    'KcKcKcKcKcK',
+    'KcccccccccK',
+    'KcKcKcKcOcK',
+    'KcccccccccK',
+    'KcKcKceeecK',
+    'KKKKKKKKKKK'
+  ] },
+  hourglass: { center: 40, rows: [
+    'KKKKKKKKK',
+    'KvvvvvvvK',
+    '.KcccccK.',
+    '.KcNNNcK.',
+    '..KcNcK..',
+    '...KNK...',
+    '...KNK...',
+    '..KcNcK..',
+    '.KccNccK.',
+    '.KcNNNcK.',
+    '.KNNNNNK.',
+    'KvvvvvvvK',
+    'KKKKKKKKK'
+  ] },
+  umbrella: { center: 39, rows: [
+    '......KKKKK......',
+    '....KKRRuRRKK....',
+    '..KKRRRRuRRRRKK..',
+    '.KRRRRRuuuRRRRRK.',
+    'KRRRRRRuuuRRRRRRK',
+    'KKKKKKKKKKKKKKKKK',
+    ...Array.from({ length: 18 }, () => '........K........')
+  ] }
 }
 
-// Merge each row's runs of one color into a single rect.
-function toRects(rows: string[]) {
-  const rects: { x: number; y: number; w: number; fill: string }[] = []
-  rows.forEach((row, y) => {
-    let x = 0
-    while (x < row.length) {
-      const c = row[x]
-      let w = 1
-      while (row[x + w] === c) w++
-      if (c !== '.') rects.push({ x, y, w, fill: COLORS[c] })
-      x += w
-    }
+// The holding poses: the head from "point" on the body from "thumbs", with the thumb
+// swapped for the item. Built once at load, same 48×48 grid as the drawn poses.
+function hold({ rows: item, center }: { rows: string[]; center: number }) {
+  const rows = [...DRAWN.point.slice(0, 26), ...DRAWN.thumbs.slice(26)]
+  rows[26] = rows[26].slice(0, 36) + '.'.repeat(12)
+  const x0 = center - Math.floor(item[0].length / 2)
+  const y0 = 26 - item.length + 1
+  item.forEach((line, dy) => {
+    const row = rows[y0 + dy].split('')
+    line.split('').forEach((c, dx) => { if (c !== '.') row[x0 + dx] = c })
+    rows[y0 + dy] = row.join('')
   })
-  return rects
+  return rows
+}
+
+const POSES: Record<PoseName, string[]> = {
+  ...DRAWN,
+  ...(Object.fromEntries(Object.entries(ITEMS).map(([name, item]) => [name, hold(item)])) as Record<HoldPose, string[]>),
 }
 
 const RECTS = Object.fromEntries(Object.entries(POSES).map(([name, rows]) => [name, toRects(rows)])) as Record<PoseName, ReturnType<typeof toRects>>
