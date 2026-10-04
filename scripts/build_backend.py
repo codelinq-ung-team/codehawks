@@ -11,6 +11,7 @@ BACKEND = ROOT / "apps/backend"
 RUNTIME_FILES = (
     "__init__.py", "app.py", "intake.py", "llm.py", "pairing.py", "plaid.py", "prompts.py", "rate_limit.py", "voice.py",
     "references/lincoln_calculator.md",
+    "recommendations.py", "policy_catalog.py", "references/lincoln_policies.md",
 )
 
 

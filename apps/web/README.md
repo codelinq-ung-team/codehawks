@@ -5,6 +5,24 @@ Answers are interpreted through `POST /api/intake`, validated in the browser,
 and used by the local calculator. When the API is unavailable, the chat uses
 its labeled scripted fallback.
 
+Review includes optional coverage preferences (state, tobacco status, protection goals,
+premium preference and cash-value interest). Both typed and VR assessments finish here.
+On Results, Abe compares PR #39's researched Lincoln policies through
+`POST /api/recommendations`: two alternative plans for the same calculated gap,
+with a **Recommended** banner above the preferred coverage type. Source links,
+eligibility qualifications and policy minimum mismatches are shown on the cards.
+No premium quotes or underwriting approval are generated. The result is cached only
+for the matching answers in this tab; edits invalidate it. Failed requests leave
+the educational cards visible without a badge and offer **Try Again**.
+
+To rehearse without paid inference, run the normal frontend tests and stub the endpoint
+using the response shape in `tests/recommendations.test.ts`. Demo family: age 35,
+Texas, no tobacco, $40,000 yearly support for 10 years, $150,000 mortgage, $30,000
+other debts, $20,000 education, $100,000 existing coverage, temporary goals and
+low premium preference. The calculated gap is $500,000. A separate lifelong-goal
+scenario should show the permanent banner. An unavailable backend deliberately
+shows general education, never a mocked recommendation presented as live AI.
+
 After the Basics form the site asks how to talk with Abe (`src/intake/Mode.tsx`): text chat
 here, or voice in the Quest app. For VR, `src/intake/Vr.tsx` saves the answers so far through
 `POST /api/pair`, shows the pairing as a QR code with a six-digit code under it and a short

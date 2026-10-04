@@ -185,6 +185,6 @@ export function summaryText(profile: Profile, result: Estimate) {
   lines.push(`= Estimated additional coverage: ${formatMoney(result.additional)}`)
   if (result.leftOut.length) lines.push(`Left out: ${result.leftOut.join(', ')}.`)
   lines.push('')
-  lines.push('This is an estimate to start a conversation, not a quote or recommendation. It does not account for inflation, investment returns, taxes or Social Security.')
+  lines.push('This is a coverage needs estimate, not a quote. Any educational policy recommendation requires professional confirmation. It does not account for inflation, investment returns, taxes or Social Security.')
   return lines.join('\n')
 }

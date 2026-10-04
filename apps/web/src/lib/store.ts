@@ -1,6 +1,7 @@
 // Session-only app state: no accounts, cleared when the tab closes or on Start Over.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { emptyProfile, type FieldId, type Field, type Profile } from '../domain/calculator.ts'
+import { emptyPreferences, type CoveragePreferences, type RecommendationCache } from '../results/recommendations.ts'
 
 // Answers from the short form before the chat. null means not answered yet (never zero).
 export type Marital = 'single' | 'married'
@@ -19,6 +20,8 @@ export type FinancialSnapshot = {
   }>
 }
 export type AppState = {
+  coveragePreferences: CoveragePreferences
+  recommendation?: RecommendationCache | null
   profile: Profile
   form: Form
   messages: Message[]
@@ -38,6 +41,7 @@ const listeners = new Set<() => void>()
 
 function initial(): AppState {
   return {
+    coveragePreferences: emptyPreferences(),
     profile: emptyProfile(),
     form: { age: null, income: null, marital: null, dependents: null, debt: null, coverage: null },
     messages: [],
@@ -53,7 +57,7 @@ function load(): AppState {
     // "typing" is transient; a reload mid-message shouldn't leave it on.
     if (raw) {
       const saved = JSON.parse(raw)
-      return { ...initial(), ...saved, form: { ...initial().form, ...saved.form }, typing: false }
+      return { ...initial(), ...saved, form: { ...initial().form, ...saved.form }, coveragePreferences: { ...emptyPreferences(), ...saved.coveragePreferences }, typing: false }
     }
   } catch { /* storage blocked: start fresh */ }
   return initial()

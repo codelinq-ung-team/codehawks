@@ -12,6 +12,8 @@ import { CoverageChart, NeedsChart, SummaryChart, TimeChart, YearsChart, type Sl
 import { AskAbe, type AskHandle } from './AskAbe.tsx'
 import { Plans } from './Plans.tsx'
 import { listJoin, yearsText, type Ready } from './ask.ts'
+import { useRecommendation } from './useRecommendation.ts'
+import { recommendationSummary } from './recommendations.ts'
 import './results.css'
 
 type ChartId = 'summary' | 'years' | 'needs' | 'have' | 'gap' | 'time'
@@ -254,11 +256,13 @@ function WhatIf({ p }: { p: Profile }) {
 // After the story: term vs. permanent, then the full math as a list, questions for Abe beside it,
 // and the summary to copy.
 function Wrap({ p, r }: { p: Profile; r: Ready }) {
+  const recommendations = useRecommendation(p, r.additional)
+  const summary = summaryText(p, r) + (recommendations.result ? '\n\n' + recommendationSummary(recommendations.result) : '')
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
   const askRef = useRef<AskHandle>(null)
   async function copy() {
     try {
-      await navigator.clipboard.writeText(summaryText(p, r))
+      await navigator.clipboard.writeText(summary)
       setCopied('ok')
     } catch {
       setCopied('fail')
@@ -266,7 +270,8 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
   }
   return (
     <section className="wrap" id="wrap" aria-label="Your summary">
-      <Plans p={p} r={r} onAsk={(q) => askRef.current?.ask(q)} />
+      <Plans p={p} r={r} onAsk={(q) => askRef.current?.ask(q)} recommendation={recommendations.result}
+        loading={recommendations.loading} failed={recommendations.failed} onRetry={recommendations.retry} />
 
       <div className="wrap__grid">
         <ListSection
@@ -279,7 +284,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
           <ListRow title={<strong>Estimated additional coverage</strong>} value={<strong className="tint-text">{formatMoney(r.additional)}</strong>} />
         </ListSection>
 
-        <AskAbe p={p} r={r} ref={askRef} />
+        <AskAbe p={p} r={r} ref={askRef} recommendation={recommendations.result} />
 
         <div className="wrap__actions stack">
           <Button size="large" fullWidth icon="share" onClick={() => void copy()}>Copy Summary</Button>
@@ -287,7 +292,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
           {copied === 'fail' && (
             <>
               <Banner tone="warning" title="We couldn’t copy that" message="Your browser blocked the clipboard. Select the text in the summary and copy it yourself." />
-              <textarea className="summary-text" readOnly value={summaryText(p, r)} aria-label="Summary" onFocus={(e) => e.target.select()} />
+              <textarea className="summary-text" readOnly value={summary} aria-label="Summary" onFocus={(e) => e.target.select()} />
             </>
           )}
           <Button variant="bordered" fullWidth onClick={() => go('review')}>Change My Answers</Button>
@@ -302,7 +307,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
         </div>
       </div>
 
-      <p className="footnote muted limits">This is an estimate to help you start a conversation, not a quote or a recommendation. It doesn’t account for inflation, investment returns, taxes, or Social Security benefits.</p>
+      <p className="footnote muted limits">These are educational coverage recommendations to discuss with a licensed professional, not quotes or underwriting approval. The estimate doesn’t account for inflation, investment returns, taxes, or Social Security benefits.</p>
     </section>
   )
 }

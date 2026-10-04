@@ -4,6 +4,7 @@
 import { formatMoney, summaryText, type Estimate, type Profile } from '../domain/calculator.ts'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { sha256 } from '../intake/ai.ts'
+import { recommendationSummary, type Recommendation } from './recommendations.ts'
 
 export type Ready = Extract<Estimate, { ready: true }>
 export type Said = { role: 'user' | 'assistant'; text: string }
@@ -77,12 +78,13 @@ export function topicFor(text: string): TopicId | null {
 // The backend's chat speaks as a general explainer and knows nothing about this user, so the
 // first question carries who Abe is and the user's estimate. It's rebuilt for every question,
 // so a what-if change on the slides reaches Abe too.
-function context(p: Profile, r: Ready) {
+function context(p: Profile, r: Ready, recommendation?: Recommendation | null) {
   return [
     `[Context from the LincLife results page. You are ${GUIDE_NAME}, the site’s guide. Answer as ${GUIDE_NAME}: warm, calm and plain, in two to four short paragraphs or a short list, with no headings or tables.`,
     'My estimate below came from the site’s calculator. Quote its numbers, but don’t work out new amounts. For a what-if, point me to the "Try it yourself" step in the slides above, which re-runs the calculator.',
     '',
     summaryText(p, r),
+    ...(recommendation ? ['The following educational recommendation was already validated by the site. Explain its fit and qualifications; do not choose a different policy or invent quotes.', recommendationSummary(recommendation)] : []),
     ']',
   ].join('\n')
 }
@@ -90,12 +92,12 @@ function context(p: Profile, r: Ready) {
 // The backend takes up to 40 messages and wants the first and last from the user.
 const MAX_SENT = 20
 
-export function payload(log: Said[], p: Profile, r: Ready): Sent[] {
+export function payload(log: Said[], p: Profile, r: Ready, recommendation?: Recommendation | null): Sent[] {
   let recent = log.slice(-MAX_SENT)
   while (recent.length && recent[0].role !== 'user') recent = recent.slice(1)
   return recent.map((m, i) => ({
     role: m.role,
-    content: i === 0 ? `${context(p, r)}\n\nMy question: ${m.text}` : m.text.slice(0, 8000),
+    content: i === 0 ? `${context(p, r, recommendation)}\n\nMy question: ${m.text}` : m.text.slice(0, 8000),
   }))
 }
 

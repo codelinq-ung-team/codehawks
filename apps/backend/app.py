@@ -9,6 +9,7 @@ from .llm import ChatError, chat, iter_chat_events
 from . import pairing
 from .plaid import PlaidError, create_link_token, exchange_and_get_accounts
 from .voice import create_session
+from .recommendations import recommend
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 65536
@@ -48,6 +49,14 @@ def json_payload():
 def intake_route():
     try:
         return jsonify(read_answer(json_payload()))
+    except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/recommendations")
+def recommendations_route():
+    try:
+        return jsonify(recommend(json_payload()))
     except ChatError as error:
         return jsonify(error=error.message), error.status
 
