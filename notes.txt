@@ -1,0 +1,12 @@
+Identity (Name, address, DOB)
+Marital status
+personal income
+Spouse income
+# of dependants
+time until dependents are no longer dependents
+debts
+existing resources (investments and stuff)
+funeral expenses
+long term income needs
+time horizon
+existing coverage

@@ -1,0 +1,96 @@
+/* codeLinc App Kit tokens, generated from the kit's tokens.json. Edit the kit, not this file.
+   Light only: the app has no dark mode. */
+:root {
+  color-scheme: light;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 32px;
+  --radius-full: 999px;
+  --tap-target: 44px;
+  --tap-target-min: 28px;
+  --row-height: 44px;
+  --button-height-large: 50px;
+  --icon-tile: 30px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-rounded: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --tint: #650030;
+  --tint-text: #650030;
+  --on-tint: #ffffff;
+  --brand-tyrian: #650030;
+  --brand-shiraz: #ad112b;
+  --on-brand: #ffffff;
+  --on-brand-muted: #ffb38f;
+  --highlight: #ff4f17;
+  --on-highlight: #000000;
+  --highlight-text: #c8380a;
+  --partner: #008198;
+  --on-partner: #ffffff;
+  --label-primary: #000000;
+  --label-secondary: #5a5a5a;
+  --label-tertiary: rgba(60, 60, 67, 0.3);
+  --label-quaternary: rgba(60, 60, 67, 0.18);
+  --bg-primary: #ffffff;
+  --bg-secondary: #f2f2f7;
+  --bg-tertiary: #ffffff;
+  --grouped-primary: #f2f2f7;
+  --grouped-secondary: #ffffff;
+  --grouped-tertiary: #f2f2f7;
+  --fill-primary: rgba(120, 120, 128, 0.2);
+  --fill-secondary: rgba(120, 120, 128, 0.16);
+  --fill-tertiary: rgba(118, 118, 128, 0.12);
+  --fill-quaternary: rgba(116, 116, 128, 0.08);
+  --separator-translucent: rgba(60, 60, 67, 0.29);
+  --separator-opaque: #c6c6c8;
+  --control-thumb: #ffffff;
+  --material-glass: rgba(255, 255, 255, 0.72);
+  --material-glass-edge: rgba(255, 255, 255, 0.9);
+  --scrim: rgba(0, 0, 0, 0.2);
+  --focus-ring: #650030;
+  --danger: #e9152d;
+  --success: #008932;
+  --warning: #c55300;
+  --hue-red: #ff383c;
+  --hue-orange: #ff8d28;
+  --hue-yellow: #ffcc00;
+  --hue-green: #34c759;
+  --hue-mint: #00c8b3;
+  --hue-teal: #00c3d0;
+  --hue-cyan: #00c0e8;
+  --hue-blue: #0088ff;
+  --hue-indigo: #6155f5;
+  --hue-purple: #cb30e0;
+  --hue-pink: #ff2d55;
+  --hue-brown: #ac7f5e;
+  --gray-1: #8e8e93;
+  --gray-2: #aeaeb2;
+  --gray-3: #c7c7cc;
+  --gray-4: #d1d1d6;
+  --gray-5: #e5e5ea;
+  --gray-6: #f2f2f7;
+  --shadow-floating: 0 8px 28px rgba(0, 0, 0, 0.12);
+  --shadow-sheet: 0 -2px 24px rgba(0, 0, 0, 0.10);
+  --shadow-thumb: 0 3px 8px rgba(0, 0, 0, 0.12);
+}
+
+.large-title { font: 700 34px/41px var(--font-sans); }
+.title-1 { font: 400 28px/34px var(--font-sans); }
+.title-2 { font: 400 22px/28px var(--font-sans); }
+.title-3 { font: 400 20px/25px var(--font-sans); }
+.headline { font: 600 17px/22px var(--font-sans); }
+.body { font: 400 17px/22px var(--font-sans); }
+.callout { font: 400 16px/21px var(--font-sans); }
+.subhead { font: 400 15px/20px var(--font-sans); }
+.footnote { font: 400 13px/18px var(--font-sans); }
+.caption-1 { font: 400 12px/16px var(--font-sans); }
+.caption-2 { font: 500 11px/13px var(--font-sans); }
+.stat-large { font: 700 40px/44px var(--font-rounded); font-variant-numeric: tabular-nums; }
+.stat { font: 700 28px/34px var(--font-rounded); font-variant-numeric: tabular-nums; }
