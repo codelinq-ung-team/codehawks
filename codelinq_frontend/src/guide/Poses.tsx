@@ -1,7 +1,7 @@
 // Abe in a few poses for the Basics form: the same head as Avatar.tsx on a small body.
 // 48×48, transparent. Show at multiples of 48 (96, 144) so the pixels stay crisp.
 
-export type PoseName = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer'
+export type PoseName = 'wave' | 'point' | 'think' | 'clipboard' | 'thumbs' | 'cheer' | 'pointup' | 'ponder'
 
 // One letter per pixel, '.' is transparent. Letters map to the colors below.
 const POSES: Record<PoseName, string[]> = {
@@ -304,6 +304,106 @@ const POSES: Record<PoseName, string[]> = {
     '.................FfFFFF..FfFFFF.................',
     '..................QQQQQ...QQQQQ.................',
     '................xxxxxxxxxxxxxxxx................'
+  ],
+  pointup: [
+    '................................................',
+    '..................KKKKKKKKKKKK..................',
+    '..................KAaaAAAAAAAK..................',
+    '..................KAaaAAAAAAAK..................',
+    '..................KAaAAAAAAAAK..................',
+    '..................KAaAAAAAAAAK..................',
+    '..................KAaAAAAAAAAK..................',
+    '..................KTttTTTTTTTK..................',
+    '..................KTTTTTTTTTTK..................',
+    '..............KAaaaaaAAAAAAAAAAAAK..............',
+    '...............KKKKKKKKKKKKKKKKKK.O.....O.......',
+    '...............HHhssssssssssssHHH..O...O........',
+    '...............HHHHSSSSSSSSSSHHHH...............',
+    '................hHSBBBSSSSBBBSHH.........OO.....',
+    '................zHSsssSSSSsssSHz.....z..........',
+    '...............zSHSSwESSsSwESSHSz...zSz.........',
+    '...............zSHSSEESSsSEESSHSz...zSz.........',
+    '................sDDCSSSSsSSSCDDs....zSz.........',
+    '................DdDDSMSzzSSSDDDD....zSz.........',
+    '................DdDDDSmmmmSDdDDD....zSzz........',
+    '................DDgDDDSqqSDDdDDD....zSSSz.......',
+    '................DDDdDDDgDDDDDDDD....zSSSz.......',
+    '.................KDdDDDgDdDgDdK.....zsSsz.......',
+    '..................KDDdDDDdDDDK......Kzzz........',
+    '...................DDdDDgDDDD......KrccK........',
+    '.....................DDDDDD........KrccK........',
+    '.............KKK.KKYYYccccYYYKK.KKKKrJJK........',
+    '............KrrrKJJYYYYyyYYYYJJKrrrKrJJK........',
+    '............KrJJKrJYYLecccLYYJJKrJJrJJJK........',
+    '............KrJJKrJJJLLccLLJoJJKrJJJJJJK........',
+    '............KrJJKrJJJJLLLLJJOJJKKKrJJJJK........',
+    '............KrJJKrJJJJJJKJJJJJJK..KrJJJK........',
+    '............KrJJKrJJJJJaKJJJJJJK...KKrK.........',
+    '............KccJKrJJJJJJKJJJJJJK.....K..........',
+    '............KccJKrJJJJJJKJJJJJJK................',
+    '............zSSzKrJJJJJaKJJJJJJK................',
+    '...........zSSSSzKrJJJJJKJJJJJK.................',
+    '............zSSz.KrJJJJJKJJJJJK.................',
+    '.............zz..KrJJJJQQJJJJJK.................',
+    '.................KrJJJKPPKJJJJK.................',
+    '.................KKKKKKQQKKKKKK.................',
+    '..................QpPPQ..QpPPQ..................',
+    '..................QpPPQ..QpPPQ..................',
+    '..................QpPPQ..QpPPQ..................',
+    '..................FfFF....FfFF..................',
+    '.................FfFFFF..FfFFFF.................',
+    '..................QQQQQ...QQQQQ.................',
+    '................xxxxxxxxxxxxxxxx................'
+  ],
+  ponder: [
+    '................................................',
+    '..................KKKKKKKKKKKK..........kkkk....',
+    '..................KAaaAAAAAAAK.........kWWWWk...',
+    '..................KAaaAAAAAAAK........kWWWWWWk..',
+    '..................KAaAAAAAAAAK........kWWWWWWk..',
+    '..................KAaAAAAAAAAK.......kWWWWWWWWk.',
+    '..................KAaAAAAAAAAK........kWkWkWkk..',
+    '..................KTttTTTTTTTK........kWWWWWWk..',
+    '..................KTTTTTTTTTTK.........kWWWWk...',
+    '..............KAaaaaaAAAAAAAAAAAAK...kk.kkkk....',
+    '...............KKKKKKKKKKKKKKKKKK...kWWk........',
+    '...............HHhssssssssssssHHH...kWWk........',
+    '...............HHHHSSSSSSSSSSHHHH....kk.........',
+    '................hHSBBBSSSSBBBSHH...k............',
+    '................zHSsssSSSSsssSHz..kWk...........',
+    '...............zSHSSwESSsSwESSHSz..k............',
+    '...............zSHSSEESSsSEESSHSz...............',
+    '................sDDCSSSSsSSSCDDs................',
+    '................DdDDSMSzzSSSDDDD................',
+    '................DdDDDSnmmnSDdDDD................',
+    '................DDgDDDSSSSDDdDDD................',
+    '................DDDdDDDgDDDDDDDD................',
+    '.................KDdDDDgDdDgDdK.................',
+    '..................KDDdDDDdDDDK..................',
+    '...................DDdDDgDDDD...................',
+    '.....................DDDDDD.....................',
+    '.............KKK.KKYYYccccYYYKK.KKK.............',
+    '............KrrrKJJYYYYyyYYYYJJKrrrK............',
+    '............KrJJKrJYYLecccLYYJJKrJJK............',
+    '............KrJJKKKKKKKKKKKKKzzKrJJK............',
+    '............KrJJrrrrrrrrrrrrrSSzrJJK............',
+    '............KrJJJJJJJJJJJJJJJSSzrJJK............',
+    '.............KrJzJJJJJJJJJJJJSSzrJJK............',
+    '..............KzSzKKKKKKKKKKKzzrJJJK............',
+    '..............zSSSzJJJJJJJJJJJJJJJJK............',
+    '..............zSSSzJJJJJJJJJJJJJJJJK............',
+    '...............zzzrJJJJJJJJJJJJJJJK.............',
+    '.................KKKKKKKKKKKKKKKKK..............',
+    '.................KrJJJJQQJJJJJK.................',
+    '.................KrJJJKPPKJJJJK.................',
+    '.................KKKKKKQQKKKKKK.................',
+    '..................QpPPQ..QpPPQ..................',
+    '..................QpPPQ..QpPPQ..................',
+    '..................QpPPQ..QpPPQ..................',
+    '..................FfFF....FfFF..................',
+    '.................FfFFFF..FfFFFF.................',
+    '..................QQQQQ...QQQQQ.................',
+    '................xxxxxxxxxxxxxxxx................'
   ]
 }
 
@@ -376,6 +476,84 @@ export function GuidePose({ name, size = 144, className }: { name: PoseName; siz
       shapeRendering="crispEdges" aria-hidden="true"
     >
       {RECTS[name].map((r, i) => <rect key={i} x={r.x} y={r.y} width={r.w} height={1} fill={r.fill} />)}
+    </svg>
+  )
+}
+
+// The thinking pose split into layers so the chat can animate it: Abe on his own,
+// and his three thought clouds (small to big) as separate sprites.
+const THINK_BODY = [
+  '................................................',
+  '..................KKKKKKKKKKKK..................',
+  '..................KAaaAAAAAAAK..................',
+  '..................KAaaAAAAAAAK..................',
+  '..................KAaAAAAAAAAK..................',
+  '..................KAaAAAAAAAAK..................',
+  '..................KAaAAAAAAAAK..................',
+  '..................KTttTTTTTTTK..................',
+  '..................KTTTTTTTTTTK..................',
+  '..............KAaaaaaAAAAAAAAAAAAK..............',
+  '...............KKKKKKKKKKKKKKKKKK...............',
+  '...............HHhssssssssssssHHH...............',
+  '...............HHHHSSSSSSSSSSHHHH...............',
+  '................hHSBBBSSSSBBBSHH................',
+  '................zHSsssSSSSsssSHz................',
+  '...............zSHSSwESSsSwESSHSz...............',
+  '...............zSHSSEESSsSEESSHSz...............',
+  '................sDDCSSSSsSSSCDDs................',
+  '................DdDDSMSzzSSSDDDD................',
+  '................DdDDDSnmmnSDdDDD................',
+  '................DDgDDDSSSSDDdDDD................',
+  '................DDDdDDDgDDDDDDDD................',
+  '.................KDzzzDgDdDgDdK.................',
+  '..................zSSSzDDdDDDK..................',
+  '..................zSSSzDgDDDD...................',
+  '.................KcSSzDDDDD.....................',
+  '.............KKKKrccJKccccYYYKK.KKK.............',
+  '............KrrrKrccKYYyyYYYYJJKrrrK............',
+  '............KrJJrJJJKLecccLYYJJKrJJK............',
+  '............KrJJJJJKJLLccLLJoJJKrJJK............',
+  '............KrJJJJJKJJLLLLJJOJJKrJJK............',
+  '............KrJJJJKJJJJJKJJJJJJKrJJK............',
+  '............KrJJJKJJJJJaKJJJJJJKrJJK............',
+  '............KrJJJKJJJJJJKJJJJJJKrccK............',
+  '.............KrJKrJJJJJJKJJJJJJKrccK............',
+  '..............KKKrJJJJJaKJJJJJJKzSSz............',
+  '.................KrJJJJJKJJJJJKzSSSSz...........',
+  '.................KrJJJJJKJJJJJK.zSSz............',
+  '.................KrJJJJQQJJJJJK..zz.............',
+  '.................KrJJJKPPKJJJJK.................',
+  '.................KKKKKKQQKKKKKK.................',
+  '..................QpPPQ..QpPPQ..................',
+  '..................QpPPQ..QpPPQ..................',
+  '..................QpPPQ..QpPPQ..................',
+  '..................FfFF....FfFF..................',
+  '.................FfFFFF..FfFFFF.................',
+  '..................QQQQQ...QQQQQ.................',
+  '................xxxxxxxxxxxxxxxx................'
+]
+const CLOUDS = [
+  { x: 35, y: 13, rows: ['.k.', 'kWk', '.k.'] },
+  { x: 37, y: 9, rows: ['.kk.', 'kWWk', 'kWWk', '.kk.'] },
+  { x: 39, y: 2, rows: ['...kk...', '..kWWk..', '.kWWWWk.', 'kWWWWWWk', 'kWWWWWWk', '.kWWWWk.', '..kkkk..'] }
+]
+const THINK_RECTS = toRects(THINK_BODY)
+const CLOUD_RECTS = CLOUDS.map((c) => ({ ...c, rects: toRects(c.rows) }))
+
+export function ThinkingAbe({ size = 240, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      className={'thinking-abe' + (className ? ' ' + className : '')} width={size} height={size} viewBox="0 0 48 48"
+      shapeRendering="crispEdges" aria-hidden="true"
+    >
+      <g className="thinking-abe__body">
+        {THINK_RECTS.map((r, i) => <rect key={i} x={r.x} y={r.y} width={r.w} height={1} fill={r.fill} />)}
+      </g>
+      {CLOUD_RECTS.map((c, n) => (
+        <g key={n} className={'thinking-abe__cloud thinking-abe__cloud--' + (n + 1)} transform={`translate(${c.x} ${c.y})`}>
+          <g>{c.rects.map((r, i) => <rect key={i} x={r.x} y={r.y} width={r.w} height={1} fill={r.fill} />)}</g>
+        </g>
+      ))}
     </svg>
   )
 }

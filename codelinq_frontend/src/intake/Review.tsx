@@ -35,7 +35,7 @@ export function Review() {
       const next = { ...s.profile }
       FIELDS.forEach((f) => {
         const field = next[f.id]
-        if (field.status === 'proposed') next[f.id] = { status: 'confirmed', value: field.value }
+        if (field.status === 'proposed') next[f.id] = { ...field, status: 'confirmed' }
         else if (f.role === 'optional' && (field.status === 'empty' || field.status === 'unknown')) next[f.id] = { status: 'skipped', value: null }
       })
       return { profile: next }

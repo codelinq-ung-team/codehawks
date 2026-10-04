@@ -1,5 +1,6 @@
 // The conversation with Abe: one question at a time, quick replies, and "why?" any time.
-// Answers are checked on the Review screen, so this screen is only the chat.
+// Beside it on wide screens, "What Abe knows" lists his answers so far; anything can be
+// taken back there. Answers are still checked on the Review screen.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button, Icon } from '../kit/Kit.tsx'
 import { Avatar } from '../guide/Avatar.tsx'
@@ -7,6 +8,7 @@ import { GUIDE_NAME } from '../guide/guide.ts'
 import { Page } from '../lib/Chrome.tsx'
 import { getState, go, setState, useStore, type Message } from '../lib/store.ts'
 import { CLOSING, WHY, intro, nextStep, question, respond } from './script.ts'
+import { Knows, type Fact } from './Knows.tsx'
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 const pause = () => new Promise((r) => setTimeout(r, reduceMotion() ? 0 : 450))
@@ -59,6 +61,19 @@ async function send(text: string) {
   return botSay([...res.say, CLOSING], { done: true })
 }
 
+// Take an answer back. Abe acknowledges it and asks whatever he needs next, so the
+// question on screen always matches the answer the chat expects.
+async function forget(fact: Fact) {
+  if (getState().typing) return
+  setState((s) => fact.kind === 'field'
+    ? { profile: { ...s.profile, [fact.id]: { status: 'empty', value: null } }, pending: null }
+    : { form: { ...s.form, [fact.id]: null }, pending: null })
+  const after = getState()
+  const next = nextStep(after)
+  const q = next ? question(next, after) : null
+  await botSay(['Okay, I’ve taken that off my list.', q ? q.text : CLOSING], q ? { replies: q.replies } : { done: true })
+}
+
 export function Chat() {
   const state = useStore()
   const [draft, setDraft] = useState('')
@@ -88,71 +103,64 @@ export function Chat() {
     inputRef.current?.focus()
   }
 
-  // Abe's face sits beside the last bubble in each run of his messages.
+  // Abe's face sits beside the last bubble in each run of his messages (small screens only;
+  // wide screens show him in the side panel).
   const showFace = (i: number) => (i === msgs.length - 1 ? !state.typing : msgs[i + 1].role !== 'bot')
+  const chips = replies?.filter((r) => r !== WHY)
 
   return (
     <Page className="chat-screen">
-      <section className="chat-card" aria-label={`Conversation with ${GUIDE_NAME}`}>
-        <header className="chat-card__head">
-          <Avatar size={48} />
-          <div className="chat-card__who">
-            <strong className="headline">{GUIDE_NAME}</strong>
-            <span className="footnote muted"><span className="chat-card__dot" aria-hidden="true" />Your guide · Here to help</span>
-          </div>
-        </header>
-
-        <div className="chat-card__body" ref={logRef}>
-          <div className="chat-intro">
-            <Avatar size={96} className="chat-intro__face" />
-            <strong className="title-3">Meet {GUIDE_NAME}</strong>
-            <p className="subhead muted">Your guide for today. Ask “why?” any time and I’ll explain.</p>
-          </div>
-          <ol className="chat__log" role="log" aria-live="polite" aria-relevant="additions">
-            {msgs.map((m, i) => (
-              <li key={i} className={`msg-row msg-row--${m.role}`}>
-                {m.role === 'bot' && <span className="msg-row__face">{showFace(i) && <Avatar size={32} />}</span>}
-                <div className={`msg msg--${m.role}${m.why ? ' msg--why' : ''}`}>
-                  {m.why && <span className="msg__tag footnote"><Icon name="info" size={14} />Why we ask</span>}
-                  <span className="sr-only">{m.role === 'bot' ? `${GUIDE_NAME}: ` : 'You: '}</span>
-                  {m.text}
-                  {m.done && <div className="msg__cta"><Button icon="check-circle" onClick={() => go('review')}>Review My Answers</Button></div>}
-                </div>
-              </li>
-            ))}
-            {state.typing && (
-              <li className="msg-row msg-row--bot">
-                <span className="msg-row__face"><Avatar size={32} /></span>
-                <div className="msg msg--bot msg--typing" aria-label={`${GUIDE_NAME} is typing`}><span /><span /><span /></div>
-              </li>
-            )}
-          </ol>
-        </div>
-
-        <div className="composer">
-          {replies && (
-            <div className="chips" role="group" aria-label="Suggested answers">
-              {replies.map((r) => (
-                <button key={r} type="button" className={'chip' + (r === WHY ? ' chip--why' : '')} onClick={() => void send(r)}>
-                  {r === WHY && <Icon name="info" size={16} />}{r}
-                </button>
+      <div className="chat-stage">
+        <section className="chat-card" aria-label={`Conversation with ${GUIDE_NAME}`}>
+          <div className="chat-card__body" ref={logRef}>
+            <ol className="chat__log" role="log" aria-live="polite" aria-relevant="additions">
+              {msgs.map((m, i) => (
+                <li key={i} className={`msg-row msg-row--${m.role}`}>
+                  {m.role === 'bot' && <span className="msg-row__face">{showFace(i) && <Avatar size={32} />}</span>}
+                  <div className={`msg msg--${m.role}${m.why ? ' msg--why' : ''}`}>
+                    {m.why && <span className="msg__tag footnote"><Icon name="info" size={14} />Why we ask</span>}
+                    <span className="sr-only">{m.role === 'bot' ? `${GUIDE_NAME}: ` : 'You: '}</span>
+                    {m.text}
+                    {m.done && <div className="msg__cta"><Button icon="check-circle" onClick={() => go('review')}>Review My Answers</Button></div>}
+                  </div>
+                </li>
               ))}
-            </div>
-          )}
-          {!finished && (
-            <form className="composer__form" onSubmit={submit}>
-              <div className="ck-field__box composer__box">
+              {state.typing && (
+                <li className="msg-row msg-row--bot">
+                  <span className="msg-row__face"><Avatar size={32} /></span>
+                  <div className="msg msg--bot msg--typing" aria-label={`${GUIDE_NAME} is typing`}><span /><span /><span /></div>
+                </li>
+              )}
+            </ol>
+          </div>
+
+          <div className="composer">
+            {replies?.includes(WHY) && (
+              <button type="button" className="composer__why" onClick={() => void send(WHY)}>{WHY}</button>
+            )}
+            {chips && chips.length > 0 && (
+              <div className="chips" role="group" aria-label="Suggested answers">
+                {chips.map((r) => (
+                  <button key={r} type="button" className="chip" onClick={() => void send(r)}>{r}</button>
+                ))}
+              </div>
+            )}
+            {!finished && (
+              <form className="composer__form" onSubmit={submit}>
                 <input
-                  ref={inputRef} className="ck-field__input" value={draft} autoFocus autoComplete="off"
+                  ref={inputRef} className="composer__input" value={draft} autoFocus autoComplete="off"
                   onChange={(e) => setDraft(e.target.value)} placeholder="Type your answer…" aria-label="Your answer"
                 />
-              </div>
-              <Button type="submit" disabled={!draft.trim() || state.typing}>Send</Button>
-            </form>
-          )}
-          <p className="caption-1 muted composer__note">Guided mode: questions follow a set script while the AI connection is being built.</p>
-        </div>
-      </section>
+                <button type="submit" className="composer__send" disabled={!draft.trim() || state.typing} aria-label="Send">
+                  <Icon name="arrow-up" size={22} weight={2.4} />
+                </button>
+              </form>
+            )}
+            <p className="caption-1 muted composer__note">Guided mode: questions follow a set script while the AI connection is being built.</p>
+          </div>
+        </section>
+        <Knows profile={state.profile} form={state.form} busy={state.typing} onForget={(f) => void forget(f)} />
+      </div>
     </Page>
   )
 }

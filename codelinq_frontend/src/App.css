@@ -131,20 +131,64 @@ h1, h2, h3, p { margin: 0; }
 /* ---------- Chat ---------- */
 .chat-screen { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: var(--space-4); }
 /* The chat fills the window below the header; only the messages scroll. */
+/* The chat card, plus "What Abe knows" beside it on wide screens. */
+.chat-stage { display: flex; flex: 1; min-height: 0; justify-content: center; gap: var(--space-6); }
+
+/* What Abe knows: thinking Abe on top, then a card per answer that flies up and fades in. */
+.knows { display: none; }
+@media (min-width: 1024px) {
+  .knows { display: flex; flex-direction: column; gap: var(--space-4); flex: none; width: 360px; min-height: 0; }
+  .msg-row__face { display: none; }
+}
+.knows__head { display: flex; align-items: flex-end; gap: var(--space-3); }
+.knows__abe { flex: none; width: 192px; height: 192px; }
+.knows__title { padding-bottom: var(--space-4); white-space: nowrap; font: 700 13px/18px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--label-secondary); }
+.knows__list { display: grid; align-content: start; gap: var(--space-3); flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: -6px; padding: 6px; list-style: none; }
+.knows__card {
+  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border-radius: 20px;
+  background: var(--grouped-secondary); box-shadow: 0 0 0 1px var(--card-edge), 0 6px 18px rgba(60, 20, 30, .05);
+  animation: knows-in .5s cubic-bezier(.2, .8, .2, 1) both;
+}
+.knows__mark { display: grid; flex: none; color: var(--highlight-text); }
+.knows__card.is-unsure .knows__mark { color: var(--label-tertiary); }
+.knows__text { display: grid; flex: 1; min-width: 0; }
+.knows__label { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.knows__value { font: 700 18px/24px var(--font-sans); color: var(--label-primary); overflow-wrap: anywhere; }
+.knows__card.is-unsure .knows__value { font-weight: 600; color: var(--label-secondary); }
+.knows__forget { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; color: var(--label-secondary); cursor: pointer; }
+.knows__forget:hover { background: var(--fill-quaternary); color: var(--label-primary); }
+.knows__forget:disabled { opacity: .4; cursor: default; }
+.knows__forget:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@keyframes knows-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .knows__card { animation: none; } }
+/* Thinking Abe: his clouds pop in small to big, drift a pixel at a time and fade out;
+   Abe bobs one pixel. Moves are whole sprite pixels (1 SVG unit) to stay crisp. */
+.thinking-abe__body { animation: abe-bob 2.4s steps(1, end) infinite; }
+.thinking-abe__cloud { animation: cloud-in-1 4s ease-in-out infinite; }
+.thinking-abe__cloud--2 { animation-name: cloud-in-2; }
+.thinking-abe__cloud--3 { animation-name: cloud-in-3; }
+.thinking-abe__cloud > g { animation: cloud-drift 1.6s steps(1, end) infinite; }
+.thinking-abe__cloud--2 > g { animation-delay: -.5s; }
+.thinking-abe__cloud--3 > g { animation-name: cloud-drift-big; animation-duration: 2s; }
+@keyframes abe-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -1px; } }
+@keyframes cloud-in-1 { 0%, 5% { opacity: 0; } 12%, 82% { opacity: 1; } 92%, 100% { opacity: 0; } }
+@keyframes cloud-in-2 { 0%, 18% { opacity: 0; } 25%, 82% { opacity: 1; } 92%, 100% { opacity: 0; } }
+@keyframes cloud-in-3 { 0%, 31% { opacity: 0; } 38%, 82% { opacity: 1; } 92%, 100% { opacity: 0; } }
+@keyframes cloud-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -1px; } }
+@keyframes cloud-drift-big { 0%, 100% { translate: 0 0; } 25% { translate: 1px 0; } 50% { translate: 1px -1px; } 75% { translate: 0 -1px; } }
+@media (prefers-reduced-motion: reduce) { .thinking-abe__body, .thinking-abe__cloud, .thinking-abe__cloud > g { animation: none; } }
 .app:has(.chat-screen) { display: flex; flex-direction: column; height: 100dvh; box-sizing: border-box; padding-bottom: var(--space-4); }
 .chat-card {
   display: flex; flex-direction: column; flex: 1; width: 100%; max-width: 760px; min-height: 380px; margin: 0 auto;
   border-radius: 24px; background: var(--grouped-secondary); overflow: hidden;
   box-shadow: 0 0 0 1px var(--card-edge), 0 18px 48px rgba(60, 20, 30, .08);
 }
-.chat-card__head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--card-edge); }
-.chat-card__who { display: grid; }
-.chat-card__dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--success); }
-.chat-card__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-5); }
+.chat-card__body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-5); }
 .msg-row { display: flex; align-items: flex-end; gap: var(--space-2); }
 .msg-row--user { justify-content: flex-end; }
 .msg-row__face { flex: none; width: 32px; height: 32px; }
-.chat__log { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+/* Messages sit at the bottom of the card, like a messenger. */
+.chat__log { display: flex; flex-direction: column; gap: var(--space-2); margin: auto 0 0; padding: 0; list-style: none; }
 .msg {
   max-width: min(78%, 32em); padding: 10px 14px; border-radius: var(--radius-lg);
   font: 400 17px/23px var(--font-sans); overflow-wrap: anywhere;
@@ -162,9 +206,14 @@ h1, h2, h3, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .msg--typing span { animation: none; opacity: .6; } }
 
 .composer {
-  display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-5) var(--space-3);
-  border-top: 1px solid var(--card-edge); background: var(--grouped-secondary);
+  display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-5) var(--space-4); background: var(--grouped-secondary);
 }
+.composer__why {
+  justify-self: start; padding: 2px 0; border: 0; background: none; cursor: pointer;
+  color: var(--label-secondary); font: 500 15px/20px var(--font-sans); text-decoration: underline; text-underline-offset: 4px;
+}
+.composer__why:hover { color: var(--label-primary); }
+.composer__why:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 var(--space-4);
@@ -173,9 +222,17 @@ h1, h2, h3, p { margin: 0; }
 }
 .chip:hover { background: var(--fill-quaternary); }
 .chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.chip--why { border-color: transparent; background: var(--fill-tertiary); color: var(--label-primary); }
-.composer__form { display: flex; gap: var(--space-2); align-items: center; }
-.composer__box { flex: 1; background: var(--grouped-primary); box-shadow: inset 0 0 0 1px var(--card-edge); border-radius: var(--radius-full); }
+/* The answer box: a pill with a round send button inside. */
+.composer__form {
+  display: flex; align-items: center; gap: var(--space-2); padding: 6px 6px 6px var(--space-5);
+  border-radius: var(--radius-full); background: var(--grouped-primary); box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+.composer__form:focus-within { box-shadow: inset 0 0 0 2px var(--tint); }
+.composer__input { flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; outline: none; background: none; color: var(--label-primary); font: 400 17px/22px var(--font-sans); }
+.composer__input::placeholder { color: var(--label-tertiary); }
+.composer__send { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border: 0; border-radius: 50%; background: var(--tint); color: var(--on-tint); cursor: pointer; }
+.composer__send:disabled { opacity: .45; cursor: default; }
+.composer__send:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .composer__note { padding: 0 var(--space-4); }
 
 
@@ -281,9 +338,6 @@ h1, h2, h3, p { margin: 0; }
 @keyframes lp-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .lp-chat__cta > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 
-/* Abe's introduction at the top of the chat */
-.chat-intro { display: grid; justify-items: center; gap: var(--space-1); margin-bottom: var(--space-6); padding-bottom: var(--space-5); border-bottom: 1px solid var(--card-edge); text-align: center; }
-.chat-intro__face { margin-bottom: var(--space-2); }
 
 /* Stats band */
 .lp-band { width: 100vw; margin-left: calc(50% - 50vw); background: var(--brand-tyrian); color: var(--on-brand); }
