@@ -273,7 +273,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
         <AskAbe p={p} r={r} ref={askRef} recommendation={recommendations.result} />
 
         <div className="wrap__actions stack">
-          <Button size="large" fullWidth icon="share" onClick={() => void copy()}>Copy Summary</Button>
+          <Button size="large" fullWidth icon="share" onClick={() => void copy()} className="lift">Copy Summary</Button>
           {copied === 'ok' && <Banner tone="success" title="Summary copied" message="Paste it into a note or email to bring to a licensed professional." onDismiss={() => setCopied(null)} />}
           {copied === 'fail' && (
             <>
@@ -281,7 +281,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
               <textarea className="summary-text" readOnly value={summary} aria-label="Summary" onFocus={(e) => e.target.select()} />
             </>
           )}
-          <Button variant="bordered" fullWidth onClick={() => go('review')}>Change My Answers</Button>
+          <Button variant="bordered" fullWidth onClick={() => go('review')} className="lift">Change My Answers</Button>
         </div>
       </div>
 
