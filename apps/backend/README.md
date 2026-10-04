@@ -260,13 +260,15 @@ table a deployed function returns 503; on a developer's computer pairings are ke
 
 ### Plaid Sandbox on the Basics form
 
-The Basics form asks for age first, then offers an optional step: connect accounts through Plaid Link and the
-balances fill in the debt answer, then propose the mortgage, other debts and savings for the
+The Basics form offers an optional step to connect accounts through Plaid Link. Plaid Bank Income
+annualizes approved USD income deposits over a 120-day report and fills the yearly-income answer;
+balances fill in debt, then propose the mortgage, other debts and savings for the
 person to check (`apps/backend/plaid.py`, `apps/web/src/intake/plaidFill.ts`). Send
 `POST /api/plaid/link-token` with `{}` for a Link token, then `POST /api/plaid/exchange` with
-`{"public_token":"..."}`. The reply is `{"connected":true,"financialSnapshot":{...}}`: account
-category, type, subtype, balances and currency only. Names, masks, account and institution ids
-never leave the backend, and the access token is not stored.
+`{"public_token":"...","user_id":"..."}` using the opaque user id returned with the Link token.
+The reply is `{"connected":true,"financialSnapshot":{...}}`: estimated yearly income plus account
+category, type, subtype, balances and currency only. Income sources and transactions, names, masks,
+account and institution ids never leave the backend, and the access token is not stored.
 
 Locally, set `PLAID_CLIENT_ID` and `PLAID_SECRET` (Sandbox keys from the Plaid dashboard) in the
 environment; `PLAID_ENV` must be `sandbox`. Without them the routes return 503, and the site

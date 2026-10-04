@@ -2,7 +2,7 @@
 // assessment form). Answers fill in the profile so Abe only asks the follow-ups. After the
 // last one comes the choice between typing with Abe here and talking with him in VR.
 // Abe stands beside each question in a pose.
-// An optional Plaid step comes first; its balances fill in the debt answer. Then age starts the questions.
+// An optional Plaid step comes first; it can fill in income and debt. Then age starts the questions.
 import { useState, type FormEvent } from 'react'
 import { Button, Icon } from '../kit/Kit.tsx'
 import { Page } from '../lib/Chrome.tsx'
@@ -11,7 +11,7 @@ import { GUIDE_NAME } from '../guide/guide.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { applyForm } from './script.ts'
 import { PlaidConnect } from './PlaidConnect.tsx'
-import { applyPlaid, debtFromPlaid, plaidFill } from './plaidFill.ts'
+import { applyPlaid, debtFromPlaid, incomeFromPlaid, plaidFill } from './plaidFill.ts'
 
 type Option = { label: string; value: Form[keyof Form] }
 type Question = { id: keyof Form; prompt: string; helper: string; pose: PoseName; side: 'left' | 'right' } & (
@@ -69,7 +69,7 @@ export function Prepare() {
   const tooBig = q.type === 'number' && typeof answer === 'number' && answer > q.max
   // Abe cheers once the last question is answered.
   const pose: PoseName = last && answer != null ? 'cheer' : q.pose
-  const fromPlaid = q.id === 'debt' && debtFromPlaid(form, plaid)
+  const fromPlaid = (q.id === 'income' && incomeFromPlaid(form, plaid)) || (q.id === 'debt' && debtFromPlaid(form, plaid))
 
   const save = (value: Form[keyof Form]) => setState((s) => ({ form: { ...s.form, [q.id]: value } }))
 
