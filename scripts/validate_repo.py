@@ -142,7 +142,7 @@ def validate_chat(template):
     assert all(error == {"ErrorCode": error["ErrorCode"], "ErrorCachingMinTTL": 0} for error in errors), "Do not cache or rewrite API errors into HTML"
     behavior = [b for b in distribution["CacheBehaviors"] if b["PathPattern"] == "/api/*"]
     assert len(behavior) == 1 and behavior[0]["TargetOriginId"] == "HackathonChat"
-    assert behavior[0]["CachePolicyId"] == "413f1602-6f6d-4f29-9b3b-ae0a58b8b8d6", "Disable API caching"
+    assert behavior[0]["CachePolicyId"] == "4135ea2d-6df8-44a3-9df3-4b5a84be39ad", "Disable API caching"
     assert behavior[0]["OriginRequestPolicyId"] == "b689b0a8-53d0-40ab-baf2-68738e2966ac", "Forward payload hash and Origin, exclude viewer Host"
     assert "POST" in behavior[0]["AllowedMethods"] and behavior[0]["Compress"] is False
     origin = [o for o in distribution["Origins"] if o["Id"] == "HackathonChat"]
