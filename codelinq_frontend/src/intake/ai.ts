@@ -3,6 +3,7 @@
 import { known, type Reading } from './script.ts'
 import type { FieldId } from '../domain/calculator.ts'
 import type { AppState } from '../lib/store.ts'
+import { assessmentContext } from './assessmentContext.ts'
 
 const INTENTS = ['answer', 'unsure', 'skip', 'why', 'question', 'unclear']
 
@@ -16,6 +17,7 @@ export async function readAnswer(stepId: FieldId, asked: string, text: string, s
   try {
     const body = new TextEncoder().encode(JSON.stringify({
       step: stepId, question: asked.slice(0, 600), answer: text.slice(0, 1000), known: known(state),
+      assessment_context: assessmentContext(state),
       ...(state.financialContextToken ? { plaid_context_token: state.financialContextToken } : {}),
     }))
     const response = await fetch('/api/intake', {

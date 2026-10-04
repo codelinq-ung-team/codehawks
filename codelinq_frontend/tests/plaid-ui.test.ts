@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { webcrypto } from 'node:crypto'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
+import { questionsForBasics } from '../src/intake/basicsQuestions.ts'
 
 type Call = { path: string; options: { body: Uint8Array; headers: Record<string, string> } }
 
@@ -40,12 +41,18 @@ test('Plaid screen uses the real Link hook and backend helpers', () => {
   assert.doesNotMatch(source, /Simulate sign in|demo_password|UI-only Plaid/)
 })
 
-test('Plaid is optional and skipping clears imported context before chat', () => {
+test('Plaid is optional and skipping clears imported context before the full quiz', () => {
   const source = readFileSync(new URL('../src/intake/Prepare.tsx', import.meta.url), 'utf8')
   assert.match(source, /Continue without Plaid/)
   assert.match(source, /function continueWithoutPlaid/)
-  assert.match(source, /financialSnapshot: null, financialContextToken: null, started: true/)
+  assert.match(source, /financialSnapshot: null, financialContextToken: null/)
+  assert.match(source, /setStage\('quiz-manual'\)/)
   assert.match(source, /Plaid Sandbox is optional/)
+})
+
+test('Plaid users skip income and debt while manual users receive all five questions', () => {
+  assert.deepEqual(questionsForBasics(true).map(({ id }) => id), ['marital', 'dependents', 'coverage'])
+  assert.deepEqual(questionsForBasics(false).map(({ id }) => id), ['income', 'marital', 'dependents', 'debt', 'coverage'])
 })
 
 test('What Abe knows includes redacted Plaid summaries and disconnects their context together', () => {
@@ -56,7 +63,9 @@ test('What Abe knows includes redacted Plaid summaries and disconnects their con
   assert.match(knows, /Plaid investments/)
   assert.match(knows, /Plaid listed debt/)
   assert.match(chat, /snapshot=\{state\.financialSnapshot\}/)
-  assert.match(chat, /financialSnapshot: null, financialContextToken: null/)
+  assert.match(chat, /financialSnapshot: null/)
+  assert.match(chat, /financialContextToken: null/)
+  assert.match(chat, /clearPlaidFields/)
 })
 
 test('Plaid API helper creates a Link token then exchanges a public token', async () => {

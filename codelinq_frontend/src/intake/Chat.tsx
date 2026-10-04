@@ -12,6 +12,7 @@ import { getState, go, setState, useStore, type Message } from '../lib/store.ts'
 import { readAnswer } from './ai.ts'
 import { CLOSING, WHY, interpret, intro, nextStep, question, respond, type Reply } from './script.ts'
 import { Knows, type Fact } from './Knows.tsx'
+import { applyPlaidDebts, clearPlaidFields } from './plaidProfile.ts'
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 const pause = () => new Promise((r) => setTimeout(r, reduceMotion() ? 0 : 450))
@@ -28,6 +29,9 @@ async function botSay(lines: string[], last: Partial<Message>) {
 }
 
 async function begin() {
+  const before = getState()
+  const importedProfile = applyPlaidDebts(before.profile, before.financialSnapshot)
+  if (importedProfile !== before.profile) setState({ profile: importedProfile })
   const s = getState()
   const step = nextStep(s)
   const q = step ? question(step, s) : null
@@ -81,7 +85,12 @@ async function send(text: string) {
 async function forget(fact: Fact) {
   if (getState().typing) return
   if (fact.kind === 'plaid') {
-    setState({ financialSnapshot: null, financialContextToken: null, pending: null })
+    setState((state) => ({
+      financialSnapshot: null,
+      financialContextToken: null,
+      profile: clearPlaidFields(state.profile),
+      pending: null,
+    }))
     const after = getState()
     const next = nextStep(after)
     const q = next ? question(next, after) : null
@@ -105,8 +114,21 @@ export function Chat() {
 
   useEffect(() => {
     // Read live state: under StrictMode this effect runs twice, and the first run has already started typing.
-    const s = getState()
-    if (!s.messages.length && !s.typing) void begin()
+    const before = getState()
+    const previousStep = nextStep(before)
+    const importedProfile = applyPlaidDebts(before.profile, before.financialSnapshot)
+    if (importedProfile !== before.profile) setState({ profile: importedProfile })
+    const after = getState()
+    if (!after.messages.length && !after.typing) {
+      void begin()
+    } else if (!after.typing && (previousStep === 'mortgage' || previousStep === 'otherDebts') && nextStep(after) !== previousStep) {
+      const next = nextStep(after)
+      const q = next ? question(next, after) : null
+      void botSay(
+        ['You’re right—I can use the debt balances from your linked Plaid accounts as an unconfirmed starting point.', q ? q.text : CLOSING],
+        q ? { replies: q.replies } : { done: true },
+      )
+    }
   }, [])
 
   useEffect(() => {

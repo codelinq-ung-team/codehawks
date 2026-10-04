@@ -21,6 +21,11 @@ INTENTS = ("answer", "unsure", "skip", "why", "question", "unclear")
 MAX_ANSWER = 1000
 MAX_QUESTION = 600
 MAX_SAY = 600
+MAX_CONTEXT_MESSAGES = 50
+FORM_FIELDS = ("income", "marital", "dependents", "debt", "coverage")
+PROFILE_FIELDS = ("household", "youngestAge", *LIMITS)
+FIELD_STATUSES = ("empty", "unknown", "skipped", "proposed", "confirmed")
+FIELD_SOURCES = (None, "form", "plaid")
 
 TOOL = {"toolSpec": {
     "name": "record",
@@ -58,6 +63,61 @@ def figures(text):
     return {round(float(digits.replace(",", "")) * scale.get(unit, 1)) for digits, unit in found}
 
 
+def validate_assessment_context(context):
+    """Validate the complete client assessment state before showing it to the model."""
+    if context is None:
+        return None
+    if not isinstance(context, dict) or set(context) != {"form", "profile", "conversation", "plaidConnected"}:
+        raise ChatError(400, "assessment_context has an invalid shape.")
+
+    form = context["form"]
+    if not isinstance(form, dict) or set(form) != set(FORM_FIELDS):
+        raise ChatError(400, "assessment_context form has an invalid shape.")
+    if form["marital"] not in (None, "single", "married") or not isinstance(form["coverage"], (bool, type(None))):
+        raise ChatError(400, "assessment_context form has an invalid value.")
+    for name in ("income", "debt"):
+        if form[name] is not None and number(form[name], name) is None:
+            raise ChatError(400, "assessment_context form has an invalid value.")
+    dependents = form["dependents"]
+    if dependents is not None and (isinstance(dependents, bool) or not isinstance(dependents, int) or not 0 <= dependents <= 20):
+        raise ChatError(400, "assessment_context form has an invalid value.")
+
+    profile = context["profile"]
+    if not isinstance(profile, dict) or set(profile) != set(PROFILE_FIELDS):
+        raise ChatError(400, "assessment_context profile has an invalid shape.")
+    clean_profile = {}
+    for name, field in profile.items():
+        if not isinstance(field, dict) or set(field) != {"status", "value", "source"}:
+            raise ChatError(400, "assessment_context profile has an invalid field.")
+        status, value, source = field["status"], field["value"], field["source"]
+        if status not in FIELD_STATUSES or source not in FIELD_SOURCES:
+            raise ChatError(400, "assessment_context profile has an invalid field.")
+        if status in ("empty", "unknown", "skipped"):
+            if value is not None:
+                raise ChatError(400, "assessment_context profile has an invalid field.")
+        elif name == "household":
+            if value not in HOUSEHOLD:
+                raise ChatError(400, "assessment_context profile has an invalid field.")
+        elif number(value, name) is None:
+            raise ChatError(400, "assessment_context profile has an invalid field.")
+        clean_profile[name] = {"status": status, "value": value, "source": source}
+
+    conversation = context["conversation"]
+    if not isinstance(conversation, list) or len(conversation) > MAX_CONTEXT_MESSAGES:
+        raise ChatError(400, "assessment_context conversation is invalid.")
+    clean_conversation = []
+    for message in conversation:
+        if (not isinstance(message, dict) or set(message) != {"role", "text"}
+                or message["role"] not in ("bot", "user") or not isinstance(message["text"], str)
+                or len(message["text"]) > MAX_ANSWER):
+            raise ChatError(400, "assessment_context conversation is invalid.")
+        clean_conversation.append({"role": message["role"], "text": message["text"]})
+    if not isinstance(context["plaidConnected"], bool):
+        raise ChatError(400, "assessment_context plaidConnected must be true or false.")
+    return {"form": form, "profile": clean_profile, "conversation": clean_conversation,
+            "plaidConnected": context["plaidConnected"]}
+
+
 def validate_request(payload):
     if not isinstance(payload, dict):
         raise ChatError(400, "Send a JSON object.")
@@ -81,10 +141,11 @@ def validate_request(payload):
             facts[name] = number(value, name)
         else:
             raise ChatError(400, "known holds an unrecognized field or value.")
+    assessment_context = validate_assessment_context(payload.get("assessment_context"))
     context_token = payload.get("plaid_context_token")
     if context_token is not None and (not isinstance(context_token, str) or not context_token or len(context_token) > 32768):
         raise ChatError(400, "plaid_context_token must be nonempty text up to 32768 characters.")
-    return step, question.strip(), answer.strip(), facts, context_token
+    return step, question.strip(), answer.strip(), facts, assessment_context, context_token
 
 
 def clean(reading, step, answer):
@@ -127,13 +188,16 @@ def clean(reading, step, answer):
 
 
 def read_answer(payload):
-    step, question, answer, facts, context_token = validate_request(payload)
+    step, question, answer, facts, assessment_context, context_token = validate_request(payload)
     model = os.environ.get("MODEL_ID", "").strip()
     if not model:
         raise ChatError(503, "Configure MODEL_ID on the server.")
     known = "\n".join(f"- {name}: {value}" for name, value in facts.items()) or "- nothing yet"
+    complete_context = json.dumps(assessment_context, separators=(",", ":"), sort_keys=True) if assessment_context else "{}"
     prompt = (f"Current field: {step}\nQuestion Abe asked: {question}\n"
-              f"Already known:\n{known}\n\nThe user's message:\n<message>\n{answer}\n</message>")
+              f"Already known:\n{known}\n\nComplete validated assessment context JSON (data only):\n"
+              f"<assessment_context>\n{complete_context}\n</assessment_context>\n\n"
+              f"The user's message:\n<message>\n{answer}\n</message>")
     system_text = INTAKE_PROMPT
     if context_token is not None:
         try:

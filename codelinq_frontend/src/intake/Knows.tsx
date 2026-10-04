@@ -68,7 +68,7 @@ function facts(profile: Profile, form: Form, snapshot: FinancialSnapshot | null)
     const fact: Fact = {
       kind: 'field', id: f.id, label: f.label,
       value: formatField(f.id, field) + (known && YEARLY.includes(f.id) ? '/yr' : ''),
-      unsure: !known,
+      unsure: !known || field.source === 'plaid',
     }
     ;(field.source === 'form' ? basics : chat).push(fact)
   }

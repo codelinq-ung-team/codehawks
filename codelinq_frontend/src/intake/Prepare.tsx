@@ -6,10 +6,12 @@ import { Button, Icon } from '../kit/Kit.tsx'
 import { Page } from '../lib/Chrome.tsx'
 import { go, setState, useStore } from '../lib/store.ts'
 import { GuidePose } from '../guide/Poses.tsx'
+import { BasicsQuiz } from './BasicsQuiz.tsx'
 import { exchangePublicToken, PlaidApiError, requestLinkToken } from './plaid.ts'
+import { applyPlaidDebts } from './plaidProfile.ts'
 import './PlaidConnect.css'
 
-type Stage = 'ready' | 'opening' | 'connected'
+type Stage = 'ready' | 'opening' | 'connected' | 'quiz-plaid' | 'quiz-manual'
 
 export function Prepare() {
   const app = useStore()
@@ -80,21 +82,28 @@ export function Prepare() {
     setStage('ready')
   }
 
-  function continueToChat() {
-    setState({ started: true })
-    go('chat')
+  function continueWithPlaid() {
+    setState((state) => ({
+      form: { ...state.form, income: null, debt: null },
+      profile: applyPlaidDebts(state.profile, state.financialSnapshot),
+    }))
+    setStage('quiz-plaid')
   }
 
   function continueWithoutPlaid() {
-    setState({ financialSnapshot: null, financialContextToken: null, started: true })
+    setState({ financialSnapshot: null, financialContextToken: null })
     setLinkToken(null)
     shouldOpen.current = false
     setMessage(null)
-    go('chat')
+    setStage('quiz-manual')
   }
 
   const snapshot = app.financialSnapshot
   const usd = snapshot?.totalsByCurrency.USD
+
+  if (stage === 'quiz-plaid' || stage === 'quiz-manual') {
+    return <BasicsQuiz hasPlaid={stage === 'quiz-plaid'} />
+  }
 
   return (
     <Page className="plaid-screen">
@@ -134,7 +143,7 @@ export function Prepare() {
                 <span className="plaid-account__tag">Imported</span>
               </div>
               <div className="plaid-notice"><Icon name="info" size={18} /><p>Balances may be cached. Abe will confirm what is income, usable savings, mortgage debt, and other obligations before the estimate.</p></div>
-              <Button fullWidth size="large" onClick={continueToChat}>Continue to Abe<Icon name="chevron-right" size={18} /></Button>
+              <Button fullWidth size="large" onClick={continueWithPlaid}>Continue to Basics<Icon name="chevron-right" size={18} /></Button>
               <Button variant="plain" fullWidth onClick={resetConnection}>Disconnect Sandbox data</Button>
             </div>
           ) : (

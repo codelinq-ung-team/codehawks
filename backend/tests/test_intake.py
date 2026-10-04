@@ -12,6 +12,20 @@ from backend.prompts import INTAKE_PROMPT, PLAID_CONTEXT_PROMPT
 ASK = {"step": "income", "question": "About how much do you earn in a year?", "answer": "eighty grand"}
 
 
+def assessment_context():
+    fields = ("household", "youngestAge", "income", "support", "years", "mortgage",
+              "otherDebts", "finalExpenses", "education", "existing", "savings")
+    profile = {name: {"status": "empty", "value": None, "source": None} for name in fields}
+    profile["mortgage"] = {"status": "proposed", "value": 150000, "source": "plaid"}
+    return {
+        "form": {"income": None, "marital": "married", "dependents": 2, "debt": None, "coverage": True},
+        "profile": profile,
+        "conversation": [{"role": "bot", "text": "Who depends on you?"},
+                         {"role": "user", "text": "My spouse and kids"}],
+        "plaidConnected": True,
+    }
+
+
 def tool(**reading):
     return {"output": {"message": {"role": "assistant", "content": [
         {"text": "<thinking>hidden</thinking>"}, {"toolUse": {"toolUseId": "1", "name": "record", "input": reading}}]}},
@@ -32,7 +46,8 @@ class IntakeTests(unittest.TestCase):
         return self.http.post("/api/intake", json={**ASK, **values})
 
     def test_answer_and_model_request(self):
-        response = self.post(known={"household": "kids", "youngestAge": 4, "totalDebt": 180000})
+        response = self.post(known={"household": "kids", "youngestAge": 4, "totalDebt": 180000},
+                             assessment_context=assessment_context())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, {"intent": "answer", "value": 80000, "household": None, "period": None,
                                          "extra": {}, "say": "Thanks for sharing."})
@@ -42,7 +57,9 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(request["system"], [{"text": INTAKE_PROMPT}])
         self.assertEqual(request["toolConfig"], {"tools": [TOOL], "toolChoice": {"tool": {"name": "record"}}})
         prompt = request["messages"][0]["content"][0]["text"]
-        for part in ("Current field: income", "- household: kids", "- totalDebt: 180000", "<message>\neighty grand\n</message>"):
+        for part in ("Current field: income", "- household: kids", "- totalDebt: 180000",
+                     '"marital":"married"', '"mortgage":{"source":"plaid","status":"proposed","value":150000}',
+                     '"text":"My spouse and kids"', "<message>\neighty grand\n</message>"):
             self.assertIn(part, prompt)
 
     def test_household_period_and_json_text_reply(self):
@@ -62,11 +79,14 @@ class IntakeTests(unittest.TestCase):
             "source": "plaid_accounts_get", "environment": "sandbox",
             "accounts": [{"category": "debt", "currentBalance": 450.0}],
         }
-        response = self.post(plaid_context_token="signed-context")
+        response = self.post(plaid_context_token="signed-context", assessment_context=assessment_context())
         self.assertEqual(response.status_code, 200)
         system = self.aws.converse.call_args.kwargs["system"][0]["text"]
         self.assertIn(PLAID_CONTEXT_PROMPT, system)
         self.assertIn('"currentBalance":450.0', system)
+        prompt = self.aws.converse.call_args.kwargs["messages"][0]["content"][0]["text"]
+        self.assertIn('"marital":"married"', prompt)
+        self.assertIn('"source":"plaid"', prompt)
         load_context.assert_called_once_with("signed-context")
 
     @patch("backend.intake.load_financial_context")
@@ -118,7 +138,8 @@ class IntakeTests(unittest.TestCase):
     def test_invalid_requests_do_not_invoke_bedrock(self):
         bad = [{"step": "ssn"}, {"question": ""}, {"answer": " "}, {"answer": "x" * 1001}, {"question": "x" * 601},
                {"known": []}, {"known": {"income": "lots"}}, {"known": {"household": "pets"}}, {"known": {"years": 0}},
-               {"known": {"name": 1}}]
+               {"known": {"name": 1}}, {"assessment_context": []},
+               {"assessment_context": {**assessment_context(), "plaidConnected": "yes"}}]
         for values in bad:
             with self.subTest(values=values):
                 self.assertEqual(self.post(**values).status_code, 400)
