@@ -48,10 +48,16 @@ POLICIES = [
 ]
 
 
+# Answers underwriting weighs on price class and medical review, with the value that raises them.
+WEIGHED = (("tobacco", "yes", "tobacco use"), ("health", "fair", "health"))
+STREAMLINED = ("termaccel", "wealthaccelerate")
+
+
 def eligible(age, preferences, gap):
     """Exclude known conflicts; qualify unknowns and minimum mismatches explicitly."""
     found = []
     state, tobacco = preferences["state"], preferences["tobacco"]
+    weighed = [label for name, value, label in WEIGHED if preferences.get(name) == value]
     for entry in POLICIES:
         if entry["id"] == "wealthbuilder" and preferences["cashValue"] != "yes":
             continue
@@ -69,6 +75,10 @@ def eligible(age, preferences, gap):
             notes.append("Age was not provided; issue-age eligibility must be confirmed.")
         if tobacco is None:
             notes.append("Tobacco status is unknown; eligibility and premiums may differ.")
+        if weighed:
+            notes.append(f"Underwriting will weigh your {' and '.join(weighed)}; that can mean higher premiums or more medical review.")
+        if entry["id"] in STREAMLINED and preferences.get("health") == "fair":
+            notes.append("With a serious health condition, the streamlined application may not apply; expect full underwriting.")
         if entry["category"] == "permanent":
             notes.append("Published ages use age nearest birthday and underwriting class; exact eligibility needs confirmation.")
         if gap < entry["minimum"]:

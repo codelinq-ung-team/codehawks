@@ -8,8 +8,10 @@ export type CoveragePreferences = {
   goal: 'temporary' | 'lifelong' | 'both' | null
   premium: 'low' | 'higher' | null
   cashValue: 'yes' | 'no' | null
+  // Weighs on price class and medical review, never on the gap.
+  health: 'excellent' | 'good' | 'fair' | null
 }
-export const emptyPreferences = (): CoveragePreferences => ({ state: null, tobacco: null, goal: null, premium: null, cashValue: null })
+export const emptyPreferences = (): CoveragePreferences => ({ state: null, tobacco: null, goal: null, premium: null, cashValue: null, health: null })
 export type PolicyOption = {
   policyId: string; name: string; category: 'term' | 'permanent'; amount: number; minimum: number
   termYears: number | null; fit: string; points: string[]; caveat: string; source: string; qualifications: string[]

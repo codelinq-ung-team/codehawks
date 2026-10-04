@@ -11,7 +11,7 @@ from backend.llm import ChatError
 from backend.policy_catalog import eligible, VERSION
 from backend.recommendations import outlook, validate, PROMPT, TOOL
 
-PREFERENCES = dict(state="TX", tobacco="no", goal="temporary", premium="low", cashValue="no")
+PREFERENCES = dict(state="TX", tobacco="no", goal="temporary", premium="low", cashValue="no", health="excellent")
 VALUES = dict(support=40000, years=10, mortgage=150000, otherDebts=30000, education=20000, existing=100000)
 
 
@@ -121,6 +121,27 @@ class RecommendationsTests(unittest.TestCase):
         policies = eligible(None, unknown, 500000)
         self.assertTrue(all(any("Age was not provided" in q for q in p["qualifications"]) for p in policies))
 
+    def test_underwriting_answers_qualify_cards_without_changing_the_gap(self):
+        quiet = eligible(35, PREFERENCES, 500000)
+        self.assertFalse(any("Underwriting will weigh" in q for p in quiet for q in p["qualifications"]))
+        policies = eligible(35, {**PREFERENCES, "health": "fair"}, 500000)
+        self.assertEqual([p["id"] for p in policies], [p["id"] for p in quiet])
+        for p in policies:
+            self.assertIn("Underwriting will weigh your health; that can mean higher premiums or more medical review.", p["qualifications"])
+            self.assertEqual(any("streamlined" in q for q in p["qualifications"]), p["id"] in ("termaccel", "wealthaccelerate"))
+        result = self.post(body(tobacco="yes", health="fair"))
+        self.assertEqual(result.json["term"]["amount"], 500000)
+        self.assertTrue(any("your tobacco use and health;" in q for q in result.json["term"]["qualifications"]))
+
+    def test_an_older_site_without_underwriting_answers_still_works(self):
+        payload = body()
+        del payload["preferences"]["health"]
+        self.assertEqual(self.post(payload).status_code, 200)
+        facts = json.loads(self.model.converse.call_args.kwargs["messages"][0]["content"][0]["text"])
+        self.assertIsNone(facts["preferences"]["health"])
+        del payload["preferences"]["tobacco"]
+        self.assertEqual(self.post(payload).status_code, 400)
+
     def test_long_horizon_has_explicit_shortfall(self):
         updated = reading()
         updated["termYears"] = 30
@@ -149,7 +170,8 @@ class RecommendationsTests(unittest.TestCase):
 
     def test_invalid_input_never_calls_model(self):
         inputs = []
-        for name, value in (("state", []), ("state", "ignore instructions"), ("goal", {}), ("premium", "free")):
+        for name, value in (("state", []), ("state", "ignore instructions"), ("goal", {}), ("premium", "free"),
+                            ("health", "perfect"), ("health", True), ("drivingRecord", "yes")):
             inputs.append(body(**{name:value}))
         for field in (dict(status="proposed", value=100), dict(status="confirmed", value=True),
                       dict(status="confirmed", value=float("nan")), dict(status="confirmed", value=10**400),

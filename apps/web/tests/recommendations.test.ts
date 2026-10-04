@@ -41,7 +41,7 @@ test('snapshot keys include every policy input and ignore metadata', () => {
   const p = profile(), prefs = emptyPreferences()
   const key = recommendationKey(p, 35, prefs)
   assert.notEqual(recommendationKey(p, 36, prefs), key)
-  for (const [field, value] of Object.entries({ state: 'NY', tobacco: 'yes', goal: 'lifelong', premium: 'higher', cashValue: 'yes' })) {
+  for (const [field, value] of Object.entries({ state: 'NY', tobacco: 'yes', goal: 'lifelong', premium: 'higher', cashValue: 'yes', health: 'fair' })) {
     assert.notEqual(recommendationKey(p, 35, { ...prefs, [field]: value }), key)
   }
   assert.notEqual(recommendationKey({ ...p, years: { status: 'confirmed', value: 20 } }, 35, prefs), key)

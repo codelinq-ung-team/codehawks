@@ -5,8 +5,13 @@ Answers are interpreted through `POST /api/intake`, validated in the browser,
 and used by the local calculator. When the API is unavailable, the chat uses
 its labeled scripted fallback.
 
-Review includes optional coverage preferences (state, tobacco status, protection goals,
-premium preference and cash-value interest). Both typed and VR assessments finish here.
+Review includes optional coverage preferences: age, state, tobacco or nicotine use and
+overall health. They never change the calculated gap. Age, state and tobacco decide which
+policies and term lengths are eligible; tobacco use or fair health adds a note on the policy
+cards that underwriting may mean higher premiums or more medical review. Protection goal,
+premium preference and cash-value interest are no longer asked, so they are sent as unknown
+and WealthBuilder (shown only for cash-value interest) does not appear. Both typed and VR
+assessments finish here.
 On Results, Abe compares PR #39's researched Lincoln policies through
 `POST /api/recommendations`: two alternative plans for the same calculated gap,
 with a **Recommended** banner above the preferred coverage type. Source links,
@@ -22,9 +27,8 @@ included as personalized policies in Copy Summary or Ask Abe.
 To rehearse without paid inference, run the normal frontend tests and stub the endpoint
 using the response shape in `tests/recommendations.test.ts`. Demo family: age 35,
 Texas, no tobacco, $40,000 yearly support for 10 years, $150,000 mortgage, $30,000
-other debts, $20,000 education, $100,000 existing coverage, temporary goals and
-low premium preference. The calculated gap is $500,000. A separate lifelong-goal
-scenario should show the permanent banner. An unavailable backend deliberately
+other debts, $20,000 education and $100,000 existing coverage. The calculated gap is
+$500,000. An unavailable backend deliberately
 shows general education, never a mocked recommendation presented as live AI.
 
 After the Basics form the site asks how to talk with Abe (`src/intake/Mode.tsx`): text chat
