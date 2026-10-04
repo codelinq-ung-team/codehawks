@@ -67,11 +67,11 @@ namespace Advisor3D
             if (I) I.settle = 1;
         }
 
-        // Back to a clean Home screen, in front of whoever is wearing the headset now.
+        // Back to a clean first screen, in front of whoever is wearing the headset now.
         public static void StartOver()
         {
             Store.Reset();
-            Store.Go("home");
+            Store.Go("connect");
             if (I) I.snap = true;
             Recenter();
         }

@@ -1,0 +1,4 @@
+<linker>
+  <!-- The QR reader (Scanner.cs) is only reached from a background task; keep all of it in the build. -->
+  <assembly fullname="zxing" preserve="all"/>
+</linker>
