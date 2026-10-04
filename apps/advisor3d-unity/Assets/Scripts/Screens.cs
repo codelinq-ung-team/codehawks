@@ -505,6 +505,9 @@ namespace Advisor3D
 
             Scanner.Found = Sync.Join;
             Scanner.Start();
+            // With the camera already allowed, the scanner is looking by the time Start returns.
+            note.Redraw();
+            frame.Redraw();
             var key = Scanner.Status + Sync.Status;
             Texture shown = null;
             Say(Bot($"Hi, I’m {GUIDE_NAME}! Look at the QR code on your computer and I’ll pick up where you left off."));
