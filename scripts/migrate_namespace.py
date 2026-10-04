@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 
 import aws_actions as actions
 from bedrock_config import from_environment
@@ -246,14 +247,22 @@ def cutover(rollback=False):
         raise RuntimeError("Legacy DNS conflict; refusing to change alias ownership")
     if rollback:
         set_new_alias(False)
-        set_old_alias(True)
-        transfer_site_cname(new["SiteDistributionDomainName"], old["SiteDistributionDomainName"])
     else:
         verify_bootstrap_handoff()
         verify_new_site()
         set_old_alias(False)
+    source, destination = (new, old) if rollback else (old, new)
+    transfer_site_cname(source["SiteDistributionDomainName"], destination["SiteDistributionDomainName"])
+    # CloudFront rejects an alias while DNS still points to another distribution.
+    # Cloudflare's automatic TTL (1) is 300 seconds for DNS-only records.
+    ttl = matches[0].get("ttl", 1)
+    wait_seconds = 300 if ttl == 1 else ttl
+    print(f"Waiting {wait_seconds} seconds for legacy DNS caches before claiming the alias.", flush=True)
+    time.sleep(wait_seconds)
+    if rollback:
+        set_old_alias(True)
+    else:
         set_new_alias(True)
-        transfer_site_cname(old["SiteDistributionDomainName"], new["SiteDistributionDomainName"])
     print("Alias ownership and legacy DNS transfer completed.")
 
 

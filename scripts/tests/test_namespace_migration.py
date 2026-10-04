@@ -108,10 +108,15 @@ class MigrationTests(unittest.TestCase):
                  patch.object(migration, "verify_bootstrap_handoff"), \
                  patch.object(migration, "set_old_alias", side_effect=lambda value: operations.append(("old", value))), \
                  patch.object(migration, "set_new_alias", side_effect=lambda value: operations.append(("new", value))), \
+                 patch.object(migration.time, "sleep", side_effect=lambda seconds: operations.append(("wait", seconds))), \
                  patch.object(migration, "transfer_site_cname", side_effect=lambda *values: operations.append(("dns", values))):
                 migration.cutover(rollback)
-            self.assertEqual(operations[:2], [("new", False), ("old", True)] if rollback else [("old", False), ("new", True)])
-            self.assertEqual(operations[-1][0], "dns")
+            self.assertEqual(operations, [
+                ("new", False) if rollback else ("old", False),
+                ("dns", ("new.cloudfront.net", "old.cloudfront.net") if rollback else ("old.cloudfront.net", "new.cloudfront.net")),
+                ("wait", 300),
+                ("old", True) if rollback else ("new", True),
+            ])
         with patch.object(migration, "inventory"), patch.object(migration, "stack", side_effect=live), \
              patch.object(migration, "records", return_value=[]), patch.object(migration, "zone_id"), \
              patch.object(migration, "set_old_alias") as mutate:
