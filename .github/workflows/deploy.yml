@@ -103,3 +103,10 @@ jobs:
       - name: Verify deployed site and backend (three small Bedrock requests)
         if: inputs.verify_only != true
         run: python scripts/smoke_backend.py
+      - name: Report app resource failures
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name codelinc-hackathon-app \
+            --query 'StackEvents[?contains(ResourceStatus, `FAILED`)].{Resource:LogicalResourceId,Type:ResourceType,Status:ResourceStatus,Reason:ResourceStatusReason}' \
+            --output json --no-cli-pager
