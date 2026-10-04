@@ -20,8 +20,6 @@ INTENTS = ("answer", "unsure", "skip", "why", "question", "unclear")
 MAX_ANSWER = 1000
 MAX_QUESTION = 600
 MAX_SAY = 600
-MAX_HISTORY = 6
-MAX_HISTORY_TEXT = 1000
 
 TOOL = {"toolSpec": {
     "name": "record",
@@ -82,18 +80,7 @@ def validate_request(payload):
             facts[name] = number(value, name)
         else:
             raise ChatError(400, "known holds an unrecognized field or value.")
-    history = payload.get("history", [])
-    if not isinstance(history, list) or len(history) > MAX_HISTORY:
-        raise ChatError(400, "history must contain at most six messages.")
-    recent = []
-    for message in history:
-        if not isinstance(message, dict) or message.get("role") not in ("user", "assistant"):
-            raise ChatError(400, "History messages must have a user or assistant role.")
-        text = message.get("content")
-        if not isinstance(text, str) or not text.strip() or len(text) > MAX_HISTORY_TEXT:
-            raise ChatError(400, "History content must be nonempty text up to 1000 characters.")
-        recent.append({"role": message["role"], "content": text.strip()})
-    return step, question.strip(), answer.strip(), facts, recent
+    return step, question.strip(), answer.strip(), facts
 
 
 def clean(reading, step, answer):
@@ -136,15 +123,13 @@ def clean(reading, step, answer):
 
 
 def read_answer(payload):
-    step, question, answer, facts, history = validate_request(payload)
+    step, question, answer, facts = validate_request(payload)
     model = os.environ.get("MODEL_ID", "").strip()
     if not model:
         raise ChatError(503, "Configure MODEL_ID on the server.")
     known = "\n".join(f"- {name}: {value}" for name, value in facts.items()) or "- nothing yet"
     prompt = (f"Current field: {step}\nQuestion Abe asked: {question}\n"
-              f"Already known:\n{known}\n\nRecent dialogue (context only):\n"
-              f"{json.dumps(history, ensure_ascii=False)}\n\n"
-              f"The user's message:\n<message>\n{answer}\n</message>")
+              f"Already known:\n{known}\n\nThe user's message:\n<message>\n{answer}\n</message>")
     reserve_inference()
     with provider_errors():
         response = get_client().converse(

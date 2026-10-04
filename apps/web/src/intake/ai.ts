@@ -16,9 +16,6 @@ export function intakePayload(stepId: FieldId, text: string, state: AppState) {
   return {
     step: stepId, question: question(stepId, state).text.slice(0, 600),
     answer: text.slice(0, 1000), known: known(state),
-    history: state.messages.filter((m) => m.text.trim()).slice(-6).map((m) => ({
-      role: m.role === 'bot' ? 'assistant' : 'user', content: m.text.slice(0, 1000),
-    })),
   }
 }
 

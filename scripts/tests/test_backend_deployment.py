@@ -218,8 +218,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertNotIn(b"\r", archive.read("run.sh"))
                 self.assertIn(b"python -m gunicorn", archive.read("run.sh"))
                 self.assertIn(b"backend.app:app", archive.read("run.sh"))
-                for setting in (b"--no-control-socket", b"--timeout 0", b"--keep-alive 0", b"--worker-tmp-dir /tmp"):
-                    self.assertIn(setting, archive.read("run.sh"))
+                self.assertIn(b"--no-control-socket", archive.read("run.sh"))
 
     def test_smoke_client_hashes_exact_body_without_signing_credentials(self):
         body = b'{"messages":[]}'

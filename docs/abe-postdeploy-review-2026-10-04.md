@@ -74,75 +74,36 @@ as a snapshot, rather than expecting exact equality forever.
 
 ## Fixes in this PR
 
-### Runtime reliability — motivated by logs
+### Disable the unused Gunicorn control socket
 
-The launcher disables Gunicorn's unused management socket, which otherwise uses
-the user's home. This directly addresses the read-only filesystem error.
-Worker temporary files explicitly use `/tmp`.
+The launcher adds `--no-control-socket`. Gunicorn otherwise tries to create its
+management socket under the Lambda user's read-only home, matching the four
+control-server filesystem errors in the captured logs.
+[Gunicorn settings](https://gunicorn.org/reference/settings/).
 
-It also disables the worker heartbeat timeout and closes HTTP connections after
-each response. Lambda can suspend the execution environment between invocations;
-a wall-clock heartbeat can therefore expire while no request is running. Lambda's
-120-second request timeout and the existing SDK network timeouts remain in place.
-Closing local connections avoids reusing stale adapter-to-Gunicorn connections
-across suspension, with the tradeoff of one extra local TCP connection per request.
-The deployment launcher is Lambda-specific; do not copy its zero heartbeat
-timeout into an always-running server without evaluating worker recovery.
+The connection errors and worker timeouts remain unresolved findings. This PR
+does not change heartbeat timeouts, keep-alive behavior, or temporary directories.
 
-The freeze/heartbeat and stale-connection explanations are **hypotheses consistent
-with the runtime setup**, not root causes proven by the logs. There are no request
-paths or HTTP statuses in these events, so we cannot identify affected screens
-or calculate an end-user failure rate. Verify these mitigations after deployment.
-[Gunicorn settings](https://gunicorn.org/reference/settings/),
-[Lambda lifecycle](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html).
+### Send the actual open question in web intake
 
-### Conversational continuity — found in code review
+Main's `Chat.tsx` passes the last bot message as the assessment question. After
+ABE explains a field, that explanation replaces the question in the next request.
+The website now constructs `question` from the current assessment step. A regression
+test checks that an explanation about gross income does not replace the open
+income question when the user next asks about their bonus.
 
-Previously, `Chat.tsx` passed the last bot message as the assessment question.
-After “What is gross income?”, that became “income before taxes,” replacing the
-actual open income question. No dialogue history accompanied “does that include
-my bonus?” The request now always includes the canonical open question and up to
-six recent messages. The server validates roles, lengths, and count before inference.
-Older clients can omit history. A little extra input context increases input tokens.
+This is a request-context correction established by code inspection, not a finding
+from user transcripts. It does not add conversation history or change ABE's prompts,
+personality, numeric validation, API schema, or the VR voice flow.
 
-ABE's intake and results instructions now explicitly welcome brief small talk,
-harmless jokes, and invited Lincoln wit. The results system prompt also names Abe,
-matching the website. Small talk uses the existing `question` intent and leaves
-the current field open. It does not trigger a new assessment flow or save a number.
-The app still validates and confirms numbers, handles monthly conversion, and does
-the estimate itself. The existing question-mark safeguard is retained.
+## Validation and handoff
 
-### What to assess next
-
-Use an explicitly opted-in demo session if conversation review is wanted. Record
-only that session, with short retention and restricted access; do not silently
-enable account-wide raw financial-chat logging. Useful checks include:
-
-| Example (synthetic, not a real transcript) | Expected behavior |
-| --- | --- |
-| “What is gross income?” → “Does that include my bonus?” | Explain the follow-up with the income field still open |
-| “Nice hat, Abe!” | Brief friendly reply; no profile change |
-| “What does cash value mean?” | Useful explanation before any professional referral |
-| “I make 6k a month” | Ask for confirmation before annualizing |
-| “Should I count my 401k?” | Explain; never save 401,000 as an amount |
-| An earlier bot example contains a dollar amount | Never adopt it as the user's new answer |
-
-Offline tests establish request handling and field behavior, not how Nova will
-phrase these replies. Live model evaluation was not run: AWS investigation was
-read-only and no billable inference was requested.
-
-## Validation and deployment handoff
-
-- Backend: `cd apps && python -m unittest discover -s backend/tests -q` (59 tests).
-- Deployment: `python -m unittest discover -s scripts/tests -q` (33 tests).
-- Web: `cd apps/web && npm test` (33 tests), `npm run build`, `npm run lint`.
-- Repository ownership and branding checks pass.
-- The production process test now launches the actual `run.sh`, checks `/health`
-  without AWS credentials, and verifies HTTP/1.1 connections close. Packaging
-  checks preserve the Lambda launch settings.
+Run the backend and deployment test suites, web tests/build/lint, and repository
+ownership and branding checks. The added regression covers the open-question bug;
+packaging checks require the control-socket flag, and the server startup smoke test
+includes that flag.
 
 No production deployment, IAM change, Bedrock logging change, inference call, or
-email send was made. After an authorized deployment, compare a similarly bounded
-window for adapter resets, worker timeouts, and control-socket errors, and exercise
-a conversation after an idle pause. Email research and implementation steps are in
-[the email proposal](email-results-proposal.md).
+email send was made. After deployment, check that the control-socket error no
+longer appears. Connection errors and worker timeouts need separate investigation.
+Email research and implementation steps are in [the email proposal](email-results-proposal.md).
