@@ -103,19 +103,15 @@ def clean(reading, candidates, facts, gap):
         duration = None
         qualifications = list(selected["qualifications"])
         if category == "term":
-            duration = reading["termYears"]
+            # The server owns the term length; the model's termYears is advisory, so a miscount can't fail the card.
             covering = [n for n in selected["eligibleTerms"] if n >= facts["years"]]
-            expected = min(covering) if covering else max(selected["eligibleTerms"])
-            if isinstance(duration, bool) or not isinstance(duration, int) or duration != expected:
-                raise ValueError("Invalid term duration")
+            duration = min(covering) if covering else max(selected["eligibleTerms"])
             if duration < facts["years"]:
                 qualifications.append(f"This {duration}-year term is shorter than your {facts['years']}-year support horizon.")
         options[category] = dict(policyId=selected["id"], name=selected["name"], category=category,
                                  amount=gap, minimum=selected["minimum"], termYears=duration,
                                  fit=reading[category + "Fit"].strip(), points=selected["points"],
                                  caveat=selected["caveat"], source=selected["source"], qualifications=qualifications)
-    if options["term"] is None and reading["termYears"] is not None:
-        raise ValueError("Unexpected term duration")
     preferred = reading["recommendedType"]
     if preferred not in ("term", "permanent", None) or (preferred is not None and options[preferred] is None):
         raise ValueError("Invalid preferred category")

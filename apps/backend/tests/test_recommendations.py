@@ -110,9 +110,15 @@ class RecommendationsTests(unittest.TestCase):
         self.assertEqual(result["term"]["termYears"], 30)
         self.assertTrue(any("shorter than" in n for n in result["term"]["qualifications"]))
 
+    def test_term_length_is_server_owned(self):
+        for wrong in (20, True, None):
+            self.model.converse.return_value = response(reading(termYears=wrong))
+            with self.subTest(wrong):
+                self.assertEqual(self.post().json["term"]["termYears"], 10)
+
     def test_invalid_model_selection_never_reaches_cards(self):
-        for changes in (dict(termId="invented"), dict(permanentId="termaccel"), dict(termYears=20),
-                        dict(termYears=True), dict(recommendedType="both"), dict(reason=""),
+        for changes in (dict(termId="invented"), dict(permanentId="termaccel"),
+                        dict(recommendedType="both"), dict(reason=""),
                         dict(recommendedType=None), dict(permanentId="wealthbuilder"), dict(amount=1)):
             result = reading()
             result.update(changes)
