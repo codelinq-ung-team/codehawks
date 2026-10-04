@@ -23,6 +23,12 @@ def request(path, body=None):
         return error
 
 
+def check_site():
+    with request("/") as response:
+        assert response.status == 200 and b"<title>LinqLife</title>" in response.read(), "The LinqLife site is not published"
+    print("LinqLife site is published.")
+
+
 def check_api():
     with request("/api/health") as response:
         assert response.status == 200 and json.load(response) == {"status": "ok"}, "Backend health failed"
@@ -32,6 +38,12 @@ def check_api():
     with request("/api/chat", json.dumps({"messages": messages, "stream": False}).encode()) as response:
         assert response.status == 200, "Buffered Bedrock request failed"
         assert json.load(response).get("reply", "").strip(), "Buffered Bedrock response was empty"
+    intake = {"step": "income", "question": "About how much do you earn in a year, before taxes?",
+              "answer": "around eighty thousand dollars", "known": {}}
+    with request("/api/intake", json.dumps(intake).encode()) as response:
+        assert response.status == 200, "Intake Bedrock request failed"
+        reading = json.load(response)
+        assert reading.get("intent") == "answer" and reading.get("value") == 80000, "Intake did not read a plain amount"
     started = time.monotonic()
     first_delta = None
     done, parts = False, []
@@ -51,7 +63,7 @@ def check_api():
             else:
                 raise AssertionError("Unknown stream event")
     assert done and "".join(parts).strip(), "Stream ended without a complete reply"
-    print(f"Backend checks passed: health, input errors, buffered reply, NDJSON completion (first text {first_delta:.2f}s).")
+    print(f"Backend checks passed: health, input errors, buffered reply, intake reading, NDJSON completion (first text {first_delta:.2f}s).")
 
 
 def check_private_origin(url):
@@ -73,6 +85,7 @@ def main():
     assert stack is not None, "App stack does not exist"
     outputs = {item["OutputKey"]: item["OutputValue"] for item in stack.get("Outputs", [])}
     check_private_origin(outputs["ChatFunctionUrl"])
+    check_site()
     check_api()
 
 

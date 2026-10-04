@@ -1,0 +1,92 @@
+// App state for one run of the app, in the same shape as the WebXR store
+// (advisor3d/src/lib/store.ts). Nothing is saved to disk: like a new browser tab,
+// a fresh launch starts fresh.
+using System;
+using System.Collections.Generic;
+
+namespace Advisor3D
+{
+    // Answers from the short form before the chat. null means not answered yet (never zero).
+    public class Form
+    {
+        public long? income, dependents, debt;
+        public string marital; // "single" | "married"
+        public bool? coverage;
+    }
+
+    public class Message
+    {
+        public string role; // "bot" | "user"
+        public string text;
+        public List<string> replies;
+        public bool why, done;
+    }
+
+    public class AppState
+    {
+        public Profile profile = Calc.EmptyProfile();
+        public Form form = new Form();
+        public List<Message> messages = new List<Message>();
+        public long? pending; // a monthly amount waiting for "yes, monthly" or "no, yearly"
+        public bool started, typing;
+        public bool offline; // true after an answer couldn't reach the AI and the script read it instead
+    }
+
+    public static class Store
+    {
+        public static readonly string[] ROUTES = { "home", "prepare", "chat", "review", "results" };
+
+        public static AppState State { get; private set; } = new AppState();
+        public static string Route { get; private set; } = "home";
+        public static event Action Changed;
+        public static event Action RouteChanged;
+
+        // Change the state in place, then tell the screens.
+        public static void Set(Action<AppState> change)
+        {
+            change(State);
+            Changed?.Invoke();
+        }
+
+        public static void SetField(string id, Field field) => Set(s => s.profile[id] = field);
+
+        public static void Reset()
+        {
+            State = new AppState();
+            Changed?.Invoke();
+        }
+
+        public static void Go(string route)
+        {
+            Route = Array.IndexOf(ROUTES, route) >= 0 ? route : "home";
+            RouteChanged?.Invoke();
+        }
+
+        // A made-up household for demos ("See a sample family" on Home).
+        public static void LoadSample()
+        {
+            static Field V(long value) => Field.Of(Status.Confirmed, value);
+            State = new AppState
+            {
+                started = true,
+                form = new Form { income = 85000, marital = "married", dependents = 2, debt = 280000, coverage = true },
+                profile = new Profile
+                {
+                    ["household"] = Field.Of(Status.Confirmed, "both"), ["youngestAge"] = V(4), ["income"] = V(85000),
+                    ["support"] = V(60000), ["years"] = V(18), ["mortgage"] = V(240000), ["otherDebts"] = V(40000),
+                    ["finalExpenses"] = V(12000), ["education"] = V(50000), ["existing"] = V(150000), ["savings"] = V(60000),
+                },
+            };
+            Changed?.Invoke();
+        }
+
+        // Start again without listeners from an earlier run (the editor keeps statics between plays).
+        public static void Restart()
+        {
+            State = new AppState();
+            Route = "home";
+            Changed = null;
+            RouteChanged = null;
+        }
+    }
+}

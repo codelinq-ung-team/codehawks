@@ -62,6 +62,7 @@ class DeploymentTests(unittest.TestCase):
         mutations = [
             ("ChatFunctionUrl", "AuthType", "NONE"),
             ("ChatFunction", "ReservedConcurrentExecutions", 100),
+            ("ChatFunction", "ReservedConcurrentExecutions", 2),
             ("ChatRole", "PermissionsBoundary", None),
             ("ChatUrlPermission", "Principal", "*"),
             ("ChatInvokePermission", "SourceArn", "*"),
@@ -92,6 +93,25 @@ class DeploymentTests(unittest.TestCase):
         statements[1] = {"Effect": "Allow", "Action": "s3:*", "Resource": "*"}
         with self.assertRaises(AssertionError):
             validate_app(self.app)
+
+    def test_limiter_configuration_and_permissions_are_required(self):
+        for change in ("table_env", "table_resource", "permissions", "encryption", "tags"):
+            with self.subTest(change=change):
+                template = copy.deepcopy(self.app)
+                resources = template["Resources"]
+                if change == "table_env":
+                    resources["ChatFunction"]["Properties"]["Environment"]["Variables"]["CHAT_RATE_LIMIT_TABLE"] = "other-table"
+                elif change == "table_resource":
+                    resources["ChatRateLimitTable"]["Properties"]["TableName"] = "other-table"
+                elif change == "permissions":
+                    statements = resources["ChatRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+                    next(s for s in statements if s["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem"])["Resource"] = "*"
+                elif change == "encryption":
+                    resources["ChatRateLimitTable"]["Properties"]["SSESpecification"]["SSEEnabled"] = False
+                else:
+                    resources["ChatRateLimitTable"]["Properties"]["Tags"] = []
+                with self.assertRaises(AssertionError):
+                    validate_app(template)
 
     def test_boundary_mismatch_stops_deployment_before_writes(self):
         stack = {"Stacks": [{"Parameters": [
@@ -125,6 +145,8 @@ class DeploymentTests(unittest.TestCase):
                 names = set(archive.namelist())
                 self.assertIn("backend/references/lincoln_calculator.md", names)
                 self.assertIn("backend/app.py", names)
+                self.assertIn("backend/rate_limit.py", names)
+                self.assertIn("backend/intake.py", names)
                 self.assertNotIn("backend/server.py", names)
                 self.assertNotIn("backend/config.py", names)
                 self.assertIn("boto3.py", names)

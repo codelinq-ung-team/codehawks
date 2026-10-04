@@ -86,15 +86,16 @@ def validate_chat(template):
     assert function["Role"] == {"Fn::GetAtt": ["ChatRole", "Arn"]}
     assert function["Runtime"] == "python3.12" and function["Architectures"] == ["x86_64"]
     assert function["Layers"] == [ADAPTER_LAYER], "Only the pinned streaming adapter layer is allowed"
-    assert function["ReservedConcurrentExecutions"] == 2, "Limit concurrent paid inference"
+    assert "ReservedConcurrentExecutions" not in function, "Use shared admission control without reserving account concurrency"
     assert function["Timeout"] == 120 and function["MemorySize"] == 512
     assert function["Handler"] == "run.sh" and function["Code"] == "../build/backend.zip"
     variables = function["Environment"]["Variables"]
     assert variables["MODEL_ID"] == {"Ref": "BedrockModelId"}
+    assert variables["CHAT_RATE_LIMIT_TABLE"] == {"Ref": "ChatRateLimitTable"}
     assert variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
     assert variables["AWS_LWA_INVOKE_MODE"] == "response_stream"
     assert variables["AWS_LWA_READINESS_CHECK_PATH"] == "/health"
-    assert set(variables) == {"MODEL_ID", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
                               "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
                               "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
     url = resources["ChatFunctionUrl"]["Properties"]
@@ -109,15 +110,25 @@ def validate_chat(template):
     assert resources["ChatUrlPermission"]["Properties"]["FunctionUrlAuthType"] == "AWS_IAM"
     assert resources["ChatInvokePermission"]["Properties"]["InvokedViaFunctionUrl"] is True
     assert resources["ChatLogGroup"]["Properties"]["RetentionInDays"] == 7
-    for name in ("ChatFunction", "ChatRole", "ChatLogGroup"):
+    table = resources["ChatRateLimitTable"]
+    assert table["Type"] == "AWS::DynamoDB::Table"
+    assert table["Properties"]["TableName"] == "codelinq-hackathon-app-chat-rate-limit"
+    assert table["Properties"]["BillingMode"] == "PAY_PER_REQUEST"
+    assert table["Properties"]["SSESpecification"] == {"SSEEnabled": True}
+    assert table["Properties"]["AttributeDefinitions"] == [{"AttributeName": "id", "AttributeType": "S"}]
+    assert table["Properties"]["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
+    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable"):
         tags = {tag["Key"]: tag["Value"] for tag in resources[name]["Properties"]["Tags"]}
         assert tags == {"Project": CONFIG["prefix"], "Owner": "Israel Jauregui",
                         "Lifecycle": "ephemeral", "ManagedBy": "CloudFormation"}
     policies = resources["ChatRole"]["Properties"]["Policies"]
     statements = [s for policy in policies for s in policy["PolicyDocument"]["Statement"]]
     assert len(validate_bedrock_statements(statements)) == 1
-    assert len(statements) == 2, "Chat needs only scoped inference and logging"
-    logging = [s for s in statements if s["Action"] != BEDROCK_ACTIONS]
+    assert len(statements) == 3, "Chat needs only scoped inference, admission control, and logging"
+    limiter = [s for s in statements if s["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem"]]
+    assert limiter == [{"Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
+                        "Resource": {"Fn::GetAtt": ["ChatRateLimitTable", "Arn"]}}], "Admission control may access only its own table"
+    logging = [s for s in statements if s["Action"] == ["logs:CreateLogStream", "logs:PutLogEvents"]]
     assert logging == [{"Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
                         "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-chat:log-stream:*"}}], "Chat may write only its own log streams"
     assert not resources["ChatRole"]["Properties"].get("ManagedPolicyArns"), "Do not bypass the scoped inline runtime policy"
@@ -131,7 +142,7 @@ def validate_chat(template):
     assert all(error == {"ErrorCode": error["ErrorCode"], "ErrorCachingMinTTL": 0} for error in errors), "Do not cache or rewrite API errors into HTML"
     behavior = [b for b in distribution["CacheBehaviors"] if b["PathPattern"] == "/api/*"]
     assert len(behavior) == 1 and behavior[0]["TargetOriginId"] == "HackathonChat"
-    assert behavior[0]["CachePolicyId"] == "413f1602-6f6d-4f29-9b3b-ae0a58b8b8d6", "Disable API caching"
+    assert behavior[0]["CachePolicyId"] == "4135ea2d-6df8-44a3-9df3-4b5a84be39ad", "Disable API caching"
     assert behavior[0]["OriginRequestPolicyId"] == "b689b0a8-53d0-40ab-baf2-68738e2966ac", "Forward payload hash and Origin, exclude viewer Host"
     assert "POST" in behavior[0]["AllowedMethods"] and behavior[0]["Compress"] is False
     origin = [o for o in distribution["Origins"] if o["Id"] == "HackathonChat"]

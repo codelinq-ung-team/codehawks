@@ -13,6 +13,8 @@ export type AppState = {
   pending: { value: number } | null
   started: boolean
   typing: boolean
+  // True after a typed answer couldn't reach the AI and the script read it instead.
+  offline?: boolean
 }
 
 const KEY = 'linqlife:v1'

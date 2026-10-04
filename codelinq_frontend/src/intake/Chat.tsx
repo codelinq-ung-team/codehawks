@@ -1,4 +1,6 @@
 // The conversation with Abe: one question at a time, quick replies, and "why?" any time.
+// Typed answers are read by the AI (/api/intake); tapped suggestions, and any answer the
+// AI can't be reached for, are read by the script. The order of questions never changes.
 // Beside it on wide screens, "What Abe knows" lists his answers so far; anything can be
 // taken back there. Answers are still checked on the Review screen.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -7,7 +9,8 @@ import { Avatar } from '../guide/Avatar.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { Page } from '../lib/Chrome.tsx'
 import { getState, go, setState, useStore, type Message } from '../lib/store.ts'
-import { CLOSING, WHY, intro, nextStep, question, respond } from './script.ts'
+import { readAnswer } from './ai.ts'
+import { CLOSING, WHY, interpret, intro, nextStep, question, respond, type Reply } from './script.ts'
 import { Knows, type Fact } from './Knows.tsx'
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -34,11 +37,23 @@ async function begin() {
 async function send(text: string) {
   const s = getState()
   if (!text.trim() || s.typing) return
+  const last = s.messages[s.messages.length - 1]
   push({ role: 'user', text: text.trim() })
   const step = nextStep(s)
   if (!step) return botSay([CLOSING], { done: true })
 
-  const res = respond(step, text, s)
+  let res: Reply
+  if (s.pending || last?.replies?.includes(text)) {
+    res = respond(step, text, s)
+  } else {
+    setState({ typing: true })
+    const count = getState().messages.length
+    const reading = await readAnswer(step, last?.text ?? '', text.trim(), s)
+    // Start Over while Abe was thinking: drop the reply.
+    if (getState().messages.length !== count) return
+    res = reading ? interpret(step, reading, s, text) : respond(step, text, s)
+    setState({ offline: !reading })
+  }
   if (res.updates || res.pending !== undefined) {
     setState((st) => ({
       profile: { ...st.profile, ...res.updates },
@@ -160,7 +175,11 @@ export function Chat() {
                 </button>
               </form>
             )}
-            <p className="caption-1 muted composer__note">Guided mode: questions follow a set script while the AI connection is being built.</p>
+            <p className="caption-1 muted composer__note">
+              {state.offline
+                ? `${GUIDE_NAME} can’t reach the AI right now, so he’s reading answers with his built-in script. Your answers are safe.`
+                : `${GUIDE_NAME} uses AI to read what you type. The math is done by a calculator, not the AI.`}
+            </p>
           </div>
         </section>
         <Knows profile={state.profile} form={state.form} busy={state.typing} onForget={(f) => void forget(f)} />

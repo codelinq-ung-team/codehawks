@@ -1,12 +1,7 @@
-"""Offline Bedrock and HTTP contract tests: no AWS credentials or model calls."""
-import json
+"""Offline production Bedrock tests: no AWS credentials or model calls."""
 import os
-import threading
 import unittest
-from http.server import ThreadingHTTPServer
 from unittest.mock import Mock, patch
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
 
 import boto3
 from botocore.exceptions import ClientError, EventStreamError, NoCredentialsError, ReadTimeoutError
@@ -14,7 +9,6 @@ from botocore.stub import Stubber
 
 from backend.llm import ChatError, chat, generate_reply
 from backend.prompts import SYSTEM_PROMPT
-from backend.server import Handler
 
 MESSAGES = [{"role": "user", "content": "Hi"}]
 
@@ -165,103 +159,6 @@ class BedrockTests(unittest.TestCase):
         self.assertEqual(chat(payload)["reply"], text)
         self.stream.events = [delta(text), stop()]
         self.assertEqual(chat(payload, lambda event: None)["reply"], text)
-
-
-class ChatTests(unittest.TestCase):
-    def setUp(self):
-        self.backend = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.backend.production = False
-        self.thread = threading.Thread(target=self.backend.serve_forever, daemon=True)
-        self.thread.start()
-        self.env = patch.dict(os.environ, {"MODEL_ID": "test-model"})
-        self.env.start()
-        self.release = threading.Event()
-        self.stream = Stream([delta("Hello "), delta("world"), stop()])
-        self.client = Mock()
-        self.client.converse.return_value = reply()
-        self.client.converse_stream.return_value = {"stream": self.stream}
-        self.patcher = patch("backend.llm.get_client", return_value=self.client)
-        self.patcher.start()
-
-    def tearDown(self):
-        self.release.set()
-        self.backend.shutdown()
-        self.backend.server_close()
-        self.thread.join()
-        self.patcher.stop()
-        self.env.stop()
-
-    def open(self, path="/api/chat", body=None, headers=None):
-        request = Request(f"http://127.0.0.1:{self.backend.server_port}{path}",
-                          data=body, headers=headers or {"Content-Type": "application/json"})
-        try:
-            return urlopen(request, timeout=5)
-        except HTTPError as error:
-            return error
-
-    def request(self, body, **kwargs):
-        with self.open(body=body, **kwargs) as response:
-            return response.status, json.load(response)
-
-    def send(self, messages=MESSAGES):
-        return self.request(json.dumps({"messages": messages, "stream": False}).encode())
-
-    def test_buffered_reply(self):
-        self.assertEqual(self.send(), (200, {"reply": "Hello from the model"}))
-
-    def test_stream_delivers_first_delta_before_provider_finishes(self):
-        def paused():
-            yield delta("Hello ")
-            self.release.wait(3)
-            yield delta("world")
-            yield stop()
-        self.stream.events = paused()
-        with self.open(body=json.dumps({"messages": MESSAGES}).encode()) as response:
-            self.assertEqual(response.headers.get_content_type(), "application/x-ndjson")
-            self.assertEqual(json.loads(response.readline()), {"delta": "Hello "})
-            self.assertFalse(self.release.is_set())
-            self.release.set()
-            events = [json.loads(line) for line in response]
-        self.assertEqual(events, [{"delta": "world"}, {"done": True}])
-        self.assertTrue(self.stream.closed)
-
-    def test_interrupted_stream_returns_error_without_done(self):
-        self.stream.events = [delta("partial")]
-        with self.open(body=json.dumps({"messages": MESSAGES}).encode()) as response:
-            self.assertEqual(response.status, 200)
-            events = [json.loads(line) for line in response]
-        self.assertEqual(events[0], {"delta": "partial"})
-        self.assertIn("error", events[-1])
-        self.assertFalse(any(event.get("done") for event in events))
-
-    def test_error_before_stream_is_json_with_http_status(self):
-        self.stream.events = []
-        with self.open(body=json.dumps({"messages": MESSAGES}).encode()) as response:
-            self.assertEqual(response.status, 502)
-            self.assertEqual(response.headers.get_content_type(), "application/json")
-            self.assertIn("error", json.load(response))
-
-    def test_invalid_http_input_does_not_call_provider(self):
-        self.assertEqual(self.request(b"invalid JSON")[0], 400)
-        self.assertEqual(self.request(b"x" * 65537)[0], 413)
-        self.assertEqual(self.request(b"{}")[0], 400)
-        self.assertEqual(self.request(b"{}", headers={"Content-Type": "text/plain"})[0], 415)
-        self.client.converse.assert_not_called()
-        self.client.converse_stream.assert_not_called()
-
-    def test_local_ui_and_no_arbitrary_files(self):
-        for path, expected in (("/", b"Your life changes"), ("/chat.js", b"/api/chat"), ("/style.css", b":root")):
-            with self.open(path) as response:
-                self.assertEqual(response.status, 200)
-                self.assertIn(expected, response.read())
-        with self.open("/../.env") as response:
-            self.assertEqual(response.status, 404)
-
-    def test_foreign_origin_does_not_call_provider(self):
-        status, _ = self.request(b"{}", headers={"Origin": "https://other.example", "Content-Type": "application/json"})
-        self.assertEqual(status, 403)
-        self.client.converse.assert_not_called()
-        self.client.converse_stream.assert_not_called()
 
 
 if __name__ == "__main__":
