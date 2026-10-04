@@ -1,7 +1,9 @@
 // The five screens of the LincLife site (Home → Basics → Chat with Abe → Review → Results),
 // laid out for a headset: one main card in front, Abe on the left, the number pad or
 // side actions on the right. Copy and flow follow the site (apps/web on main), and
-// the chat reads answers with the site's AI backend.
+// the chat reads answers with the site's AI backend. Two screens are the headset's own: the
+// connect screen it opens on, and the handoff it ends on, which sends the wearer back to the
+// site for the summary they can copy and explore.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -51,6 +53,9 @@ namespace Advisor3D
 
         static readonly (string id, string label)[] STEPS = { ("prepare", "Basics"), ("chat", "Chat"), ("review", "Review"), ("results", "Results") };
 
+        // Where the route is among the steps. The handoff is past the last of them.
+        static int StepIndex() => Store.Route == "handoff" ? STEPS.Length : Array.FindIndex(STEPS, s => s.id == Store.Route);
+
         static Panel SidePanel(int sign)
         {
             var p = new Panel(SIDE_W, MAIN_H, App.rig, card: false);
@@ -76,7 +81,7 @@ namespace Advisor3D
             }), 0, 0);
             stepper = header.Add(new El(380, 64, ctx =>
             {
-                var index = Array.FindIndex(STEPS, s => s.id == Store.Route);
+                var index = StepIndex();
                 if (index < 0)
                 {
                     ctx.Text("Life insurance needs, in a guided chat", 380, 0, Fn(500, 15), T.label2, lineH: 64, align: Align.Right);
@@ -1207,7 +1212,7 @@ namespace Advisor3D
                 // On the right, with voice off: a number pad for the questions that take an amount, an
                 // age or a number of years. While you are talking it stays clear.
                 var step = Script.NextStep(s);
-                var wantsNumber = Voice.Status == "off" && replies != null && !finished && s.pending == null && step != null && Calc.FIELD[step].kind != "choice";
+                var wantsNumber = Voice.Status == "off" && replies != null && !finished && s.pending == null && step != null && Calc.FIELD[step].kind != "choice" && Calc.FIELD[step].kind != "plans";
                 var nextPad = wantsNumber ? step : null;
                 if (nextPad != padKey)
                 {
@@ -1237,6 +1242,10 @@ namespace Advisor3D
             // Both change state, and the screen is not built yet, so they start on the next frame.
             var begin = !State.typing && (State.messages.Count == 0 || Script.NextStep(State) != null);
             var opening = false; // waiting to hear whether voice connected
+            // When the conversation ends on this screen it moves on by itself, once Abe is quiet, so
+            // nobody is left looking at a finished chat. (Coming back to a finished one stays put.)
+            var wasDone = State.messages.Count > 0 && State.messages[State.messages.Count - 1].done;
+            var quiet = 0f;
             Update();
 
             return new Screen
@@ -1267,6 +1276,13 @@ namespace Advisor3D
                         opening = false;
                         if (!Voice.On && State.messages.Count == 0) BeginChat();
                     }
+                    var said = State.messages;
+                    if (!wasDone && Application.isPlaying && said.Count > 0 && said[said.Count - 1].done && !State.typing && !Voice.Speaking)
+                    {
+                        quiet += dt;
+                        if (quiet > 2.5f) { Store.Go("review"); return; }
+                    }
+                    else quiet = 0;
                     if (Voice.Version != voiceVersion) { voiceVersion = Voice.Version; caption = Voice.Caption; Update(); }
                     var p = Mathf.FloorToInt(t * 4) % 3;
                     var dots = State.typing || Voice.Hearing || Voice.Status == "connecting";
@@ -1296,14 +1312,17 @@ namespace Advisor3D
             ["education"] = "Education or another big future cost, in total.",
             ["existing"] = "Through work or on your own. Enter 0 for none.",
             ["savings"] = "Savings or investments your family could use.",
+            ["futureIncome"] = "A rough guess at your yearly income in about ten years. It never changes today’s estimate.",
         };
-        static readonly string[][] COLUMNS = { new[] { "household", "income" }, new[] { "debts", "future", "resources" } };
+        static Action<string> reviewEdit; // lets the editor's screenshot pass open an answer
+        static readonly string[][] COLUMNS = { new[] { "household", "income", "ahead" }, new[] { "debts", "future", "resources" } };
 
         static Screen Review()
         {
             var main = MainPanel();
             const float COL_W = (MAIN_W - M * 2 - 16) / 2;
             string editing = null;
+            long? planDraft = null; // the plans being picked, until they are saved
             Action rows = null, side = null;
 
             main.Add(Ui.Paint(MAIN_W, 112, ctx =>
@@ -1326,7 +1345,7 @@ namespace Advisor3D
                 Store.Go("results");
             }
 
-            void Edit(string id) { editing = id; side(); rows(); }
+            void Edit(string id) { editing = id; planDraft = null; side(); rows(); }
 
             rows = () =>
             {
@@ -1355,7 +1374,7 @@ namespace Advisor3D
                                 title = f.label, first = i == 0, chevron = true, selected = editing == f.id,
                                 value = field.status == Status.Empty ? "Add" : Calc.FormatField(f.id, field),
                                 valueColor = flagged ? T.warning : field.status == Status.Empty ? T.tint : editing == f.id ? T.tint : T.label2,
-                                note = f.role == "optional" ? "Optional" : null,
+                                note = f.role == "optional" && editing != f.id ? "Optional" : null,
                                 onSelect = () => Edit(f.id),
                             }), x, y + i * 56, "rows");
                         }
@@ -1367,7 +1386,7 @@ namespace Advisor3D
             void Editor(string id, Field field)
             {
                 var def = Calc.FIELD[id];
-                void Close() { editing = null; side(); rows(); }
+                void Close() { editing = null; planDraft = null; side(); rows(); }
                 void Save(Field next) { Store.SetField(id, next); Close(); }
                 void Alt(float y)
                 {
@@ -1388,6 +1407,24 @@ namespace Advisor3D
                         right.Add(Ui.Row(SIDE_W - 16, 58, new RowO { title = label, first = i == 0, check = field.choice == v, onSelect = () => Save(Field.Of(Status.Confirmed, v)) }), 8, 156 + i * 58);
                     }
                     Alt(180 + entries.Length * 58);
+                    return;
+                }
+
+                if (def.kind == "plans")
+                {
+                    // Any of them, or none: each row toggles, and Save keeps the set.
+                    var picked = planDraft ?? (field.HasValue ? field.Number : 0);
+                    var n = Calc.PLANS.Length;
+                    right.Add(Ui.Card(SIDE_W, 60 + n * 58 + 122, r: 20), 0, 100);
+                    right.Add(Ui.Paint(SIDE_W, 56, ctx => ctx.Text(def.label, 24, 18, Fn(600, 19), lineH: 26)), 0, 100);
+                    for (var i = 0; i < n; i++)
+                    {
+                        var plan = Calc.PLANS[i];
+                        right.Add(Ui.Row(SIDE_W - 16, 58, new RowO { title = plan.label, first = i == 0, check = (picked & plan.bit) != 0, onSelect = () => { planDraft = picked ^ plan.bit; side(); } }), 8, 156 + i * 58);
+                    }
+                    right.Add(Ui.Paint(SIDE_W, 40, ctx => ctx.Text("Pick any that fit, or none. This never changes today’s estimate.", 24, 0, Fn(400, 13.5f), T.label2, maxW: SIDE_W - 48, lineH: 18)), 0, 164 + n * 58);
+                    right.Add(Ui.Button(SIDE_W - 48, 50, new BtnO { label = "Save", onSelect = () => Save(Field.Of(Status.Confirmed, picked)) }), 24, 208 + n * 58);
+                    Alt(292 + n * 58);
                     return;
                 }
 
@@ -1437,7 +1474,8 @@ namespace Advisor3D
             Say(Bot("Here’s everything you told me. Nothing is final until you confirm it."), Bot("Only confirmed answers reach the math. Anything marked “not sure” needs a best guess first."));
             rows();
             side();
-            return new Screen { main = main, update = () => { rows(); if (editing == null) side(); } };
+            reviewEdit = Edit;
+            return new Screen { main = main, update = () => { rows(); if (editing == null) side(); }, dispose = () => reviewEdit = null };
         }
 
         // ---------- Results ----------
@@ -1445,23 +1483,36 @@ namespace Advisor3D
         static readonly Dictionary<string, Color> TERM_COLOR = new Dictionary<string, Color>
         {
             ["support"] = T.tint, ["mortgage"] = T.shiraz, ["otherDebts"] = T.hue.orange, ["finalExpenses"] = T.hue.brown, ["education"] = T.hue.indigo,
-            ["existing"] = T.partner, ["savings"] = T.hue.green, ["gap"] = T.highlight,
+            ["existing"] = T.partner, ["savings"] = T.hue.green, ["gap"] = T.highlight, ["growth"] = Ui.C("#b06a8a"),
+        };
+        // One color per expected change on the look-ahead slide.
+        static readonly Dictionary<string, Color> DRIVER_COLOR = new Dictionary<string, Color>
+        {
+            ["income"] = T.hue.indigo, ["kids"] = T.hue.orange, ["partner"] = T.hue.teal, ["home"] = T.shiraz,
         };
 
         // The results deck, from the site (apps/web/src/results/Results.tsx): the estimate
-        // explained one piece at a time. Each slide says what to read on the card, what Abe points
-        // out in the room (look), and what the room shows: the year posts (years: low, up or down)
-        // and whether the stacks include what is already there and the gap.
+        // explained one piece at a time. Each slide says what to read on the card, where to look
+        // in the room (look), and what the room shows: the year posts (years: low, up, down or
+        // ahead) and whether the stacks include what is already there, the gap, and the look-ahead.
         class Slide
         {
-            public string eyebrow, title, body, years = "low";
-            public string[] look;
-            public bool have = true, gap = true;
+            public string eyebrow, title, body, look, years = "low";
+            public bool have = true, gap = true, ahead;
         }
-        const int SLIDES = 7;
         static Action<int> resultsSlide; // lets the editor's screenshot pass turn to a slide
 
-        static Slide[] Deck(Profile p, Estimate r)
+        static (Profile p, Estimate r, bool ready) Now()
+        {
+            var p = State.profile;
+            var unconfirmed = Calc.FIELDS.Any(f => f.role == "required" && p[f.id].status != Status.Confirmed);
+            var r = Calc.Calculate(p);
+            return (p, r, !unconfirmed && r.ready);
+        }
+
+        static string Signed(long delta) => (delta < 0 ? "− " : "+ ") + Calc.FormatMoney(Math.Abs(delta));
+
+        static List<Slide> Deck(Profile p, Estimate r, Outlook o)
         {
             var years = p["years"].Number;
             var support = p["support"].Number;
@@ -1470,27 +1521,27 @@ namespace Advisor3D
             var supportTotal = r.needs.First(t => t.id == "support").value;
             var extras = r.needs.Where(t => t.id != "support" && t.included && t.value > 0).ToList();
             var held = r.resources.Where(t => t.included && t.value > 0).ToList();
-            var covered = r.totalNeeds > 0 ? Mathf.RoundToInt(Mathf.Min(1f, (float)r.totalResources / r.totalNeeds) * 100) : 0;
+            var covered = Calc.FormatPercent(r.totalResources, r.totalNeeds);
             var gap = r.additional > 0;
             string Named(IEnumerable<Term> terms, Func<Term, string> label) => ListJoin(terms.Select(t => $"{label(t).ToLowerInvariant()} ({Calc.FormatMoney(t.value)})").ToList());
 
             var everyday = $"You said your family would need {Calc.FormatMoney(support)} a year for {Plural(years, "year")}. Each year adds one more. Stacked up, that comes to {Calc.FormatMoney(supportTotal)}.";
-            if (income != null && income > 0) everyday += $" That’s about {Mathf.RoundToInt((float)support / income.Value * 100)}% of the {Calc.FormatMoney(income.Value)} you earn now.";
+            if (income != null && income > 0) everyday += $" That’s about {Calc.FormatPercent(support, income.Value)} of the {Calc.FormatMoney(income.Value)} you earn now.";
             if (startAge != null) everyday += $" By the end, your youngest would be {startAge + years}.";
 
-            return new[]
+            var deck = new List<Slide>
             {
                 new Slide
                 {
                     eyebrow = "The short version",
                     title = gap ? $"About {Calc.FormatMoney(r.additional)} more coverage would help protect your family" : "You’re covered for everything you listed",
                     body = "This is a starting point for a conversation, not a verdict, and nothing here needs a decision today. Point at the arrow and I’ll show you where the number comes from, one piece at a time.",
-                    look = new[] { "The two stacks in front of you are the whole estimate: what your family would need, and what you already have.", "Point at the arrow under the slide and I’ll take it a piece at a time." },
+                    look = "The two stacks in front of you are the whole estimate: what your family would need, and what you already have.",
                 },
                 new Slide
                 {
                     eyebrow = "Everyday costs", title = "Keeping life steady at home", body = everyday, years = "up", have = false, gap = false,
-                    look = new[] { "Look down and to your right, then keep turning. Each post on the ring around you is one more year.", $"By the last post, it has added up to {Calc.FormatMoney(supportTotal)}." },
+                    look = $"Look down and to your right, then keep turning. Each post on the ring is one more year, up to {Calc.FormatMoney(supportTotal)}.",
                 },
                 new Slide
                 {
@@ -1499,16 +1550,16 @@ namespace Advisor3D
                     body = extras.Count > 0
                         ? $"On top of everyday costs, you listed {Named(extras, t => t.label)}. All together, your family would need {Calc.FormatMoney(r.totalNeeds)}."
                         : $"You didn’t list any debts or one-time costs, so the total your family would need stays at {Calc.FormatMoney(r.totalNeeds)}.",
-                    look = new[] { "The stack in front of you is everything your family would need. Each color is one of the costs in the list." },
+                    look = "The stack in front of you is everything your family would need. Each color is one of the costs in the list.",
                 },
                 new Slide
                 {
                     eyebrow = "What you already have", gap = false,
                     title = r.totalResources > 0 ? $"Good news: {Calc.FormatMoney(r.totalResources)} is already in place" : "Starting from zero is common",
                     body = r.totalResources > 0
-                        ? $"Your {Named(held, t => t.id == "existing" ? "Life insurance" : "Savings")} would go toward that total. That’s {covered}% of it already taken care of."
+                        ? $"Your {Named(held, t => t.id == "existing" ? "Life insurance" : "Savings")} would go toward that total. That’s {covered} of it already taken care of."
                         : "Many families don’t have coverage or savings set aside yet. That’s exactly what an estimate like this is for.",
-                    look = new[] { r.totalResources > 0 ? "A second stack has come up beside the first. That is what you already have." : "The second stack is empty for now, and that is a common place to start." },
+                    look = r.totalResources > 0 ? "A second stack has come up beside the first. That is what you already have." : "The second stack is empty for now, and that is a common place to start.",
                 },
                 new Slide
                 {
@@ -1517,25 +1568,48 @@ namespace Advisor3D
                     body = gap
                         ? "The orange piece is the difference between what your family would need and what you already have. It’s the amount of additional coverage worth talking through with a licensed professional."
                         : "What you have meets the needs you listed. It’s still worth checking again when life changes, like a new home or a new baby.",
-                    look = new[] { gap ? "The glowing block is the gap. It brings the second stack level with the first." : "Both stacks reach the same height: for what you listed, there is no gap." },
+                    look = gap ? "The glowing block is the gap. It brings the second stack level with the first." : "Both stacks reach the same height: for what you listed, there is no gap.",
                 },
                 new Slide
                 {
                     eyebrow = "Over time", title = "The need gets smaller every year", years = "down",
-                    body = $"Everyday costs only matter for the years your family depends on your income. Each year that passes leaves one less year to cover, so after {Plural(years, "year")} that part reaches zero. Term insurance is built around this idea: it covers a set number of years.",
-                    look = new[] { "Look around you again. The posts now step down: each year that passes leaves one less to cover." },
-                },
-                new Slide
-                {
-                    eyebrow = "Try it yourself", title = "See how a change moves the number",
-                    body = "Change a number on your right and watch the stacks move. Your summary updates too.",
-                    look = new[] { "Use the + and − on your right. The stacks in front of you and the ring around you follow.", "It’s a starting point for a conversation with a licensed professional, not a quote." },
+                    body = $"Everyday costs only matter for the years your family depends on your income. Each year that passes leaves one less year to cover, so after {Plural(years, "year")} that part reaches zero. Term insurance is built around this idea.",
+                    look = "Look around you again. The posts now step down: each year that passes leaves one less to cover.",
                 },
             };
+
+            // Only when they answered a look-ahead question: today's estimate is a snapshot, and
+            // this is what it could grow into. A separate figure; it never replaces the one above.
+            if (o.ready)
+            {
+                deck.Add(new Slide
+                {
+                    eyebrow = "Looking ahead", years = "ahead", ahead = true,
+                    title = o.change > 0 ? $"In ten years, that could be about {Calc.FormatMoney(o.additional)}"
+                        : o.change < 0 ? $"In ten years, that could ease to about {Calc.FormatMoney(o.additional)}"
+                        : "Your estimate holds for the changes you expect",
+                    body = o.drivers.Count == 0
+                        ? "Today’s number is a snapshot, and nothing you expect in the next ten years would change what your family would need."
+                        : "Today’s number is a snapshot of life right now. You told me what you expect in the next ten years, so the list beside this shows what each change would add."
+                            + (o.change > 0 ? " You don’t need the bigger number today. It’s the coverage you may grow into, and a reason to check again when those changes happen." : ""),
+                    look = o.totalNeeds > r.totalNeeds
+                        ? "The first stack has grown: the lighter block on top is what those changes add, and the glowing gap has grown with it."
+                        : "The stacks now show what your family could need by then.",
+                });
+            }
+            deck.Add(new Slide
+            {
+                eyebrow = "Try it yourself", title = "See how a change moves the number",
+                body = "Change a number on your right and watch the stacks move. When you’re ready, the arrow takes you on to your summary: it’s a starting point for a conversation with a licensed professional, not a quote.",
+                look = "Use the + and − on your right. The stacks in front of you and the ring around you follow.",
+            });
+            return deck;
         }
 
         // Two stacks on a tray at waist height: what the family would need, and what is already
         // there, with the gap as a glowing block that brings the second stack level with the first.
+        // On the look-ahead slide the first stack carries one more, lighter block: what the
+        // expected changes add.
         class Stacks
         {
             class Block { public Transform mesh; public Material material; public int column; public float h, target; }
@@ -1555,13 +1629,14 @@ namespace Advisor3D
                 Mat.Spawn("Tray", MeshGen.Cylinder(0.34f, 0.02f), Keep(Mat.Lit(Color.white)), group);
                 Mat.Spawn("Rim", MeshGen.Torus(0.34f, 0.006f, upright: false, across: 8), Keep(Mat.Unlit(T.highlight)), group).localPosition = new Vector3(0, 0.01f, 0);
 
-                (string id, int column)[] order = { ("support", 0), ("mortgage", 0), ("otherDebts", 0), ("finalExpenses", 0), ("education", 0), ("existing", 1), ("savings", 1), ("gap", 1) };
+                (string id, int column)[] order = { ("support", 0), ("mortgage", 0), ("otherDebts", 0), ("finalExpenses", 0), ("education", 0), ("growth", 0), ("existing", 1), ("savings", 1), ("gap", 1) };
                 foreach (var (id, column) in order)
                 {
                     var isGap = id == "gap";
+                    var see = isGap || id == "growth";
                     var color = TERM_COLOR[id];
-                    if (isGap) color.a = 0.38f;
-                    var material = Keep(Mat.Lit(color, transparent: isGap));
+                    if (see) color.a = isGap ? 0.38f : 0.6f;
+                    var material = Keep(Mat.Lit(color, transparent: see));
                     if (isGap) material.SetColor("_Emission", T.highlight * 0.5f);
                     var mesh = Mat.Spawn(id, MeshGen.UnitBox(), material, group);
                     blocks.Add((id, new Block { mesh = mesh, material = material, column = column }));
@@ -1593,18 +1668,26 @@ namespace Advisor3D
                 return s;
             }
 
-            // showHave, showGap: the slide deck brings in what is already there, and then the gap, a step at a time.
-            public void Set(Estimate r, bool showHave = true, bool showGap = true)
+            Block Of(string id) => blocks.First(b => b.id == id).block;
+
+            // showHave, showGap: the slide deck brings in what is already there, and then the gap, a step
+            // at a time. ahead: the look-ahead slide, where the stacks show what could be needed by then.
+            public void Set(Estimate r, bool showHave = true, bool showGap = true, Outlook ahead = null)
             {
-                var scale = MAX / Mathf.Max(r.totalNeeds, r.totalResources, 1);
-                foreach (var t in r.needs) blocks.First(b => b.id == t.id).block.target = t.included ? t.value * scale : 0;
-                foreach (var t in r.resources) blocks.First(b => b.id == t.id).block.target = t.included && showHave ? t.value * scale : 0;
-                blocks.First(b => b.id == "gap").block.target = showGap ? r.additional * scale : 0;
+                var total = ahead != null ? ahead.totalNeeds : r.totalNeeds;
+                var additional = ahead != null ? ahead.additional : r.additional;
+                var scale = MAX / Mathf.Max(total, r.totalNeeds, r.totalResources, 1);
+                foreach (var t in r.needs) Of(t.id).target = t.included ? t.value * scale : 0;
+                foreach (var t in r.resources) Of(t.id).target = t.included && showHave ? t.value * scale : 0;
+                Of("growth").target = Mathf.Max(0, total - r.totalNeeds) * scale;
+                Of("gap").target = showGap ? additional * scale : 0;
                 have.panel.group.gameObject.SetActive(showHave);
-                needs.value = Calc.FormatMoney(r.totalNeeds);
+                needs.title = ahead != null ? "In ten years, they’d need" : "Your family would need";
+                needs.value = Calc.FormatMoney(total);
                 have.value = Calc.FormatMoney(r.totalResources);
-                gap.value = Calc.FormatMoney(r.additional);
-                gap.panel.group.gameObject.SetActive(showGap && r.additional > 0);
+                gap.title = ahead != null ? "The gap by then" : "The gap";
+                gap.value = Calc.FormatMoney(additional);
+                gap.panel.group.gameObject.SetActive(showGap && additional > 0);
                 foreach (var s in new[] { needs, have, gap }) s.el.Redraw();
             }
 
@@ -1639,17 +1722,52 @@ namespace Advisor3D
             }
         }
 
+        // "At a glance", on the left under Abe on the last two screens: the estimate as three
+        // numbers and a meter. It stands where his chat card is on the other screens, so the end
+        // of the assessment reads as a summary and not as a conversation.
+        static void ShowGlance(Estimate r, Outlook o)
+        {
+            left.Clear("glance");
+            var drivers = o.ready ? o.drivers : new List<Driver>();
+            var h = 222 + (o.ready ? 96 : 0) + drivers.Count * 30 + (drivers.Count > 0 ? 14 : 0);
+            const float W = SIDE_W, P = 20;
+            left.Add(new El(W, h, ctx =>
+            {
+                ctx.Shadow(0, 0, W, h, 24, Ui.C(60, 20, 30, 0.14f), 48, 20);
+                ctx.Rect(0, 0, W, h, 24, T.bg);
+                ctx.Rect(0.5f, 0.5f, W - 1, h - 1, 24, null, T.edge, 1);
+                ctx.Text("At a glance", P, 16, Fn(700, 20), lineH: 26);
+
+                // How much of the need is already in place.
+                ctx.Text("Already in place", P, 54, Fn(500, 15), T.label2, lineH: 20);
+                ctx.Text(Calc.FormatPercent(r.totalResources, r.totalNeeds), W - P, 52, Fn(700, 18), T.partner, lineH: 22, align: Align.Right);
+                ctx.Rect(P, 82, W - P * 2, 14, 7, Ui.C("#d3eaee"));
+                var part = r.totalNeeds > 0 ? Mathf.Clamp01((float)r.totalResources / r.totalNeeds) : 0;
+                if (r.totalResources > 0) ctx.Rect(P, 82, Mathf.Max(14, (W - P * 2) * part), 14, 7, T.partner);
+                ctx.Text($"{Calc.FormatMoney(r.totalResources)} of {Calc.FormatMoney(r.totalNeeds)}", P, 102, Fn(400, 14), T.label2, lineH: 20);
+
+                // Today's estimate, and the look-ahead beside it when there is one.
+                ctx.Rect(P, 136, W - P * 2, 72, 16, T.rose);
+                ctx.Text("Coverage to consider today", P + 16, 146, Fn(500, 14), T.tint, lineH: 18);
+                ctx.Text(Calc.FormatMoney(r.additional), P + 16, 166, Fn(700, 28), T.tint, lineH: 34);
+                if (!o.ready) return;
+                ctx.Rect(P, 220, W - P * 2, 72, 16, Ui.C("#fdeee7"));
+                ctx.Text($"In about {o.inYears} years, if life goes as you expect", P + 16, 230, Fn(500, 14), T.highlightText, lineH: 18);
+                ctx.Text(Calc.FormatMoney(o.additional), P + 16, 250, Fn(700, 28), T.highlightText, lineH: 34);
+                var y = 308f;
+                foreach (var d in drivers)
+                {
+                    ctx.Rect(P + 2, y + 9, 12, 12, 4, DRIVER_COLOR[d.id]);
+                    ctx.Text(d.label, P + 24, y, Fn(500, 15), lineH: 30);
+                    ctx.Text(Signed(d.delta), W - P, y, Fn(600, 15), T.label2, lineH: 30, align: Align.Right);
+                    y += 30;
+                }
+            }), 0, 250, "glance").Redraw();
+        }
+
         static Screen Results()
         {
             var main = MainPanel();
-            (Profile p, Estimate r, bool ready) Now()
-            {
-                var p = State.profile;
-                var unconfirmed = Calc.FIELDS.Any(f => f.role == "required" && p[f.id].status != Status.Confirmed);
-                var r = Calc.Calculate(p);
-                return (p, r, !unconfirmed && r.ready);
-            }
-
             if (!Now().ready)
             {
                 main.Add(Ui.Paint(MAIN_W, 300, ctx =>
@@ -1667,14 +1785,20 @@ namespace Advisor3D
             var stacks = new Stacks();
             const float COL = 334;
             const float X2 = MAIN_W - M - COL;
-            string copied = null;
             var slide = 0;
+            var slides = 0;
             Action refresh = null;
+            // The end of the assessment is a summary, not a conversation: Abe's chat card gives way
+            // to the numbers at a glance, and what he would say is on the slide.
+            guideCard.Visible = false;
 
             var sheet = main.Add(new El(MAIN_W, MAIN_H, ctx =>
             {
                 var (p, r, _) = Now();
                 if (!r.ready) return;
+                var o = Calc.Outlook(p, r);
+                var deck = Deck(p, r, o);
+                var step = deck[Mathf.Min(slide, deck.Count - 1)];
                 ctx.Text("Here’s what we found", M, 26, Fn(700, 32), lineH: 40, spacing: -0.4f);
 
                 // The brand stat card, with the orange arc in its corner.
@@ -1685,30 +1809,55 @@ namespace Advisor3D
                     Fn(400, 15), T.onBrandMuted, maxW: COL - 110, lineH: 20);
 
                 // The slide: one piece of the estimate at a time, as on the site's results deck.
-                var step = Deck(p, r)[slide];
-                ctx.Text($"{step.eyebrow.ToUpperInvariant()} · {slide + 1} OF {SLIDES}", M + 2, 216, Fn(700, 12.5f), T.highlightText, lineH: 18, spacing: 0.6f);
+                ctx.Text($"{step.eyebrow.ToUpperInvariant()} · {slide + 1} OF {deck.Count}", M + 2, 216, Fn(700, 12.5f), T.highlightText, lineH: 18, spacing: 0.6f);
                 var titleH = ctx.Text(step.title, M + 2, 238, Fn(700, 21), maxW: COL - 4, lineH: 27, spacing: -0.2f);
-                ctx.Text(step.body, M + 2, 246 + titleH, Fn(400, 15.5f), T.label2, maxW: COL - 4, lineH: 22);
+                var bodyH = ctx.Text(step.body, M + 2, 246 + titleH, Fn(400, 15.5f), T.label2, maxW: COL - 4, lineH: 22);
+                // Where to look in the room for this slide.
+                var hint = Ui.Wrap(step.look, Fn(500, 13.5f), COL - 54);
+                var hintY = 258 + titleH + bodyH;
+                ctx.Rect(M, hintY, COL, hint.Count * 19 + 18, 12, T.roseSoft);
+                ctx.Icon("info", M + 20, hintY + 18.5f, 17, T.tint, 1.8f);
+                ctx.Text(string.Join("\n", hint), M + 38, hintY + 9, Fn(500, 13.5f), T.tint, lineH: 19);
                 // Which slide you are on.
-                for (var i = 0; i < SLIDES; i++)
+                for (var i = 0; i < deck.Count; i++)
                 {
                     var on = i == slide;
-                    ctx.Rect(M + COL / 2 - (SLIDES * 14 + 10) / 2f + i * 14 + (i > slide ? 10 : 0), 607, on ? 18 : 8, 8, 4, on ? T.tint : i < slide ? Ui.C("#c9a3b3") : Ui.C("#d9d2cc"));
+                    ctx.Rect(M + COL / 2 - (deck.Count * 14 + 10) / 2f + i * 14 + (i > slide ? 10 : 0), 607, on ? 18 : 8, 8, 4, on ? T.tint : i < slide ? Ui.C("#c9a3b3") : Ui.C("#d9d2cc"));
                 }
 
-                // How we got there: every term, in the order the math uses it.
-                ctx.Text("How we got there", X2 + 14, 84, Fn(600, 17), lineH: 24);
-                var lines = new List<(string id, string title, string sub, string value, bool bold, bool tint)>();
-                foreach (var t in r.needs.Where(n => n.included)) lines.Add((t.id, t.label, t.detail, $"+ {Calc.FormatMoney(t.value)}", false, false));
-                lines.Add((null, "What your family would need", null, Calc.FormatMoney(r.totalNeeds), true, false));
-                foreach (var t in r.resources.Where(n => n.included)) lines.Add((t.id, t.label, null, $"− {Calc.FormatMoney(t.value)}", false, false));
-                lines.Add(("gap", "Estimated additional coverage", null, Calc.FormatMoney(r.additional), true, true));
+                // Beside the slide: every term in the order the math uses it; on the look-ahead
+                // slide, what each expected change adds, as a waterfall from today to ten years on.
+                var lines = new List<(string id, Color? dot, string title, string sub, string value, bool bold, bool tint, long from, long size)>();
+                if (step.ahead)
+                {
+                    ctx.Text("From today to ten years on", X2 + 14, 84, Fn(600, 17), lineH: 24);
+                    var run = r.totalNeeds;
+                    lines.Add((null, TERM_COLOR["support"], "Your family would need today", null, Calc.FormatMoney(r.totalNeeds), false, false, 0, r.totalNeeds));
+                    foreach (var d in o.drivers)
+                    {
+                        lines.Add((null, DRIVER_COLOR[d.id], d.label, null, Signed(d.delta), false, false, Math.Min(run, run + d.delta), Math.Abs(d.delta)));
+                        run += d.delta;
+                    }
+                    lines.Add((null, TERM_COLOR["growth"], $"In about {o.inYears} years", null, Calc.FormatMoney(o.totalNeeds), true, false, 0, o.totalNeeds));
+                    lines.Add((null, TERM_COLOR["existing"], "What you have today", null, $"− {Calc.FormatMoney(r.totalResources)}", false, false, 0, r.totalResources));
+                    lines.Add((null, TERM_COLOR["gap"], "Coverage to consider by then", null, Calc.FormatMoney(o.additional), true, true, 0, o.additional));
+                }
+                else
+                {
+                    ctx.Text("How we got there", X2 + 14, 84, Fn(600, 17), lineH: 24);
+                    foreach (var t in r.needs.Where(n => n.included)) lines.Add((t.id, null, t.label, t.detail, $"+ {Calc.FormatMoney(t.value)}", false, false, 0, 0));
+                    lines.Add((null, null, "What your family would need", null, Calc.FormatMoney(r.totalNeeds), true, false, 0, 0));
+                    foreach (var t in r.resources.Where(n => n.included)) lines.Add((t.id, null, t.label, null, $"− {Calc.FormatMoney(t.value)}", false, false, 0, 0));
+                    lines.Add(("gap", null, "Estimated additional coverage", null, Calc.FormatMoney(r.additional), true, true, 0, 0));
+                }
+                var most = Math.Max(1, lines.Max(l => l.from + l.size));
                 var laid = lines.Select(l =>
                 {
                     var f = Fn(l.bold ? 700 : 500, 16);
                     var vw = Ui.Measure(l.value, f);
-                    var titleLines = Ui.Wrap(l.title, f, COL - 32 - vw - 12 - (l.id != null ? 18 : 0));
-                    return (l, f, titleLines, h: Mathf.Max(40, titleLines.Count * 20 + (l.sub != null ? 18 : 0) + 16));
+                    var dotted = l.id != null || l.dot != null;
+                    var titleLines = Ui.Wrap(l.title, f, COL - 32 - vw - 12 - (dotted ? 18 : 0));
+                    return (l, f, titleLines, h: Mathf.Max(40, titleLines.Count * 20 + (l.sub != null ? 18 : 0) + 16) + (step.ahead ? 12f : 0));
                 }).ToList();
                 var total = laid.Sum(l => l.h);
                 ctx.Rect(X2 + 0.5f, 114.5f, COL - 1, total - 1, 16, T.bg, T.edge, 1);
@@ -1718,27 +1867,34 @@ namespace Advisor3D
                     var (l, f, titleLines, h) = laid[i];
                     if (i > 0) ctx.Fill(X2 + 14, y, COL - 14, 1, T.separator);
                     var x = X2 + 14;
+                    var bar = step.ahead ? 12f : 0;
                     var th = titleLines.Count * 20 + (l.sub != null ? 18 : 0);
-                    var ty = y + (h - th) / 2f;
-                    if (l.id != null)
+                    var ty = y + (h - bar - th) / 2f;
+                    var color = l.dot ?? (l.id != null ? TERM_COLOR[l.id] : (Color?)null);
+                    if (color != null)
                     {
-                        ctx.Rect(x, ty + 5, 10, 10, 3, TERM_COLOR[l.id]);
+                        ctx.Rect(x, ty + 5, 10, 10, 3, color);
                         x += 18;
                     }
                     ctx.Text(string.Join("\n", titleLines), x, ty, f, lineH: 20);
                     if (l.sub != null) ctx.Text(l.sub, x, ty + titleLines.Count * 20, Fn(400, 13.5f), T.label2, lineH: 18);
-                    ctx.Text(l.value, X2 + COL - 14, y, f, l.tint ? T.tint : l.bold ? T.label : T.label2, lineH: h, align: Align.Right);
+                    ctx.Text(l.value, X2 + COL - 14, y, f, l.tint ? T.tint : l.bold ? T.label : T.label2, lineH: h - bar, align: Align.Right);
+                    if (step.ahead)
+                    {
+                        // Each bar starts where the total stood before it.
+                        var track = COL - 28;
+                        ctx.Rect(X2 + 14, y + h - 14, track, 6, 3, T.grouped3);
+                        if (l.size > 0) ctx.Rect(X2 + 14 + track * l.from / most, y + h - 14, Mathf.Max(6, track * l.size / most), 6, 3, color ?? T.tint);
+                    }
                     y += h;
                 }
-                if (r.leftOut.Count > 0) ctx.Text($"Not included: {string.Join(", ", r.leftOut).ToLowerInvariant()}.", X2 + 14, y + 8, Fn(400, 13), T.label2, maxW: COL - 28, lineH: 18);
+                if (step.ahead) ctx.Text("An illustration from rules of thumb, not a prediction. Debts, savings and coverage stay at today’s amounts.", X2 + 14, y + 8, Fn(400, 13), T.label2, maxW: COL - 28, lineH: 18);
+                else if (r.leftOut.Count > 0) ctx.Text($"Not included: {string.Join(", ", r.leftOut).ToLowerInvariant()}.", X2 + 14, y + 8, Fn(400, 13), T.label2, maxW: COL - 28, lineH: 18);
             }), 0, 0);
 
-            // What-if controls, summary and the two kinds of insurance, on the right.
-            void Adjust(string id, long delta, long min, long max)
-            {
-                copied = null;
+            // What-if controls, the way on to the summary, and the two kinds of insurance, on the right.
+            void Adjust(string id, long delta, long min, long max) =>
                 Store.SetField(id, Field.Of(Status.Confirmed, Math.Min(max, Math.Max(min, State.profile[id].Number + delta))));
-            }
             right.Add(Ui.Paint(SIDE_W, 30, ctx => ctx.Text("Try a different scenario", 16, 0, Fn(600, 17), lineH: 24)), 0, 0);
             right.Add(Ui.Card(SIDE_W, 136, r: 20), 0, 30);
             var scenario = right.Add(new El(SIDE_W, 136, ctx =>
@@ -1765,10 +1921,11 @@ namespace Advisor3D
             }
             right.Add(Ui.Paint(SIDE_W, 24, ctx => ctx.Text("Changes here update your answers, the math and the blocks.", 16, 0, Fn(400, 13), T.label2, lineH: 18)), 0, 174);
 
-            // Back and forward through the deck, under the slide.
+            // Back and forward through the deck, under the slide. Past the last slide is the way out.
             void GoTo(int i)
             {
-                slide = Mathf.Clamp(i, 0, SLIDES - 1);
+                if (i >= slides && Application.isPlaying) { Store.Go("handoff"); return; }
+                slide = Mathf.Clamp(i, 0, slides - 1);
                 refresh();
                 if (!Application.isPlaying) stacks.Settle();
             }
@@ -1776,15 +1933,11 @@ namespace Advisor3D
             var prev = Arrow("chevron-left", M, () => GoTo(slide - 1));
             var next = Arrow("chevron-right", M + COL - 64, () => GoTo(slide + 1));
 
-            var copy = right.Add(Ui.Button(SIDE_W, 56, new BtnO
+            // The summary to copy and explore is on the site; this is the way there.
+            right.Add(Ui.Button(SIDE_W, 56, new BtnO
             {
-                label = "Copy Summary", size = 19,
-                onSelect = () =>
-                {
-                    var (p, r, _) = Now();
-                    try { GUIUtility.systemCopyBuffer = Calc.SummaryText(p, r); copied = "ok"; } catch (Exception) { copied = "fail"; }
-                    refresh();
-                },
+                label = Sync.Paired ? "Continue on Your Computer" : "Finish and Take It Further", icon = "chevron-right", size = 19,
+                onSelect = () => Store.Go("handoff"),
             }), 0, 212);
             right.Add(Ui.Button(SIDE_W, 50, new BtnO { label = "Change My Answers", variant = "inverse", onSelect = () => Store.Go("review") }), 0, 280);
 
@@ -1811,23 +1964,22 @@ namespace Advisor3D
 
             refresh = () =>
             {
-                var (_, r, ready) = Now();
+                var (p, r, ready) = Now();
                 if (!ready) return; // answers were just cleared; Start Over is taking us home
+                var o = Calc.Outlook(p, r);
+                var deck = Deck(p, r, o);
+                slides = deck.Count;
+                slide = Mathf.Min(slide, slides - 1);
                 sheet.Redraw();
                 scenario.Redraw();
-                foreach (var (b, limit) in steppers) b.Set(o => o.disabled = limit());
-                copy.Set(o =>
-                {
-                    o.label = copied == "ok" ? "Summary Copied" : copied == "fail" ? "Copy Isn’t Available Here" : "Copy Summary";
-                    o.variant = copied != null ? "inverse" : "filled";
-                });
-                var step = Deck(State.profile, r)[slide];
-                prev.Set(o => o.disabled = slide == 0);
-                next.Set(o => o.disabled = slide == SLIDES - 1);
+                ShowGlance(r, o);
+                foreach (var (b, limit) in steppers) b.Set(o2 => o2.disabled = limit());
+                var step = deck[slide];
+                prev.Set(o2 => o2.disabled = slide == 0);
                 // What is in the room for this slide: the two stacks in front, and the ring of years around.
-                stacks.Set(r, step.have, step.gap);
+                stacks.Set(r, step.have, step.gap, step.ahead ? o : null);
+                Picture.Ahead = step.ahead ? o : null;
                 Picture.Years = step.years;
-                Say(step.look.Select(line => Bot(line)).ToArray());
             };
             Picture.ShowBlocks = false; // the tray in front shows the same amounts as two stacks
             refresh();
@@ -1840,9 +1992,128 @@ namespace Advisor3D
                 dispose = () =>
                 {
                     stacks.Dispose();
+                    left.Clear("glance");
+                    guideCard.Visible = true;
                     Picture.ShowBlocks = true;
                     Picture.Years = "low";
+                    Picture.Ahead = null;
                     resultsSlide = null;
+                },
+            };
+        }
+
+        // ---------- Handoff: the last screen ----------
+        // The headset shows the estimate; the site is where it can be copied, questioned and
+        // compared. A paired browser has already been told to open its results page, so this only
+        // has to say: take the headset off. Nothing of the conversation is shown here.
+        static readonly (string icon, Color hue, string title, string text)[] ON_THE_WEB =
+        {
+            ("check-circle", T.hue.green, "Copy your summary", "Every answer and the full math, ready to paste into a note or an email."),
+            ("people", T.hue.indigo, "Ask " + GUIDE_NAME + " anything", "Follow-up questions, answered with your own numbers."),
+            ("shield", T.hue.teal, "Term or permanent", "See which researched policies fit your gap, and why."),
+            ("trend-up", T.hue.orange, "What if life changes?", "Try another child or rising prices and watch the estimate move."),
+        };
+
+        static Screen Handoff()
+        {
+            var (p, r, ready) = Now();
+            if (!ready) return Results();
+            var main = MainPanel();
+            var o = Calc.Outlook(p, r);
+            var paired = Sync.Paired;
+            guideCard.Visible = false;
+            ShowGlance(r, o);
+            var stacks = new Stacks();
+            stacks.Set(r);
+            Picture.ShowBlocks = false;
+            if (!Application.isPlaying) stacks.Settle();
+
+            var steps = paired
+                ? new[]
+                {
+                    ("Take off the headset", $"Your computer has everything {GUIDE_NAME} heard, and what you confirmed here."),
+                    ("Your results are already open", "The same story, chart by chart, with the full math under it."),
+                    ("Make it yours", "Copy the summary, ask a follow-up, and compare term and permanent coverage."),
+                }
+                : new[]
+                {
+                    ("Open codelinc.codehawks.org", "On a computer or a phone. It takes the same six quick questions."),
+                    ("Choose VR voice chat there", "It shows a QR code. Look at it with this headset to pair the two."),
+                    ("Finish here, explore there", "Your results then open on the site by themselves, ready to copy."),
+                };
+
+            main.Add(Ui.Paint(MAIN_W, 500, ctx =>
+            {
+                ctx.Circle(M + 36, 76, 36, T.rose);
+                ctx.Icon("check", M + 36, 76, 34, T.tint, 3);
+                ctx.Text(paired ? "Your results are waiting" : "That’s your estimate.", M + 92, 34, Fn(800, 40), T.tint, lineH: 44, spacing: -1.2f);
+                ctx.Text(paired ? "on your computer." : "The site has the rest.", M + 92, 78, Fn(800, 40), T.highlightText, lineH: 44, spacing: -1.2f);
+                ctx.Text(paired
+                        ? "This is as far as the headset goes. Everything you can keep, copy and explore is on the site."
+                        : "A headset on its own can’t pass your answers to a browser. Start on the site next time and they travel with you.",
+                    M + 2, 146, Fn(400, 19), T.label2, maxW: MAIN_W - M * 2, lineH: 28);
+                for (var i = 0; i < steps.Length; i++)
+                {
+                    var (title, text) = steps[i];
+                    var y = 232 + i * 82;
+                    ctx.Rect(M, y, 46, 46, 13, T.rose);
+                    ctx.Text((i + 1).ToString(), M + 23, y, Fn(700, 19), T.tint, lineH: 46, align: Align.Center);
+                    ctx.Text(title, M + 64, y - 2, Fn(600, 20), lineH: 26);
+                    ctx.Text(text, M + 64, y + 26, Fn(400, 16), T.label2, maxW: MAIN_W - M * 2 - 70, lineH: 22);
+                }
+            }), 0, 0);
+
+            // Whether the browser has been told yet. It usually has by the time this screen is up.
+            var sent = Sync.Delivered;
+            var status = main.Add(new El(MAIN_W, 34, ctx =>
+            {
+                if (!paired) return;
+                var text = sent ? "Sent. Your computer is opening your results." : "Sending your results to your computer…";
+                var f = Fn(600, 16);
+                var w = Ui.Measure(text, f) + 28;
+                if (sent) ctx.Icon("check-circle", (MAIN_W - w) / 2 + 9, 17, 19, T.success, 2.2f);
+                else ctx.Circle((MAIN_W - w) / 2 + 9, 17, 5, T.highlight);
+                ctx.Text(text, (MAIN_W - w) / 2 + 28, 0, f, sent ? T.success : T.label2, lineH: 34);
+            }), 0, 488).Redraw();
+
+            main.Add(Ui.Button(250, 52, new BtnO { label = "Back to My Results", variant = "bordered", icon = "chevron-left", iconLeft = true, size = 18, onSelect = () => Store.Go("results") }), M, 572);
+            if (!paired) main.Add(Ui.Button(270, 52, new BtnO { label = "Connect to a Computer", size = 18, onSelect = () => Store.Go("connect") }), MAIN_W - M - 270, 572);
+            else main.Add(Ui.Button(200, 52, new BtnO { label = "Start Over", variant = "plain", size = 18, onSelect = App.StartOver }), MAIN_W - M - 200, 572);
+
+            right.Add(Ui.Card(SIDE_W, 600), 0, 30);
+            right.Add(Ui.Paint(SIDE_W, 600, ctx =>
+            {
+                ctx.Text("On the site", 30, 28, Fn(800, 28), T.tint, lineH: 34, spacing: -0.6f);
+                ctx.Text("Everything here, plus what a headset can’t do.", 30, 68, Fn(400, 16), T.label2, maxW: 350, lineH: 23);
+                for (var i = 0; i < ON_THE_WEB.Length; i++)
+                {
+                    var (ic, hue, title, text) = ON_THE_WEB[i];
+                    var y = 124 + i * 104;
+                    ctx.Rect(30, y, 42, 42, 12, hue);
+                    ctx.Icon(ic, 51, y + 21, 22, T.white, 2.2f);
+                    ctx.Text(title, 88, y - 2, Fn(600, 18), lineH: 24);
+                    ctx.Text(text, 88, y + 24, Fn(400, 15), T.label2, maxW: 300, lineH: 21);
+                }
+                ctx.Fill(30, 540, SIDE_W - 60, 1, T.edge);
+                ctx.Text("An educational estimate, not a quote. A licensed professional can turn it into real options.", 30, 550, Fn(500, 13), T.tint, maxW: 360, lineH: 18);
+            }), 0, 30);
+
+            return new Screen
+            {
+                main = main,
+                tick = (t, dt) =>
+                {
+                    stacks.Tick(t, dt);
+                    if (Sync.Delivered == sent) return;
+                    sent = Sync.Delivered;
+                    status.Redraw();
+                },
+                dispose = () =>
+                {
+                    stacks.Dispose();
+                    left.Clear("glance");
+                    guideCard.Visible = true;
+                    Picture.ShowBlocks = true;
                 },
             };
         }
@@ -1868,9 +2139,9 @@ namespace Advisor3D
             var route = Store.Route;
             startOver.Visible = route != "home" && route != "connect";
             stepper.Redraw();
-            var at = Array.FindIndex(STEPS, st => st.id == route);
+            var at = StepIndex();
             for (var i = 0; i < stepLinks.Length; i++) stepLinks[i].Visible = i < at;
-            current = route switch { "prepare" => Prepare(), "chat" => Chat(), "review" => Review(), "results" => Results(), "home" => Home(), _ => Connect() };
+            current = route switch { "prepare" => Prepare(), "chat" => Chat(), "review" => Review(), "results" => Results(), "handoff" => Handoff(), "home" => Home(), _ => Connect() };
             appear = 0;
             Fade(0);
         }
@@ -1906,8 +2177,11 @@ namespace Advisor3D
             picture.Settle(RingUp());
         }
 
-        // The ring shows once there are answers to draw: in the chat, on Review and on Results.
-        static bool RingUp() => Store.Route == "chat" || Store.Route == "review" || Store.Route == "results";
+        // The ring shows once there are answers to draw: in the chat, on Review, on Results and after.
+        static bool RingUp() => Store.Route == "chat" || Store.Route == "review" || Store.Route == "results" || Store.Route == "handoff";
+
+        // For the editor's screenshot pass: open one answer on the Review screen.
+        public static void EditOnReview(string id) => reviewEdit?.Invoke(id);
 
         // For the editor's screenshot pass: turn the results deck to a slide.
         public static void TurnTo(int index)

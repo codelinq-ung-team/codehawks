@@ -209,6 +209,18 @@ namespace Advisor3D
         public static string Grouped(long n) => n.ToString("N0", CultureInfo.InvariantCulture);
         public static string FormatMoney(long n) => "$" + Grouped(n);
 
+        // part / whole as a percent. Something above zero never reads "0%", and short of the whole
+        // never reads "100%": those ends get a decimal (0.4%, 99.6%), or "under 0.1%" / "over 99.9%".
+        public static string FormatPercent(long part, long whole)
+        {
+            var p = whole > 0 ? Math.Min(100, Math.Max(0, (double)part / whole * 100)) : 0;
+            if (p == 0 || p == 100) return $"{p:0}%";
+            if (p < 0.1) return "under 0.1%";
+            if (p > 99.9) return "over 99.9%";
+            if (p < 1 || p > 99) return p.ToString("0.0", CultureInfo.InvariantCulture) + "%";
+            return Round(p) + "%";
+        }
+
         public static string FormatField(string id, Field field)
         {
             if (field == null || field.status == Status.Empty) return "";
@@ -260,13 +272,14 @@ namespace Advisor3D
         // The estimate above is today's. This is what it could grow into in about ten years, from the
         // changes the person said they expect. Every rule is one the assessment already states:
         //   - yearly support keeps the share of income it has today;
-        //   - kids or a partner mean support of at least 70% of income (the chat's own starting point),
-        //     for at least 22 years with kids (until the youngest is grown) or 10 with a partner;
+        //   - kids or a partner mean support of at least 70% of income (the chat's own starting point);
+        //     with kids it runs until a child arriving in two years is 18, plus an education fund (the
+        //     same child as the site's what-if step), and with a partner ten years;
         //   - buying a home means a mortgage of about three times yearly income.
         // Debts, savings and coverage stay as they are today. It is an illustration, never a
         // prediction, and it never changes the estimate.
         public const int OUTLOOK_YEARS = 10;
-        const long KIDS_YEARS = 22, PARTNER_YEARS = 10;
+        const long KIDS_YEARS = 2 + 18, KIDS_EDUCATION = 50_000, PARTNER_YEARS = 10;
 
         public static Outlook Outlook(Profile profile, Estimate result)
         {
@@ -280,12 +293,13 @@ namespace Advisor3D
             var years = Amount(profile, "years");
             var mortgage = Amount(profile, "mortgage");
             var rest = result.totalNeeds - support * years - mortgage;
+            long education = 0;
             var needs = result.totalNeeds;
             var o = new Outlook { ready = true, inYears = OUTLOOK_YEARS, income = incomeKnown ? then : (long?)null };
             // Each change is applied in turn; its amount is what it adds to the total on top of the ones before.
             void Apply(string id, string label, string detail)
             {
-                var next = rest + support * years + mortgage;
+                var next = rest + support * years + mortgage + education;
                 if (next != needs) o.drivers.Add(new Driver { id = id, label = label, detail = detail, delta = next - needs });
                 needs = next;
             }
@@ -301,7 +315,8 @@ namespace Advisor3D
             {
                 years = Math.Max(years, KIDS_YEARS);
                 support = Math.Max(support, share);
-                Apply("kids", "Kids", $"{FormatMoney(support)} a year for {Years(years)}, until the youngest is grown");
+                education = KIDS_EDUCATION;
+                Apply("kids", "Kids", $"{FormatMoney(support)} a year for {Years(years)}, plus {FormatMoney(education)} for education");
             }
             if (HasPlan(plans, "partner"))
             {

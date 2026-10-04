@@ -241,9 +241,12 @@ returns `{"id":"..."}` once, within ten minutes.
 
 `GET /api/pair/<id>` returns `{"status":"waiting","form":{...},"profile":{...}}`, with every
 profile field present. `POST /api/pair/<id>` with any of `status` (`waiting`, `joined`,
-`done`), `profile` and `form` replaces those and returns the same shape. The headset posts
-`joined` when it connects, the profile whenever an answer changes, and `done` when the
-conversation ends; the site polls every two seconds and moves to Review on `done`. An unknown
+`done`, `handoff`), `profile` and `form` replaces those and returns the same shape. The headset
+posts `joined` when it connects, the profile whenever an answer changes, `done` when the
+conversation ends, and `handoff` when the wearer reaches its last screen or takes the headset
+off on their results. The site polls every two seconds: on `done` it says the wearer is
+looking at their results in the headset and offers to carry on in the browser, and on
+`handoff` it opens Results (or Review, when the answers were not confirmed in the headset). An unknown
 or expired id returns 404.
 
 Pairings live in the DynamoDB table `codelinc-hackathon-app-pairing` (`PAIRING_TABLE`), which

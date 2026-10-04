@@ -3,8 +3,7 @@
 // When the conversation ends the pairing is marked done, and the browser says so while the
 // wearer goes on to their results here. On the last screen (or when the headset comes off on
 // the results) it is marked handoff, which is the browser's cue to open those same results.
-// A headset used on its own can start the pairing instead (Offer): it shows a six-digit code
-// to type on the site. Pairing.cs has the shapes; apps/backend/pairing.py the server.
+// Pairing.cs has the shapes; apps/backend/pairing.py the server.
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,9 +16,6 @@ namespace Advisor3D
         public static string Status { get; private set; } = "off"; // off | joining | paired | failed
         public static bool Paired => Status == "paired";
 
-        // Offer(): the code the site asks for, once this headset has started a pairing of its own.
-        public static string Code { get; private set; }
-        public static string Offered { get; private set; } = "off"; // off | asking | ready | failed
         // The browser has everything, results included: there is nothing left on its way.
         public static bool Delivered => id != null && handed && !dirty && !sending && sentHandoff;
         const float SETTLE = 0.4f; // seconds to let a burst of changes finish before saving
@@ -45,8 +41,6 @@ namespace Advisor3D
             paired = null;
             dirty = sending = done = handed = sentHandoff = false;
             Status = "off";
-            Code = null;
-            Offered = "off";
         }
 
         static void Mark()
@@ -95,31 +89,6 @@ namespace Advisor3D
                 Mark(); // tells the browser the headset has joined
                 App.Blip(990, 0.16f, 0.05f);
                 Store.Go("chat");
-            });
-        }
-
-        // A headset used on its own: start a pairing with the answers it has, so the site can pick
-        // them up with the six-digit code. From then on changes are saved to it like any pairing.
-        public static void Offer()
-        {
-            if (id != null || Offered == "asking") return;
-            Offered = "asking";
-            var s = Store.State;
-            var body = new JObject { ["profile"] = JObject.FromObject(Pairing.Wire(s.profile)), ["form"] = JObject.FromObject(Pairing.Wire(s.form)) };
-            Backend.Call("/api/pair", body, (status, reply) =>
-            {
-                if (Store.State != s || id != null) return; // started over, or paired some other way, meanwhile
-                var found = Pairing.ReadQr(Pairing.QR_PREFIX + (string)reply?["id"]);
-                var code = Pairing.ReadCode((string)reply?["code"]);
-                if (status != 201 || found == null || code == null) { Offered = "failed"; return; }
-                id = found;
-                paired = s;
-                sent = null;
-                done = true;
-                Code = code;
-                Offered = "ready";
-                Status = "paired";
-                Mark();
             });
         }
 

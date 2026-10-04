@@ -93,6 +93,51 @@ static class Tests
             Eq(r.value, 15);
             Eq(Calc.ParseCount("90", 1, 70).kind, "range");
         });
+        // ---------- looking ahead ----------
+        // The same cases as apps/web/tests/calculator.test.ts and apps/backend/tests/test_recommendations.py.
+        Outlook Ahead(Profile p) { var o = Calc.Outlook(p, Calc.Calculate(p)); Ok(o.ready); return o; }
+        Test("no outlook until a look-ahead question is answered, and today's estimate never moves", () =>
+        {
+            Ok(!Calc.Outlook(Sample(), Calc.Calculate(Sample())).ready);
+            Eq(Additional(Sample(("income", 50000), ("futureIncome", 100000), ("plans", 2))), 500000);
+        });
+        Test("a higher income keeps support's share, and a home is three times income", () =>
+        {
+            var o = Ahead(Sample(("income", 50000), ("futureIncome", 100000), ("plans", 2)));
+            Eq((o.support, o.years, o.mortgage, o.additional, o.change), (80000L, 10L, 300000L, 1050000L, 550000L));
+            Eq(string.Join(",", o.drivers.Select(d => d.id + "=" + d.delta)), "income=400000,home=150000");
+        });
+        Test("someone starting out: kids and a home on a future income", () =>
+        {
+            var p = Sample(("income", 13000), ("futureIncome", 60000), ("plans", 3), ("support", 0), ("years", 1), ("mortgage", 0), ("otherDebts", 8000), ("education", 0), ("existing", 0));
+            Eq(Additional(p), 8000);
+            var o = Ahead(p);
+            Eq((o.support, o.years, o.mortgage, o.additional), (42000L, 20L, 180000L, 1078000L));
+            Eq(string.Join(",", o.drivers.Select(d => d.id + "=" + d.delta)), "kids=890000,home=180000");
+        });
+        Test("a partner, no changes, and a lower income", () =>
+        {
+            var partner = Ahead(Sample(("income", 60000), ("plans", 4)));
+            Eq((partner.support, partner.years, partner.additional), (42000L, 10L, 520000L));
+            var same = Ahead(Sample(("income", 50000), ("futureIncome", 50000), ("plans", 0)));
+            Eq((same.drivers.Count, same.change, same.additional), (0, 0L, 500000L));
+            var lower = Ahead(Sample(("income", 50000), ("futureIncome", 25000)));
+            Eq((lower.support, lower.additional, lower.drivers[0].delta), (20000L, 300000L, -200000L));
+        });
+        Test("plans and percents read back as the site writes them", () =>
+        {
+            Eq(Calc.FormatPlans(0), "None of these");
+            Eq(Calc.FormatPlans(3), "Kids and a home");
+            Eq(Calc.FormatPlans(7), "Kids, a home and a partner");
+            Eq(Calc.FormatField("plans", Field.Of(Status.Confirmed, 6)), "A home and a partner");
+            Eq(Calc.FormatPercent(0, 600000), "0%");
+            Eq(Calc.FormatPercent(2500, 600000), "0.4%");
+            Eq(Calc.FormatPercent(100, 600000), "under 0.1%");
+            Eq(Calc.FormatPercent(100000, 600000), "17%");
+            Eq(Calc.FormatPercent(597500, 600000), "99.6%");
+            Eq(Calc.FormatPercent(900000, 600000), "100%");
+        });
+
         Test("the summary and the sample family agree with the web app", () =>
         {
             Store.LoadSample();
@@ -182,6 +227,7 @@ static class Tests
             {
                 ["household"] = "My partner and kids", ["youngestAge"] = "5", ["support"] = "$60,000", ["years"] = "17 years", ["mortgage"] = "$240,000",
                 ["finalExpenses"] = "$10,000", ["education"] = "Skip this", ["existing"] = "$150,000", ["savings"] = "None",
+                ["plans"] = "Kids and a home", ["futureIncome"] = "About the same",
             };
             var asked = new List<string>();
             for (var step = Script.NextStep(s); step != null; step = Script.NextStep(s))
@@ -194,13 +240,80 @@ static class Tests
                 foreach (var kv in r.updates) s.profile[kv.Key] = kv.Value;
             }
             // Income came from the form, and the mortgage answer settled the other debts.
-            Eq(string.Join(",", asked), "household,youngestAge,support,years,mortgage,finalExpenses,education,existing,savings");
+            // The two look-ahead questions come last, after everything about today.
+            Eq(string.Join(",", asked), "household,youngestAge,support,years,mortgage,finalExpenses,education,existing,savings,plans,futureIncome");
+            Eq(s.profile["plans"].num, 3);
+            Eq(s.profile["futureIncome"].num, 85000);
             Eq(s.profile["otherDebts"].num, 40000);
             Eq(s.profile["education"].status, Status.Skipped);
             Ok(Calc.Calculate(s.profile).ready);
         });
 
         // The AI's reading of a spoken or typed answer goes through the same checks as the script.
+        Test("plans are read from taps and from plain words, and a ruled-out plan is not counted", () =>
+        {
+            var s = State(new Form { income = 13000, age = 21 });
+            long? Plans(string text) => Script.Respond("plans", text, s).updates?["plans"].num;
+            Eq(Plans("Kids"), 1);
+            Eq(Plans("Buying a home"), 2);
+            Eq(Plans("Kids and a home"), 3);
+            Eq(Plans("Getting married"), 4);
+            Eq(Plans("None of these"), 0);
+            Eq(Plans("we want a baby, a house, and the wedding is in June"), 7);
+            Eq(Plans("no kids but we are buying a house"), 2);
+            Eq(Plans("no more kids"), 0);
+            Eq(Script.Respond("plans", "Skip this", s).updates["plans"].status, Status.Skipped);
+            Ok(Script.Respond("plans", "a boat", s).updates == null);
+            foreach (var chip in Script.Ask("plans", s).replies.Where(r => r != Script.WHY)) Ok(Script.Respond("plans", chip, s).updates != null, chip);
+        });
+        Test("expected income takes a figure, or a phrase read against today's income", () =>
+        {
+            var s = State(new Form { income = 13000, age = 21 });
+            long? Future(string text) => Script.Respond("futureIncome", text, s).updates?["futureIncome"].num;
+            Eq(Future("About the same"), 13000);
+            Eq(Future("probably double"), 26000);
+            Eq(Future("60k once I graduate"), 60000);
+            Eq(Future("about the same, maybe 15k"), 15000);
+            Ok(Script.Respond("futureIncome", "a lot more", s).updates == null);
+            // Bigger steps are suggested early in a career.
+            Eq(string.Join("|", Script.Ask("futureIncome", s).replies.Take(3)), "About the same|$26,000|$52,000");
+            Eq(string.Join("|", Script.Ask("futureIncome", State(new Form { income = 80000, age = 45 })).replies.Take(3)), "About the same|$100,000|$120,000");
+            // Not asked at all when today's income is unknown.
+            var unknown = State();
+            foreach (var f in Calc.FIELDS) if (f.id != "plans" && f.id != "futureIncome") unknown.profile[f.id] = Field.Unknown();
+            unknown.profile["plans"] = Field.Skipped();
+            Eq(Script.NextStep(unknown), null);
+        });
+        Test("the AI's reading of plans and expected income goes through the script's readers", () =>
+        {
+            var s = State(new Form { income = 13000 });
+            Eq(Script.Interpret("plans", new Reading { value = 3 }, s).updates["plans"].num, 3);
+            Eq(Script.Interpret("plans", new Reading { value = 0 }, s).updates["plans"].num, 0);
+            Eq(Script.Interpret("futureIncome", new Reading { value = 70000 }, s).updates["futureIncome"].num, 70000);
+            Eq(Script.Interpret("futureIncome", new Reading { intent = "unclear", say = "One number, please." }, s, "double").updates["futureIncome"].num, 26000);
+            Ok(Script.Interpret("plans", new Reading { intent = "unclear" }, s, "a boat").updates == null);
+        });
+        Test("plans and expected income by voice", () =>
+        {
+            var s = State(new Form { income = 13000 });
+            var (updates, tell) = VoiceScript.Save(new Dictionary<string, long> { ["plans"] = 3, ["futureIncome"] = 60000 }, null, null, null, s);
+            Eq(updates["plans"].num, 3);
+            Eq(updates["futureIncome"].num, 60000);
+            Match(tell, "Changes you expect: Kids and a home");
+            // Expected income is read against today's, so it waits for that.
+            var (none, wait) = VoiceScript.Save(new Dictionary<string, long> { ["futureIncome"] = 60000 }, null, null, null, State());
+            Ok(none == null);
+            Match(wait, "find out what they earn now first");
+            Ok(VoiceScript.TOOLS.Contains("\"plans\"") && VoiceScript.INSTRUCTIONS.Contains("futureIncome"));
+        });
+        Test("the headset sends the look-ahead answers and the age back to the site", () =>
+        {
+            var wire = Pairing.Wire(new Form { age = 21, income = 13000 });
+            Eq((long?)wire["age"], 21);
+            Eq(Pairing.ReadField("plans", "confirmed", 3, null, false).num, 3);
+            Eq(Pairing.ReadField("futureIncome", "proposed", 60000, null, false).num, 60000);
+        });
+
         Test("an AI reading becomes a proposed answer with the script's own confirmation", () =>
         {
             var r = Script.Interpret("income", new Reading { value = 80000, say = "Got it, $90,000!" }, State());
