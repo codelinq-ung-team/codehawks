@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Banner, Button, ListRow, ListSection, Sheet, TextField } from '../kit/Kit.tsx'
 import { Page, Title } from '../lib/Chrome.tsx'
 import { go, setField, setState, useStore } from '../lib/store.ts'
-import { CoveragePreferences } from './CoveragePreferences.tsx'
 import {
   FIELD, FIELDS, GROUPS, HOUSEHOLD, formatField, missingRequired, parseAmount, parseCount,
   type Field, type FieldId, type Household,
@@ -67,7 +66,6 @@ export function Review() {
               })}
             </ListSection>
           ))}
-          <CoveragePreferences />
         </div>
 
         <aside className="review__side">
@@ -81,8 +79,8 @@ export function Review() {
               />
             )
             : <Banner tone="success" title="Everything we need is here" message="Optional answers you leave blank won’t be counted." />}
-          <Button size="large" fullWidth disabled={missing.length > 0} onClick={confirmAll}>Confirm & See Results</Button>
-          <Button variant="bordered" fullWidth icon="chevron-left" onClick={() => go('chat')}>Back to Chat</Button>
+          <Button size="large" fullWidth disabled={missing.length > 0} onClick={confirmAll} className="lift">Confirm & See Results</Button>
+          <Button variant="bordered" fullWidth icon="chevron-left" onClick={() => go('chat')} className="lift lift--back">Back to Chat</Button>
         </aside>
       </div>
 

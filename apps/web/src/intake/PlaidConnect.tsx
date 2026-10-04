@@ -129,11 +129,11 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
         <div className="qform__actions">
           {plaid
             ? <Button variant="bordered" onClick={disconnect}>Disconnect</Button>
-            : <Button variant="bordered" onClick={onDone}>Answer myself</Button>}
+            : <Button variant="bordered" onClick={onDone} className="lift">Answer myself</Button>}
           {plaid
-            ? <Button onClick={onDone}>Continue<Icon name="chevron-right" size={18} weight={2.6} /></Button>
+            ? <Button onClick={onDone} className="lift">Continue<Icon name="chevron-right" size={18} weight={2.6} /></Button>
             : (
-              <Button disabled={busy && !linkError} onClick={() => void start()}>
+              <Button disabled={busy && !linkError} onClick={() => void start()} className="lift">
                 {busy && !linkError ? 'Opening Plaid…' : 'Connect with Plaid'}<Icon name="chevron-right" size={18} weight={2.6} />
               </Button>
             )}

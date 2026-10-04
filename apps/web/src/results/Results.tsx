@@ -4,19 +4,20 @@
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react'
 import { Banner, Button, EmptyState, Icon, ListRow, ListSection } from '../kit/Kit.tsx'
 import { Page } from '../lib/Chrome.tsx'
-import { go, setField, useStore } from '../lib/store.ts'
+import { go, useStore } from '../lib/store.ts'
 import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
-import { FIELDS, calculate, formatMoney, summaryText, type FieldId, type Profile } from '../domain/calculator.ts'
-import { CoverageChart, NeedsChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
+import { FIELDS, calculate, compareScenario, formatMoney, formatPercent, summaryText, type Profile, type Scenario } from '../domain/calculator.ts'
+import { CoverageChart, NeedsChart, ScenarioChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
 import { AskAbe, type AskHandle } from './AskAbe.tsx'
 import { Plans } from './Plans.tsx'
+import { ScenarioControls } from './Scenarios.tsx'
 import { listJoin, yearsText, type Ready } from './ask.ts'
 import { useRecommendation } from './useRecommendation.ts'
 import { recommendationSummary } from './recommendations.ts'
 import './results.css'
 
-type ChartId = 'summary' | 'years' | 'needs' | 'have' | 'gap' | 'time'
+type ChartId = 'summary' | 'years' | 'needs' | 'have' | 'gap' | 'time' | 'whatif'
 // Where Abe is, relative to the easel: standing in front of it at its left edge, or peeking over the top.
 type Spot = 'side' | 'top'
 type Step = { id: string; pose: PoseName; spot: Spot; chart: ChartId; eyebrow: string; title: string; body: ReactNode }
@@ -28,6 +29,7 @@ const CHART_TITLES: Record<ChartId, string> = {
   have: 'Needed vs. already in place',
   gap: 'Needed vs. already in place',
   time: 'Everyday costs still ahead',
+  whatif: 'Today vs. with these changes',
 }
 
 export function Results() {
@@ -63,8 +65,10 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
   const resources: Slice[] = r.resources.filter((t) => t.included).map((t) => ({
     id: t.id, label: t.id === 'existing' ? 'Life insurance' : 'Savings', value: t.value,
   }))
-  const covered = r.totalNeeds > 0 ? Math.round(Math.min(1, r.totalResources / r.totalNeeds) * 100) : 0
+  const covered = formatPercent(r.totalResources, r.totalNeeds)
   const gap = r.additional > 0
+  const [scenario, setScenario] = useState<Scenario>({})
+  const whatIf = compareScenario(p, scenario)
 
   const steps: Step[] = [
     {
@@ -78,7 +82,7 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
       body: <>
         You said your family would need <strong>{formatMoney(support)} a year</strong> for <strong>{yearsText(years)}</strong>.
         Each column is one more year. Stacked up, that comes to <strong>{formatMoney(supportTotal)}</strong>.
-        {income != null && income > 0 && <> That’s about {Math.round((support / income) * 100)}% of the {formatMoney(income)} you earn now.</>}
+        {income != null && income > 0 && <> That’s about {formatPercent(support, income)} of the {formatMoney(income)} you earn now.</>}
         {startAge != null && <> By the end, your youngest would be {startAge + years}.</>}
       </>,
     },
@@ -93,7 +97,7 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
       id: 'have', pose: 'thumbs', spot: 'side', chart: 'have', eyebrow: 'What you already have',
       title: r.totalResources > 0 ? `Good news: ${formatMoney(r.totalResources)} is already in place` : 'Starting from zero is common',
       body: r.totalResources > 0
-        ? <>Your {listJoin(resources.filter((t) => t.value > 0).map((t) => `${t.label.toLowerCase()} (${formatMoney(t.value)})`))} would go toward that total. That’s <strong>{covered}%</strong> of it already taken care of.</>
+        ? <>Your {listJoin(resources.filter((t) => t.value > 0).map((t) => `${t.label.toLowerCase()} (${formatMoney(t.value)})`))} would go toward that total. That’s <strong>{covered}</strong> of it already taken care of.</>
         : <>Many families don’t have coverage or savings set aside yet. That’s exactly what an estimate like this is for.</>,
     },
     {
@@ -109,9 +113,9 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
       body: <>Everyday costs only matter for the years your family depends on your income. Each year that passes leaves one less year to cover, so after {yearsText(years)} that part reaches zero. Term insurance is built around this idea: it covers a set number of years.</>,
     },
     {
-      id: 'try', pose: 'cheer', spot: 'side', chart: 'gap', eyebrow: 'Try it yourself',
-      title: 'See how a change moves the number',
-      body: <WhatIf p={p} />,
+      id: 'whatif', pose: 'think', spot: 'side', chart: 'whatif', eyebrow: 'What if',
+      title: 'What if life changes?',
+      body: <ScenarioControls scenario={scenario} onChange={setScenario} result={whatIf} />,
     },
   ]
 
@@ -193,6 +197,11 @@ function Story({ p, r }: { p: Profile; r: Ready }) {
                     <CoverageChart totalNeeds={r.totalNeeds} resources={resources} additional={r.additional} showGap={step.chart === 'gap'} />
                   </ChartSlot>
                   <ChartSlot on={step.chart === 'time'}><TimeChart support={support} years={years} startAge={startAge} /></ChartSlot>
+                  {whatIf && (
+                    <ChartSlot on={step.chart === 'whatif'}>
+                      <ScenarioChart base={whatIf.base.additional} next={whatIf.next.additional} changes={whatIf.changes} />
+                    </ChartSlot>
+                  )}
                 </div>
                 <span className="board__leg board__leg--l" aria-hidden="true" />
                 <span className="board__leg board__leg--r" aria-hidden="true" />
@@ -230,29 +239,6 @@ function ChartSlot({ on, children }: { on: boolean; children: ReactNode }) {
   return <div className={'stage__chart' + (on ? ' is-on' : '')} aria-hidden={!on}>{children}</div>
 }
 
-function WhatIf({ p }: { p: Profile }) {
-  const years = Number(p.years.value)
-  const support = Number(p.support.value)
-  function adjust(id: FieldId, delta: number, min: number, max: number) {
-    setField(id, { status: 'confirmed', value: Math.min(max, Math.max(min, Number(p[id].value) + delta)) })
-  }
-  return (
-    <>
-      <p>Change a number and watch the chart move. Your summary updates too.</p>
-      <div className="ck-list__body whatif" role="list">
-        <Stepper
-          label="Years of support" value={yearsText(years)}
-          dec={() => adjust('years', -1, 1, 70)} inc={() => adjust('years', 1, 1, 70)} canDec={years > 1} canInc={years < 70}
-        />
-        <Stepper
-          label="Yearly support" value={formatMoney(support)}
-          dec={() => adjust('support', -5000, 0, 10_000_000)} inc={() => adjust('support', 5000, 0, 10_000_000)} canDec={support > 0} canInc
-        />
-      </div>
-    </>
-  )
-}
-
 // After the story: term vs. permanent, then the full math as a list, questions for Abe beside it,
 // and the summary to copy.
 function Wrap({ p, r }: { p: Profile; r: Ready }) {
@@ -287,7 +273,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
         <AskAbe p={p} r={r} ref={askRef} recommendation={recommendations.result} />
 
         <div className="wrap__actions stack">
-          <Button size="large" fullWidth icon="share" onClick={() => void copy()}>Copy Summary</Button>
+          <Button size="large" fullWidth icon="share" onClick={() => void copy()} className="lift">Copy Summary</Button>
           {copied === 'ok' && <Banner tone="success" title="Summary copied" message="Paste it into a note or email to bring to a licensed professional." onDismiss={() => setCopied(null)} />}
           {copied === 'fail' && (
             <>
@@ -295,7 +281,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
               <textarea className="summary-text" readOnly value={summary} aria-label="Summary" onFocus={(e) => e.target.select()} />
             </>
           )}
-          <Button variant="bordered" fullWidth onClick={() => go('review')}>Change My Answers</Button>
+          <Button variant="bordered" fullWidth onClick={() => go('review')} className="lift">Change My Answers</Button>
         </div>
       </div>
 
@@ -309,22 +295,5 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
 
       <p className="footnote muted limits">These are educational coverage recommendations to discuss with a licensed professional, not quotes or underwriting approval. The estimate doesn’t account for inflation, investment returns, taxes, or Social Security benefits.</p>
     </section>
-  )
-}
-
-function Stepper({ label, value, dec, inc, canDec, canInc }: {
-  label: string; value: string; dec: () => void; inc: () => void; canDec: boolean; canInc: boolean
-}) {
-  return (
-    <div className="ck-row stepper-row" role="listitem">
-      <span className="ck-row__text">
-        <span className="ck-row__title">{label}</span>
-        <span className="ck-row__subtitle" aria-live="polite">{value}</span>
-      </span>
-      <span className="stepper-row__buttons">
-        <Button variant="bordered" size="small" disabled={!canDec} onClick={dec} aria-label={`Decrease ${label.toLowerCase()}`}>−</Button>
-        <Button variant="bordered" size="small" disabled={!canInc} onClick={inc} aria-label={`Increase ${label.toLowerCase()}`}>+</Button>
-      </span>
-    </div>
   )
 }

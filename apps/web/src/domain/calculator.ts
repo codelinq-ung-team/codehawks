@@ -108,6 +108,17 @@ export function formatMoney(n: number) {
   return '$' + Math.round(n).toLocaleString('en-US')
 }
 
+// part / whole as a percent. Something above zero never reads "0%", and short of the whole never
+// reads "100%": those ends get a decimal (0.4%, 99.6%), or "under 0.1%" / "over 99.9%".
+export function formatPercent(part: number, whole: number) {
+  const p = whole > 0 ? Math.min(100, Math.max(0, (part / whole) * 100)) : 0
+  if (p === 0 || p === 100) return `${p}%`
+  if (p < 0.1) return 'under 0.1%'
+  if (p > 99.9) return 'over 99.9%'
+  if (p < 1 || p > 99) return `${p.toFixed(1)}%`
+  return `${Math.round(p)}%`
+}
+
 export function formatField(id: FieldId, field: Field | undefined) {
   if (!field || field.status === 'empty') return ''
   if (field.status === 'unknown') return 'Not sure yet'
@@ -130,25 +141,44 @@ export function missingRequired(profile: Profile): FieldId[] {
 
 const amount = (profile: Profile, id: FieldId) => (hasValue(profile[id]) ? Number(profile[id].value) : 0)
 
-export type Term = { id: FieldId; label: string; detail?: string; value: number; optional?: boolean; included: boolean }
+export type Term = { id: FieldId | 'newChild'; label: string; detail?: string; value: number; optional?: boolean; included: boolean }
 export type Estimate =
   | { ready: false; missing: FieldId[] }
   | { ready: true; needs: Term[]; resources: Term[]; totalNeeds: number; totalResources: number; additional: number; leftOut: string[] }
+export type Ready = Extract<Estimate, { ready: true }>
+
+// What-if scenarios for the results story. They change the math only, never the saved answers.
+//   newChild: a child arriving in about `inYears` years, supported to 18, with an education fund.
+//   inflation: everyday costs rise by this much each year (0.03 = 3%).
+export type Scenario = { newChild?: { inYears: number; education: number }; inflation?: number }
+export const CHILD_SUPPORT_YEARS = 18
+
+// `support` a year for `years`, each year costing (1 + rate) times the year before.
+export function supportTotal(support: number, years: number, rate = 0) {
+  return rate ? Math.round((support * ((1 + rate) ** years - 1)) / rate) : support * years
+}
+
+const scenarioYears = (years: number, s: Scenario) => (s.newChild ? Math.max(years, s.newChild.inYears + CHILD_SUPPORT_YEARS) : years)
 
 // Returns every term shown on screen, so the page never computes a number itself.
-export function calculate(profile: Profile): Estimate {
+export function calculate(profile: Profile, scenario: Scenario = {}): Estimate {
   const missing = missingRequired(profile)
   if (missing.length) return { ready: false, missing }
 
   const support = amount(profile, 'support')
-  const years = amount(profile, 'years')
-  const include = (t: Omit<Term, 'included'>): Term => ({ ...t, included: !t.optional || hasValue(profile[t.id]) })
+  const years = scenarioYears(amount(profile, 'years'), scenario)
+  const rate = scenario.inflation ?? 0
+  const include = (t: Omit<Term, 'included'>): Term => ({ ...t, included: t.id === 'newChild' || !t.optional || hasValue(profile[t.id]) })
   const needs = [
-    { id: 'support' as const, label: 'Yearly support', detail: `${formatMoney(support)} × ${years} ${years === 1 ? 'year' : 'years'}`, value: support * years },
+    {
+      id: 'support' as const, label: 'Yearly support', value: supportTotal(support, years, rate),
+      detail: `${formatMoney(support)} × ${years} ${years === 1 ? 'year' : 'years'}${rate ? `, rising ${Math.round(rate * 1000) / 10}% a year` : ''}`,
+    },
     { id: 'mortgage' as const, label: 'Mortgage balance', value: amount(profile, 'mortgage') },
     { id: 'otherDebts' as const, label: 'Other debts', value: amount(profile, 'otherDebts') },
     { id: 'finalExpenses' as const, label: 'Funeral and final expenses', value: amount(profile, 'finalExpenses'), optional: true },
     { id: 'education' as const, label: 'Education or other future costs', value: amount(profile, 'education'), optional: true },
+    ...(scenario.newChild?.education ? [{ id: 'newChild' as const, label: 'New child’s education', value: scenario.newChild.education }] : []),
   ].map(include)
   const resources = [
     { id: 'existing' as const, label: 'Life insurance you have', value: amount(profile, 'existing') },
@@ -166,6 +196,26 @@ export function calculate(profile: Profile): Estimate {
     additional: Math.max(0, totalNeeds - totalResources),
     leftOut: [...needs, ...resources].filter((t) => !t.included).map((t) => t.label),
   }
+}
+
+export type ScenarioChange = { id: 'years' | 'inflation' | 'education'; label: string; value: number }
+export type ScenarioResult = { base: Ready; next: Ready; years: number; nextYears: number; changes: ScenarioChange[] }
+
+// Today's estimate next to the scenario's, with what each change adds. The changes sum to
+// next.totalNeeds − base.totalNeeds because each one is the step between two calculate() runs.
+export function compareScenario(profile: Profile, scenario: Scenario): ScenarioResult | null {
+  const child = scenario.newChild && { ...scenario.newChild, education: 0 }
+  const runs = [{}, { newChild: child }, { newChild: child, inflation: scenario.inflation }, scenario].map((s) => calculate(profile, s))
+  if (!runs.every((r) => r.ready)) return null
+  const [base, longer, inflated, next] = runs as Ready[]
+  const years = amount(profile, 'years')
+  const nextYears = scenarioYears(years, scenario)
+  const steps: ScenarioChange[] = [
+    { id: 'years', label: `Support for ${nextYears} years instead of ${years}`, value: longer.totalNeeds - base.totalNeeds },
+    { id: 'inflation', label: `Prices rising ${Math.round((scenario.inflation ?? 0) * 1000) / 10}% a year`, value: inflated.totalNeeds - longer.totalNeeds },
+    { id: 'education', label: 'New child’s education', value: next.totalNeeds - inflated.totalNeeds },
+  ]
+  return { base, next, years, nextYears, changes: steps.filter((c) => c.value > 0) }
 }
 
 export function summaryText(profile: Profile, result: Estimate) {

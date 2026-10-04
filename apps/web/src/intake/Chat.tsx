@@ -136,7 +136,7 @@ export function Chat() {
                     {m.why && <span className="msg__tag footnote"><Icon name="info" size={14} />Why we ask</span>}
                     <span className="sr-only">{m.role === 'bot' ? `${GUIDE_NAME}: ` : 'You: '}</span>
                     {m.text}
-                    {m.done && <div className="msg__cta"><Button icon="check-circle" onClick={() => go('review')}>Review My Answers</Button></div>}
+                    {m.done && <div className="msg__cta"><Button icon="check-circle" onClick={() => go('review')} className="lift">Review My Answers</Button></div>}
                   </div>
                 </li>
               ))}
