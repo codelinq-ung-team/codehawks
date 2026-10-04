@@ -1,6 +1,7 @@
-// The wearer's hands in the VR room: a light skeleton of burgundy bones with an orange dot on
-// each fingertip, in the app's own colors. They follow the headset's hand tracking (XR Hands).
-// While a controller is held there is no hand to track, so a small marker shows where it is.
+// The wearer's hands in the VR room, kept abstract on purpose: a soft peach pad for the palm
+// and a dot on each fingertip, with the index finger's in orange because it does the pointing.
+// No bones or knuckles, which read as a skeleton. They follow the headset's hand tracking
+// (XR Hands). While a controller is held there is no hand to track, so a pad shows where it is.
 // In passthrough the real hands are visible, so these are hidden.
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,26 +11,20 @@ namespace Advisor3D
 {
     public class Hands
     {
-        const float BONE = 0.007f, JOINT = 0.0095f, TIP = 0.012f; // meters across
+        const float TIP = 0.013f;                                             // meters across
+        static readonly Vector3 PALM = new Vector3(0.062f, 0.018f, 0.07f);    // wide, thin, long
 
-        // Wrist to fingertip, one row per finger.
-        static readonly XRHandJointID[][] FINGERS =
+        static readonly XRHandJointID[] TIPS =
         {
-            new[] { XRHandJointID.Wrist, XRHandJointID.ThumbMetacarpal, XRHandJointID.ThumbProximal, XRHandJointID.ThumbDistal, XRHandJointID.ThumbTip },
-            new[] { XRHandJointID.Wrist, XRHandJointID.IndexMetacarpal, XRHandJointID.IndexProximal, XRHandJointID.IndexIntermediate, XRHandJointID.IndexDistal, XRHandJointID.IndexTip },
-            new[] { XRHandJointID.Wrist, XRHandJointID.MiddleMetacarpal, XRHandJointID.MiddleProximal, XRHandJointID.MiddleIntermediate, XRHandJointID.MiddleDistal, XRHandJointID.MiddleTip },
-            new[] { XRHandJointID.Wrist, XRHandJointID.RingMetacarpal, XRHandJointID.RingProximal, XRHandJointID.RingIntermediate, XRHandJointID.RingDistal, XRHandJointID.RingTip },
-            new[] { XRHandJointID.Wrist, XRHandJointID.LittleMetacarpal, XRHandJointID.LittleProximal, XRHandJointID.LittleIntermediate, XRHandJointID.LittleDistal, XRHandJointID.LittleTip },
+            XRHandJointID.IndexTip, XRHandJointID.ThumbTip, XRHandJointID.MiddleTip, XRHandJointID.RingTip, XRHandJointID.LittleTip,
         };
-        // The knuckles, joined across the palm.
-        static readonly XRHandJointID[] KNUCKLES = { XRHandJointID.IndexProximal, XRHandJointID.MiddleProximal, XRHandJointID.RingProximal, XRHandJointID.LittleProximal };
 
         class Hand
         {
-            public GameObject root, marker;
-            public readonly Dictionary<XRHandJointID, Transform> joints = new Dictionary<XRHandJointID, Transform>();
-            public readonly List<(Transform bone, XRHandJointID from, XRHandJointID to)> bones = new List<(Transform, XRHandJointID, XRHandJointID)>();
-            public readonly Dictionary<XRHandJointID, Vector3> at = new Dictionary<XRHandJointID, Vector3>();
+            public GameObject root;
+            public Transform palm;
+            public readonly Transform[] tips = new Transform[TIPS.Length];
+            public readonly Pose[] at = new Pose[TIPS.Length + 1]; // the tips, then the palm
         }
 
         readonly Hand left, right;
@@ -38,43 +33,25 @@ namespace Advisor3D
 
         public Hands(Transform parent)
         {
-            var bone = Mat.Lit(T.tint);
-            var tip = Mat.Lit(T.highlight);
-            left = Build("Left Hand", parent, bone, tip);
-            right = Build("Right Hand", parent, bone, tip);
+            var pad = Mat.Lit(new Color(T.onBrandMuted.r, T.onBrandMuted.g, T.onBrandMuted.b, 0.9f), transparent: true);
+            var dot = Mat.Lit(T.tint);
+            var pointing = Mat.Lit(T.highlight);
+            left = Build("Left Hand", parent, pad, dot, pointing);
+            right = Build("Right Hand", parent, pad, dot, pointing);
         }
 
-        static Hand Build(string name, Transform parent, Material bone, Material tip)
+        static Hand Build(string name, Transform parent, Material pad, Material dot, Material pointing)
         {
             var h = new Hand { root = new GameObject(name) };
             h.root.transform.SetParent(parent, false);
-            void Link(XRHandJointID from, XRHandJointID to) => h.bones.Add((Mat.Spawn("Bone", MeshGen.Beam(), bone, h.root.transform), from, to));
-            foreach (var finger in FINGERS)
+            h.palm = Mat.Spawn("Palm", MeshGen.Sphere(), pad, h.root.transform);
+            h.palm.localScale = PALM;
+            for (var i = 0; i < TIPS.Length; i++)
             {
-                for (var i = 0; i < finger.Length; i++)
-                {
-                    var id = finger[i];
-                    var last = i == finger.Length - 1;
-                    if (!h.joints.ContainsKey(id))
-                    {
-                        var joint = Mat.Spawn("Joint", MeshGen.Sphere(), last ? tip : bone, h.root.transform);
-                        joint.localScale = Vector3.one * (last ? TIP : JOINT);
-                        h.joints[id] = joint;
-                    }
-                    if (i > 0) Link(finger[i - 1], id);
-                }
+                h.tips[i] = Mat.Spawn("Tip", MeshGen.Sphere(), i == 0 ? pointing : dot, h.root.transform);
+                h.tips[i].localScale = Vector3.one * TIP;
             }
-            for (var i = 1; i < KNUCKLES.Length; i++) Link(KNUCKLES[i - 1], KNUCKLES[i]);
             h.root.SetActive(false);
-
-            // What stands in for the hand while it holds a controller.
-            h.marker = new GameObject(name + " Marker");
-            h.marker.transform.SetParent(parent, false);
-            Mat.Spawn("Palm", MeshGen.Sphere(), bone, h.marker.transform).localScale = Vector3.one * 0.03f;
-            var dot = Mat.Spawn("Dot", MeshGen.Sphere(), tip, h.marker.transform);
-            dot.localScale = Vector3.one * TIP;
-            dot.localPosition = new Vector3(0, 0, 0.022f);
-            h.marker.SetActive(false);
             return h;
         }
 
@@ -99,34 +76,28 @@ namespace Advisor3D
         static void Show(Hand h, XRHand hand, bool available, Pose? grip)
         {
             var tracked = available && grip == null && hand.isTracked && Read(h, hand);
-            if (h.root.activeSelf != tracked) h.root.SetActive(tracked);
-            var held = grip != null;
-            if (h.marker.activeSelf != held) h.marker.SetActive(held);
-            if (held) h.marker.transform.SetPositionAndRotation(grip.Value.position, grip.Value.rotation);
-            if (!tracked) return;
+            var visible = tracked || grip != null;
+            if (h.root.activeSelf != visible) h.root.SetActive(visible);
+            if (!visible) return;
 
-            foreach (var kv in h.joints) kv.Value.position = h.at[kv.Key];
-            foreach (var (bone, from, to) in h.bones)
+            // Holding a controller: just the pad, where the controller is.
+            var palm = tracked ? h.at[TIPS.Length] : grip.Value;
+            h.palm.SetPositionAndRotation(palm.position, palm.rotation);
+            for (var i = 0; i < h.tips.Length; i++)
             {
-                Vector3 a = h.at[from], b = h.at[to];
-                var along = b - a;
-                var length = along.magnitude;
-                bone.gameObject.SetActive(length > 1e-4f);
-                if (length <= 1e-4f) continue;
-                bone.SetPositionAndRotation(a, Quaternion.LookRotation(along));
-                bone.localScale = new Vector3(BONE, BONE, length);
+                h.tips[i].gameObject.SetActive(tracked);
+                if (tracked) h.tips[i].position = h.at[i].position;
             }
         }
 
-        // Every joint the skeleton uses must have a position this frame, or the hand is not drawn.
+        // Every part must have a pose this frame, or the hand is not drawn.
         static bool Read(Hand h, XRHand hand)
         {
-            foreach (var id in h.joints.Keys)
+            for (var i = 0; i < TIPS.Length; i++)
             {
-                if (!hand.GetJoint(id).TryGetPose(out var pose)) return false;
-                h.at[id] = pose.position;
+                if (!hand.GetJoint(TIPS[i]).TryGetPose(out h.at[i])) return false;
             }
-            return true;
+            return hand.GetJoint(XRHandJointID.Palm).TryGetPose(out h.at[TIPS.Length]);
         }
     }
 }

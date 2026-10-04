@@ -134,8 +134,9 @@ What is different from the site:
   moves to the middle for the chat.
 - The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
-- Your hands are drawn as a light skeleton in the app's colors (`Hands.cs`), with a small
-  marker in place of a hand that holds a controller. In passthrough you see your real hands.
+- Your hands are drawn as a soft pad for the palm and a dot on each fingertip, in the app's
+  colors (`Hands.cs`); a hand that holds a controller shows the pad only. In passthrough you
+  see your real hands.
 
 ## Tests
 
