@@ -18,3 +18,6 @@ bootstrap-outputs.local.json
 # Local dependencies and package-manager caches are not application source.
 node_modules/
 .pnpm-store/
+
+# Local Git worktrees contain independent checkouts, not application source.
+/.worktrees/

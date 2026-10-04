@@ -12,11 +12,11 @@ fallback when the AI is unavailable.
 | --- | --- |
 | [`apps/web/`](apps/web/README.md) | React and TypeScript website |
 | [`apps/backend/`](apps/backend/README.md) | Flask API for intake, streaming chat, voice sessions, and pairing a browser with a headset |
-| [`apps/advisor3d-web/`](docs/advisor3d.md) | WebXR prototype served at `/advisor3d/index.html` |
+| [`apps/advisor3d-web/`](apps/advisor3d-web/README.md) | WebXR prototype served at `/advisor3d/index.html` |
 | [`apps/advisor3d-unity/`](apps/advisor3d-unity/README.md) | Native Unity Quest application |
 | [`infra/`](infra/) | CloudFormation templates and namespace configuration |
 | [`scripts/`](scripts/) | Build, validation, publishing, and migration tools; tests in `scripts/tests/` |
-| [`docs/`](docs/) | Operational guides; historical plans and notes in `docs/planning/` |
+| [`docs/`](docs/README.md) | API and operational guides; historical plans and notes in `docs/planning/` |
 | `.github/workflows/` | Validation and manual deployment workflows |
 | `build/` | Ignored output: combined website in `build/site/`, Lambda ZIP in `build/backend.zip` |
 

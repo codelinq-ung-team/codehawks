@@ -1,59 +1,57 @@
-# LincLife website
+# Frontend — LincLife website
 
-React and TypeScript application for the guided life-insurance assessment.
-Answers are interpreted through `POST /api/intake`, validated in the browser,
-and used by the local calculator. When the API is unavailable, the chat uses
-its labeled scripted fallback.
+The guided life-insurance assessment: optional Plaid connection, basics quiz,
+chat with Abe (or Quest handoff), answer review, and coverage results.
 
-Review includes optional coverage preferences (state, tobacco status, protection goals,
-premium preference and cash-value interest). Both typed and VR assessments finish here.
-On Results, Abe compares PR #39's researched Lincoln policies through
-`POST /api/recommendations`: two alternative plans for the same calculated gap,
-with a **Recommended** banner above the preferred coverage type. Source links,
-eligibility qualifications and policy minimum mismatches are shown on the cards.
-No premium quotes or underwriting approval are generated. The result is cached only
-for the matching answers in this tab; edits invalidate it. Failed requests leave
-the educational cards visible without a badge and offer **Try Again**.
+## Stack and flow
 
-To rehearse without paid inference, run the normal frontend tests and stub the endpoint
-using the response shape in `tests/recommendations.test.ts`. Demo family: age 35,
-Texas, no tobacco, $40,000 yearly support for 10 years, $150,000 mortgage, $30,000
-other debts, $20,000 education, $100,000 existing coverage, temporary goals and
-low premium preference. The calculated gap is $500,000. A separate lifelong-goal
-scenario should show the permanent banner. An unavailable backend deliberately
-shows general education, never a mocked recommendation presented as live AI.
+React 19, TypeScript 6, Vite 8, and plain CSS. `react-plaid-link` opens the bank
+connection UI; `qrcode-generator` creates headset pairing codes. Hash routes
+select screens, and `sessionStorage` keeps answers and chat in the current tab.
+The browser validates AI readings and calculates the estimate locally. If intake
+AI is unavailable, it uses a labeled scripted fallback.
 
-After the Basics form the site asks how to talk with Abe (`src/intake/Mode.tsx`): text chat
-here, or voice in the Quest app. For VR, `src/intake/Vr.tsx` saves the answers so far through
-`POST /api/pair`, shows the pairing as a QR code with a six-digit code under it and a short
-guide to the headset, and polls until the headset hands the answers back; then it opens
-Review. The [backend guide](../backend/README.md) has the API, and
-[the Unity guide](../advisor3d-unity/README.md) the headset's side.
+| Source | Responsibility |
+| --- | --- |
+| `src/App.tsx`, `src/lib/` | Routes, shared state, page layout |
+| `src/intake/Prepare.tsx` | Active basics quiz and its question definitions |
+| `src/intake/` | Plaid, conversation, headset pairing, review |
+| `src/domain/calculator.ts` | Validated profile, coverage math, summary |
+| `src/results/` | Results, policy comparisons, follow-up chat |
+| `src/guide/`, `src/kit/` | Abe's artwork and shared UI |
+| `tests/` | Node tests for calculations, intake, Plaid, and results |
 
-## Development
+## APIs
 
-Use Node 24. From this directory:
+All application requests use the [backend](../backend/README.md) through `/api`:
+
+- `POST /api/plaid/link-token` and `/api/plaid/exchange`: connect Sandbox accounts.
+- `POST /api/intake`: interpret an answer with the known profile fields.
+- `POST /api/recommendations`: compare term and permanent policy options.
+- `POST /api/chat`: answer follow-up questions about the results.
+- `/api/pair` routes: create and poll a browser/headset handoff.
+
+Provider secrets stay on the backend. Plaid provides account balances, not annual
+income. The intake request sends selected known fields, not the raw Plaid response.
+
+## Run and check
+
+Use Node 24. From this directory, with the backend running on port 8000:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Vite proxies `/api` to `http://127.0.0.1:8000`. To start the API, see the
-[backend guide](../backend/README.md). The root [README](../../README.md)
-has complete setup and validation commands.
-
-## Checks and build
+Open the URL Vite prints (normally `http://localhost:5173`). Its development
+proxy forwards `/api` to `http://127.0.0.1:8000`; no frontend API keys are needed.
 
 ```sh
 npm test
 npm run lint
 npm run build
-npm run preview
 ```
 
-`src/domain/` owns the calculator; `src/intake/` owns the conversation flow.
-Their existing tests live in `tests/`. `npm run build` writes ignored `dist/`.
-From the repository root, `bash scripts/build-app.sh` builds this application
-and WebXR into ignored `build/site/` for deployment. Keep this application's
-package manifest and lockfile together; it has no root npm workspace.
+The build writes ignored `dist/`. Use the development server above for local API
+testing. See the [website guide](../../docs/web-guide.md) for demo scenarios and
+detailed behavior, and the [root README](../../README.md) for the combined build.
