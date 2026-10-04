@@ -140,6 +140,30 @@ class DeploymentTests(unittest.TestCase):
                 aws_actions.bootstrap_settings("other-model", [ARN])
             self.assertTrue(all(call.args[:2] == ("cloudformation", "describe-stacks") for call in aws.call_args_list))
 
+    def test_only_a_failed_first_creation_is_cleared_before_deploying(self):
+        for status in ("CREATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE", "ROLLBACK_FAILED"):
+            with patch.object(aws_actions, "describe_app", return_value={"StackStatus": status}), \
+                    patch.object(aws_actions, "aws") as aws:
+                aws_actions.clear_failed_creation()
+                aws.assert_not_called()
+        with patch.object(aws_actions, "describe_app", return_value=None), patch.object(aws_actions, "aws") as aws:
+            aws_actions.clear_failed_creation()
+            aws.assert_not_called()
+        with patch.object(aws_actions, "describe_app", return_value={"StackStatus": "ROLLBACK_COMPLETE"}), \
+                patch.object(aws_actions, "aws") as aws:
+            aws_actions.clear_failed_creation()
+            self.assertEqual([call.args[:2] for call in aws.call_args_list],
+                             [("cloudformation", "delete-stack"), ("cloudformation", "wait")])
+            self.assertIn(aws_actions.CONFIG["app_stack"], aws.call_args_list[0].args)
+
+    def test_redirect_function_tags_are_readable_by_cloudformation(self):
+        statements = self.bootstrap["Resources"]["CloudFormationRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+        function = [s for s in statements if "cloudfront:CreateFunction" in s["Action"]]
+        self.assertEqual(len(function), 1)
+        # CloudFormation reads the function's tags to resolve its ARN for the distribution.
+        self.assertIn("cloudfront:ListTagsForResource", function[0]["Action"])
+        self.assertTrue(function[0]["Resource"]["Fn::Sub"].endswith(":function/codelinc-hackathon-app-legacy-redirect"))
+
     def test_bootstrap_preserves_trust_parameters(self):
         parameters = aws_actions.bootstrap_parameters(self.bootstrap, "42", MODEL, [ARN])
         values = {p["ParameterKey"]: p for p in parameters}

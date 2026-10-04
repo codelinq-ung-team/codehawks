@@ -116,12 +116,28 @@ def bootstrap_settings(model, arns):
     return oac, chat_oac
 
 
+def clear_failed_creation():
+    """Remove an app stack whose first creation failed, so it can be created again.
+
+    CloudFormation leaves such a stack in ROLLBACK_COMPLETE: every resource is already
+    gone, and the stack can only be deleted, never updated. No other state is touched.
+    """
+    stack = describe_app()
+    if not stack or stack["StackStatus"] != "ROLLBACK_COMPLETE":
+        return
+    print("The app stack's first creation failed and rolled back; deleting the empty stack before creating it again.")
+    aws("cloudformation", "delete-stack", "--stack-name", CONFIG["app_stack"],
+        "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['cloudformation_role']}", json_output=False)
+    aws("cloudformation", "wait", "stack-delete-complete", "--stack-name", CONFIG["app_stack"], json_output=False)
+
+
 def deploy():
     validate_app(json.loads((ROOT / "infra/app.json").read_text()))
     model, arns = from_environment()
     oac, chat_oac = bootstrap_settings(model, arns)
     if not (ROOT / "build/backend.zip").is_file():
         raise ValueError("Build the backend artifact before deploying.")
+    clear_failed_creation()
     certificate = ensure_site_certificate()
     revision = os.environ["GITHUB_SHA"]
     # Abe's voice. Without the Actions secret the stack keeps the key it already has ("unset" at first).
