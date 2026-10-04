@@ -4,12 +4,19 @@
 // tests in Tests~ run it.
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace Advisor3D
 {
     public static class VoiceScript
     {
         public const string APP = "[app] "; // marks a message from the app, which the model must not read aloud
+
+        // Repeated with every briefing, because the model otherwise fills the pause before a tool
+        // call with a line like "let me record that", which then sits in the transcript.
+        const string RULES = " When they answer, call record_answer at once and say nothing before it: no \"got it\", no \"let me note that\". Speak only after the result. A baby under one year old is age 0.";
+
+        static readonly Regex BABY = new Regex(@"\b(under|less than|younger than|not (yet|even)) (a|one|1)\b|\bmonths?\b|\bweeks?\b|\bnewborn\b|\binfant\b", RegexOptions.IgnoreCase);
 
         static string Quote(IEnumerable<string> lines) => "\"" + string.Join(" ", lines) + "\"";
 
@@ -22,8 +29,8 @@ namespace Advisor3D
             var head = $"{APP}Voice connected. Answers so far: {(known.Count > 0 ? string.Join("; ", known) : "none yet")}.";
             var step = Script.NextStep(state);
             if (step == null) return $"{head} Everything is already collected. Tell them their answers are ready to review on screen. Do not ask anything.";
-            if (state.pending != null) return $"{head} Greet them in one short sentence, then ask: \"Is {Calc.FormatMoney(state.pending.Value)} a monthly amount?\"";
-            return $"{head} Greet them in one short sentence, then ask this in your own warm words: \"{Script.Ask(step, state).text}\"";
+            if (state.pending != null) return $"{head} Greet them in one short sentence, then ask: \"Is {Calc.FormatMoney(state.pending.Value)} a monthly amount?\"{RULES}";
+            return $"{head} Greet them in one short sentence, then ask this in your own warm words: \"{Script.Ask(step, state).text}\"{RULES}";
         }
 
         // What the model is told after the user takes an answer back on screen.
@@ -42,6 +49,9 @@ namespace Advisor3D
             if (step == null) return (null, "Nothing was saved: every question is already answered. " + Closing());
 
             heard = (heard ?? "").Trim();
+            // "Under one", "six months", "a newborn": a baby's age is 0, whatever the model made of it.
+            // (It has reported these as "not sure".)
+            if (step == "youngestAge" && reading.value == null && BABY.IsMatch(heard)) reading = new Reading { value = 0 };
             // A monthly amount is waiting for a yes or no, which the script reads from the user's words.
             var reply = state.pending != null ? Script.Respond(step, heard, state) : Script.Interpret(step, reading, state, heard);
 

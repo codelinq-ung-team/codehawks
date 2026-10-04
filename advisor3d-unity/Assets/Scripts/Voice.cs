@@ -354,7 +354,10 @@ namespace Advisor3D
                 foreach (var kv in extra) if (Number(kv.Value)) reading.extra[kv.Key] = (long)Math.Round((double)kv.Value);
             }
             var heard = args["heard"]?.Type == JTokenType.String ? (string)args["heard"] : "";
+            var open = Script.NextStep(Store.State);
             var (reply, tell) = VoiceScript.Record(reading, heard, Store.State);
+            // Which question, how the model read it, and whether it was saved. Not the answer itself.
+            Debug.Log($"Advisor3D: voice answer for {open ?? "nothing"}: {reading.intent}, {(reply?.updates != null ? "saved" : "not saved")}.");
             if (reply != null && (reply.updates != null || reply.pendingSet))
             {
                 Store.Set(st =>

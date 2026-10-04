@@ -290,6 +290,22 @@ static class Tests
             Ok(none.updates == null);
             Match(missing, "^Not saved yet");
         });
+        Test("a baby under one is age 0 even when the model says not sure", () =>
+        {
+            foreach (var heard in new[] { "Under one.", "she's six months", "less than a year old", "a newborn" })
+            {
+                var s = State();
+                s.profile["household"] = Field.Of(Status.Proposed, "kids");
+                var (reply, tell) = VoiceScript.Record(new Reading { intent = "unsure" }, heard, s);
+                Eq(reply.updates["youngestAge"].status, Status.Proposed);
+                Eq(reply.updates["youngestAge"].num, 0);
+                Match(tell, "^Saved");
+            }
+            var unsure = State();
+            unsure.profile["household"] = Field.Of(Status.Proposed, "kids");
+            Eq(VoiceScript.Record(new Reading { intent = "unsure" }, "I'm not sure", unsure).reply.updates["youngestAge"].status, Status.Unknown);
+            Eq(VoiceScript.Record(new Reading { value = 4 }, "he's four, well four and two months", unsure).reply.updates["youngestAge"].num, 4);
+        });
         Test("a spoken monthly amount is checked before it is saved", () =>
         {
             var s = State();
