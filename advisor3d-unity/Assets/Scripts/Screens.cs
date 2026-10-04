@@ -1,6 +1,6 @@
-// The five screens of the LinqLife site (Home → Basics → Chat with Abe → Review → Results),
+// The five screens of the LincLife site (Home → Basics → Chat with Abe → Review → Results),
 // laid out for a headset: one main card in front, Abe on the left, the number pad or
-// side actions on the right. Copy and flow follow the site (codelinq_frontend on main), and
+// side actions on the right. Copy and flow follow the site (codelinc_frontend on main), and
 // the chat reads answers with the site's AI backend.
 using System;
 using System.Collections;
@@ -69,8 +69,8 @@ namespace Advisor3D
             {
                 ctx.Rect(16, 14, 36, 36, 11, T.tint);
                 ctx.Icon("heart", 34, 32.5f, 20, T.white, 2.4f);
-                ctx.Text("Linq", 62, 0, Fn(700, 22), lineH: 64);
-                ctx.Text("Life", 62 + Ui.Measure("Linq", Fn(700, 22)), 0, Fn(700, 22), T.highlightText, lineH: 64);
+                ctx.Text("Linc", 62, 0, Fn(700, 22), lineH: 64);
+                ctx.Text("Life", 62 + Ui.Measure("Linc", Fn(700, 22)), 0, Fn(700, 22), T.highlightText, lineH: 64);
             }), 0, 0);
             stepper = header.Add(new El(380, 64, ctx =>
             {
@@ -122,7 +122,7 @@ namespace Advisor3D
             footer.Add(Ui.Paint(MAIN_W, 52, ctx =>
             {
                 ctx.Rect(0, 0, MAIN_W, 52, 18, Ui.C(255, 255, 255, 0.82f));
-                ctx.Text("LinqLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security. Prototype: answers clear when the app closes.",
+                ctx.Text("LincLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security. Prototype: answers clear when the app closes.",
                     MAIN_W / 2, 8, Fn(400, 12.5f), T.label2, maxW: MAIN_W - 36, lineH: 18, align: Align.Center);
             }), 0, 0);
 

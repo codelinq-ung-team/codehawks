@@ -1,1 +1,1 @@
-"""Codelinq local chatbot backend."""
+"""Codelinc local chatbot backend."""

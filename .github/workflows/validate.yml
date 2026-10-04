@@ -18,13 +18,16 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: cfn-lint infra/bootstrap.json infra/app.json
       - run: python scripts/validate_repo.py
+      - run: python scripts/check_branding.py
       - run: python -m unittest discover -s backend/tests -v
       - run: python -m unittest discover -s scripts/tests -v
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '24'
-      - name: Build the site (LinqLife and Advisor3D)
+      - name: Build the site (LincLife and Advisor3D)
         run: bash scripts/build-app.sh
-      - name: Test the LinqLife chat script and calculator
+      - name: Test the LincLife chat script and calculator
         run: npm test
-        working-directory: codelinq_frontend
+        working-directory: codelinc_frontend
+      - name: Test the legacy-domain redirect
+        run: node --test scripts/tests/legacy_redirect.test.cjs

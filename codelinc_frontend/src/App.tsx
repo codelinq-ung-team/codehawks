@@ -1,4 +1,4 @@
-// LinqLife: a guided chat that estimates how much life insurance a household needs.
+// LincLife: a guided chat that estimates how much life insurance a household needs.
 // Flow: Home → Prepare → Chat (with Abe) → Review → Results, routed by the URL hash.
 import { useEffect, type ComponentType } from 'react'
 import './kit/tokens.css'
@@ -20,7 +20,7 @@ export default function App() {
   const Screen = SCREENS[route]
 
   useEffect(() => {
-    document.title = TITLES[route] ? `${TITLES[route]} · LinqLife` : 'LinqLife'
+    document.title = TITLES[route] ? `${TITLES[route]} · LincLife` : 'LincLife'
   }, [route])
 
   return (

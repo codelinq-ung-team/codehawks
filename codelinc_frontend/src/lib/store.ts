@@ -17,7 +17,7 @@ export type AppState = {
   offline?: boolean
 }
 
-const KEY = 'linqlife:v1'
+const KEY = 'linclife:v1'
 const listeners = new Set<() => void>()
 
 function initial(): AppState {

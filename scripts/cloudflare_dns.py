@@ -57,7 +57,7 @@ def ensure_cname(name, target):
         raise RuntimeError(f"Refusing to modify ambiguous DNS records at {name}")
     payload = {
         "type": "CNAME", "name": name, "content": target.rstrip("."),
-        "ttl": 1, "proxied": False, "comment": "Managed by codelinq-hackathon IaC",
+        "ttl": 1, "proxied": False, "comment": "Managed by codelinc-hackathon IaC",
     }
     if matches:
         existing = matches[0]
@@ -79,6 +79,25 @@ def delete_owned_cname(name, target):
         if record.get("content", "").rstrip(".") != target.rstrip("."):
             raise RuntimeError(f"Refusing to remove {name}; it no longer points to this hackathon target")
         request("DELETE", f"/zones/{zone}/dns_records/{record['id']}")
+
+
+def transfer_site_cname(expected_target, target):
+    """Move only the exact legacy hostname from its recorded distribution."""
+    name = CONFIG["legacy_domain"]
+    zone = zone_id()
+    matches = records(zone, name)
+    if len(matches) != 1 or matches[0].get("type") != "CNAME":
+        raise RuntimeError("Expected exactly one legacy CNAME; refusing an ambiguous transfer")
+    existing = matches[0]
+    current = existing.get("content", "").rstrip(".")
+    if current not in (expected_target.rstrip("."), target.rstrip(".")):
+        raise RuntimeError("Legacy CNAME no longer points to the recorded distribution")
+    if current == target.rstrip(".") and existing.get("proxied") is False:
+        return
+    request("PUT", f"/zones/{zone}/dns_records/{existing['id']}", {
+        "type": "CNAME", "name": name, "content": target.rstrip("."),
+        "ttl": 1, "proxied": False, "comment": "Managed by codelinc-hackathon IaC",
+    })
 
 
 def ensure_acm_validation(record):

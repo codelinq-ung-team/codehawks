@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Disposable codelinq hackathon GitHub OIDC access. Independent of Codehawks production.",
+  "Description": "Disposable codelinc hackathon GitHub OIDC access. Independent of Codehawks production.",
   "Parameters": {
     "GitHubOidcProviderArn": {
       "Type": "String",
@@ -65,7 +65,7 @@
       "UpdateReplacePolicy": "Delete",
       "Properties": {
         "BucketName": {
-          "Fn::Sub": "codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
+          "Fn::Sub": "codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
         },
         "BucketEncryption": {
           "ServerSideEncryptionConfiguration": [
@@ -104,7 +104,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -164,7 +164,7 @@
     "RuntimeBoundary": {
       "Type": "AWS::IAM::ManagedPolicy",
       "Properties": {
-        "ManagedPolicyName": "codelinq-hackathon-runtime-boundary",
+        "ManagedPolicyName": "codelinc-hackathon-runtime-boundary",
         "Description": "Maximum runtime permissions for this disposable hackathon only.",
         "PolicyDocument": {
           "Version": "2012-10-17",
@@ -177,14 +177,14 @@
                 "s3:DeleteObject"
               ],
               "Resource": {
-                "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*/*"
+                "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*/*"
               }
             },
             {
               "Effect": "Allow",
               "Action": "s3:ListBucket",
               "Resource": {
-                "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*"
+                "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*"
               }
             },
             {
@@ -195,10 +195,10 @@
               ],
               "Resource": [
                 {
-                  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-*:log-stream:*"
+                  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinc-hackathon-app-*:log-stream:*"
                 },
                 {
-                  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/codelinq-hackathon/app/*:log-stream:*"
+                  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/codelinc-hackathon/app/*:log-stream:*"
                 }
               ]
             },
@@ -216,10 +216,10 @@
               ],
               "Resource": [
                 {
-                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinq-hackathon-app-*"
+                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinc-hackathon-app-*"
                 },
                 {
-                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinq-hackathon-app-*/index/*"
+                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinc-hackathon-app-*/index/*"
                 }
               ]
             },
@@ -234,14 +234,14 @@
                 "sqs:ChangeMessageVisibility"
               ],
               "Resource": {
-                "Fn::Sub": "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:codelinq-hackathon-app-*"
+                "Fn::Sub": "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:codelinc-hackathon-app-*"
               }
             },
             {
               "Effect": "Allow",
               "Action": "lambda:InvokeFunction",
               "Resource": {
-                "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:codelinq-hackathon-app-*"
+                "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:codelinc-hackathon-app-*"
               }
             },
             {
@@ -251,14 +251,14 @@
                 "ssm:GetParameters"
               ],
               "Resource": {
-                "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/codelinq-hackathon/app/*"
+                "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/codelinc-hackathon/app/*"
               }
             },
             {
               "Effect": "Allow",
               "Action": "secretsmanager:GetSecretValue",
               "Resource": {
-                "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:codelinq-hackathon-app-*"
+                "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:codelinc-hackathon-app-*"
               }
             },
             {
@@ -278,7 +278,7 @@
     "CloudFormationRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
-        "RoleName": "codelinq-hackathon-cloudformation",
+        "RoleName": "codelinc-hackathon-cloudformation",
         "MaxSessionDuration": 3600,
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
@@ -303,10 +303,10 @@
                   "Action": "s3:*",
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*"
+                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*/*"
                     }
                   ]
                 },
@@ -314,7 +314,7 @@
                   "Effect": "Allow",
                   "Action": "lambda:*",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:codelinc-hackathon-app-*"
                   }
                 },
                 {
@@ -322,10 +322,10 @@
                   "Action": "dynamodb:*",
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinq-hackathon-app-*"
+                      "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinc-hackathon-app-*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinq-hackathon-app-*/index/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/codelinc-hackathon-app-*/index/*"
                     }
                   ]
                 },
@@ -334,10 +334,10 @@
                   "Action": "logs:*",
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinc-hackathon-app-*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/codelinq-hackathon/app/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/codelinc-hackathon/app/*"
                     }
                   ]
                 },
@@ -345,14 +345,14 @@
                   "Effect": "Allow",
                   "Action": "sqs:*",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:codelinc-hackathon-app-*"
                   }
                 },
                 {
                   "Effect": "Allow",
                   "Action": "ecr:*",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinc-hackathon-app-*"
                   }
                 },
                 {
@@ -367,14 +367,14 @@
                     "ssm:ListTagsForResource"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/codelinq-hackathon/app/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/codelinc-hackathon/app/*"
                   }
                 },
                 {
                   "Effect": "Allow",
                   "Action": "secretsmanager:*",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:codelinc-hackathon-app-*"
                   }
                 },
                 {
@@ -383,14 +383,14 @@
                     "s3:GetObject"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
                   }
                 },
                 {
                   "Effect": "Allow",
                   "Action": "iam:CreateRole",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-app-*"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -404,7 +404,7 @@
                   "Effect": "Allow",
                   "Action": "iam:PutRolePermissionsBoundary",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-app-*"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -432,14 +432,14 @@
                     "iam:UntagRole"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-app-*"
                   }
                 },
                 {
                   "Effect": "Allow",
                   "Action": "iam:PassRole",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-app-*"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -463,10 +463,13 @@
                     "iam:DeleteRolePolicy",
                     "iam:UpdateAssumeRolePolicy",
                     "iam:TagRole",
-                    "iam:UntagRole"
+                    "iam:UntagRole",
+                    "iam:UpdateRole",
+                    "iam:UpdateRoleDescription",
+                    "iam:ListAttachedRolePolicies"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-app-*"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -485,7 +488,7 @@
                   "Resource": "*",
                   "Condition": {
                     "StringEquals": {
-                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Project": "codelinc-hackathon",
                       "aws:RequestTag/Lifecycle": "ephemeral"
                     }
                   }
@@ -509,7 +512,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                      "aws:ResourceTag/Project": "codelinc-hackathon"
                     }
                   }
                 },
@@ -529,7 +532,7 @@
                   "Resource": "*",
                   "Condition": {
                     "StringEquals": {
-                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Project": "codelinc-hackathon",
                       "aws:RequestTag/Lifecycle": "ephemeral"
                     }
                   }
@@ -542,7 +545,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                      "aws:ResourceTag/Project": "codelinc-hackathon"
                     }
                   }
                 },
@@ -550,6 +553,20 @@
                   "Effect": "Allow",
                   "Action": "lambda:GetLayerVersion",
                   "Resource": "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:30"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudfront:CreateFunction",
+                    "cloudfront:DescribeFunction",
+                    "cloudfront:GetFunction",
+                    "cloudfront:UpdateFunction",
+                    "cloudfront:PublishFunction",
+                    "cloudfront:DeleteFunction"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/codelinc-hackathon-app-legacy-redirect"
+                  }
                 }
               ]
             }
@@ -558,7 +575,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -578,7 +595,7 @@
     "DeployRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
-        "RoleName": "codelinq-hackathon-github-deploy",
+        "RoleName": "codelinc-hackathon-github-deploy",
         "MaxSessionDuration": 3600,
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
@@ -612,7 +629,7 @@
                   "Effect": "Allow",
                   "Action": "cloudformation:DescribeStacks",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinc-hackathon-bootstrap/*"
                   }
                 },
                 {
@@ -620,10 +637,10 @@
                   "Action": "cloudformation:*",
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinc-hackathon-app/*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-app-*/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinc-hackathon-app-*/*"
                     }
                   ]
                 },
@@ -636,7 +653,7 @@
                   "Effect": "Allow",
                   "Action": "iam:PassRole",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-cloudformation"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-cloudformation"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -652,7 +669,7 @@
                     "s3:ListBucketMultipartUploads"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
                   }
                 },
                 {
@@ -665,7 +682,7 @@
                     "s3:ListMultipartUploadParts"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
                   }
                 },
                 {
@@ -675,7 +692,7 @@
                     "s3:GetBucketLocation"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*"
                   }
                 },
                 {
@@ -686,7 +703,7 @@
                     "s3:DeleteObject"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*/*"
                   }
                 },
                 {
@@ -708,7 +725,7 @@
                     "ecr:GetDownloadUrlForLayer"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinc-hackathon-app-*"
                   }
                 },
                 {
@@ -718,11 +735,14 @@
                   "Condition": {
                     "StringEquals": {
                       "acm:ValidationMethod": "DNS",
-                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Project": "codelinc-hackathon",
                       "aws:RequestTag/Lifecycle": "ephemeral"
                     },
                     "ForAllValues:StringEquals": {
-                      "acm:DomainNames": "codelinq.codehawks.org"
+                      "acm:DomainNames": [
+                        "codelinc.codehawks.org",
+                        "codelinq.codehawks.org"
+                      ]
                     }
                   }
                 },
@@ -741,7 +761,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:RequestTag/Project": "codelinq-hackathon",
+                      "aws:RequestTag/Project": "codelinc-hackathon",
                       "aws:RequestTag/Lifecycle": "ephemeral"
                     }
                   }
@@ -757,7 +777,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                      "aws:ResourceTag/Project": "codelinc-hackathon"
                     }
                   }
                 },
@@ -769,7 +789,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                      "aws:ResourceTag/Project": "codelinc-hackathon"
                     }
                   }
                 }
@@ -780,7 +800,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -800,7 +820,7 @@
     "TeardownRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
-        "RoleName": "codelinq-hackathon-github-teardown",
+        "RoleName": "codelinc-hackathon-github-teardown",
         "MaxSessionDuration": 3600,
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
@@ -832,13 +852,20 @@
               "Statement": [
                 {
                   "Effect": "Allow",
+                  "Action": "cloudformation:DescribeStacks",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
                   "Action": "cloudformation:*",
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-app/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinc-hackathon-app/*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-app-*/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinc-hackathon-app-*/*"
                     }
                   ]
                 },
@@ -846,7 +873,7 @@
                   "Effect": "Allow",
                   "Action": "iam:PassRole",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-cloudformation"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-cloudformation"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -864,10 +891,10 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*"
+                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
+                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
                     }
                   ]
                 },
@@ -879,10 +906,10 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-app-*/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-app-*/*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
                     }
                   ]
                 },
@@ -893,7 +920,7 @@
                     "ecr:BatchDeleteImage"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinq-hackathon-app-*"
+                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/codelinc-hackathon-app-*"
                   }
                 },
                 {
@@ -908,7 +935,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                      "aws:ResourceTag/Project": "codelinc-hackathon"
                     }
                   }
                 },
@@ -931,7 +958,7 @@
                   },
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/Project": "codelinq-hackathon"
+                      "aws:ResourceTag/Project": "codelinc-hackathon"
                     }
                   }
                 }
@@ -942,7 +969,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -962,7 +989,7 @@
     "BootstrapRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
-        "RoleName": "codelinq-hackathon-github-bootstrap",
+        "RoleName": "codelinc-hackathon-github-bootstrap",
         "MaxSessionDuration": 3600,
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
@@ -997,10 +1024,10 @@
                   "Action": "cloudformation:*",
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinq-hackathon-bootstrap/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/codelinc-hackathon-bootstrap/*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinq-hackathon-bootstrap-*/*"
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/codelinc-hackathon-bootstrap-*/*"
                     }
                   ]
                 },
@@ -1013,7 +1040,7 @@
                   "Effect": "Allow",
                   "Action": "iam:PassRole",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-cloudformation-bootstrap"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-cloudformation-bootstrap"
                   },
                   "Condition": {
                     "StringEquals": {
@@ -1028,7 +1055,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -1049,7 +1076,7 @@
       "Type": "AWS::IAM::Role",
       "DeletionPolicy": "Retain",
       "Properties": {
-        "RoleName": "codelinq-hackathon-cloudformation-bootstrap",
+        "RoleName": "codelinc-hackathon-cloudformation-bootstrap",
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
           "Statement": [
@@ -1089,10 +1116,10 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-github-*"
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-github-*"
                     },
                     {
-                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-cloudformation-bootstrap"
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-cloudformation-bootstrap"
                     }
                   ]
                 },
@@ -1106,10 +1133,16 @@
                     "iam:UpdateAssumeRolePolicy",
                     "iam:GetRole",
                     "iam:GetRolePolicy",
-                    "iam:ListRolePolicies"
+                    "iam:ListRolePolicies",
+                    "iam:TagRole",
+                    "iam:UntagRole",
+                    "iam:ListRoleTags",
+                    "iam:UpdateRole",
+                    "iam:UpdateRoleDescription",
+                    "iam:ListAttachedRolePolicies"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinq-hackathon-cloudformation"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/codelinc-hackathon-cloudformation"
                   }
                 },
                 {
@@ -1125,14 +1158,14 @@
                     "iam:CreatePolicy"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/codelinq-hackathon-runtime-boundary"
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/codelinc-hackathon-runtime-boundary"
                   }
                 },
                 {
                   "Effect": "Allow",
                   "Action": "s3:*",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}"
                   }
                 },
                 {
@@ -1146,7 +1179,7 @@
                     "s3:ListMultipartUploadParts"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinq-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::codelinc-hackathon-artifacts-${AWS::AccountId}-${AWS::Region}/*"
                   }
                 },
                 {
@@ -1171,7 +1204,7 @@
         "Tags": [
           {
             "Key": "Project",
-            "Value": "codelinq-hackathon"
+            "Value": "codelinc-hackathon"
           },
           {
             "Key": "Owner",
@@ -1193,8 +1226,8 @@
       "Type": "AWS::CloudFront::OriginAccessControl",
       "Properties": {
         "OriginAccessControlConfig": {
-          "Name": "codelinq-hackathon-bootstrap-oac-v2",
-          "Description": "Private S3 access for the Codelinq hackathon CloudFront site.",
+          "Name": "codelinc-hackathon-bootstrap-oac-v2",
+          "Description": "Private S3 access for the Codelinc hackathon CloudFront site.",
           "OriginAccessControlOriginType": "s3",
           "SigningBehavior": "always",
           "SigningProtocol": "sigv4"
@@ -1208,8 +1241,8 @@
       "Type": "AWS::CloudFront::OriginAccessControl",
       "Properties": {
         "OriginAccessControlConfig": {
-          "Name": "codelinq-hackathon-app-chat-oac",
-          "Description": "Private streaming Lambda access for the Codelinq hackathon API.",
+          "Name": "codelinc-hackathon-app-chat-oac",
+          "Description": "Private streaming Lambda access for the Codelinc hackathon API.",
           "OriginAccessControlOriginType": "lambda",
           "SigningBehavior": "always",
           "SigningProtocol": "sigv4"
@@ -1222,7 +1255,9 @@
   },
   "Outputs": {
     "BedrockModelId": {
-      "Value": { "Ref": "BedrockModelId" }
+      "Value": {
+        "Ref": "BedrockModelId"
+      }
     },
     "DeployRoleArn": {
       "Value": {

@@ -4,7 +4,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hackathon-bootstrap
+  group: hackathon-aws
   cancel-in-progress: false
 jobs:
   update-bootstrap:

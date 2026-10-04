@@ -1,5 +1,5 @@
 // Abe, the guide: the site's 32×32 pixel art of a chibi Abraham Lincoln
-// (codelinq_frontend/src/guide/Avatar.tsx), drawn flat for chat bubbles (Ui.GuideTexture) and
+// (codelinc_frontend/src/guide/Avatar.tsx), drawn flat for chat bubbles (Ui.GuideTexture) and
 // raised into a little relief sculpture for the room.
 using System.Collections.Generic;
 using UnityEngine;
