@@ -14,5 +14,6 @@
     <Compile Include="../Assets/Scripts/Store.cs" />
     <Compile Include="../Assets/Scripts/Script.cs" />
     <Compile Include="../Assets/Scripts/VoiceScript.cs" />
+    <Compile Include="../Assets/Scripts/Pairing.cs" />
   </ItemGroup>
 </Project>

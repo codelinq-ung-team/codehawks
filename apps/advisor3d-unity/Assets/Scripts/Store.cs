@@ -56,6 +56,13 @@ namespace Advisor3D
             Changed?.Invoke();
         }
 
+        // Take over with answers that came from somewhere else: a browser paired with the headset (Sync.cs).
+        public static void Load(AppState state)
+        {
+            State = state;
+            Changed?.Invoke();
+        }
+
         public static void Go(string route)
         {
             Route = Array.IndexOf(ROUTES, route) >= 0 ? route : "home";

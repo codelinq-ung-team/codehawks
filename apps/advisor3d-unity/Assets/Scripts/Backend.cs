@@ -66,6 +66,22 @@ namespace Advisor3D
             return request;
         }
 
+        // One call to the pairing API (apps/backend/pairing.py): a POST with a body, or a GET without
+        // one. Hands back the HTTP status (0 when the site can't be reached) and the reply, if it is JSON.
+        public static void Call(string path, JObject body, Action<long, JObject> done) => App.I.StartCoroutine(Send(path, body, done));
+
+        static IEnumerator Send(string path, JObject body, Action<long, JObject> done)
+        {
+            using var request = body != null
+                ? Json(Site + path, Encoding.UTF8.GetBytes(body.ToString(Formatting.None)))
+                : new UnityWebRequest(Site + path, "GET") { downloadHandler = new DownloadHandlerBuffer(), timeout = 12 };
+            yield return request.SendWebRequest();
+            JObject reply = null;
+            try { reply = JObject.Parse(request.downloadHandler.text); }
+            catch (Exception) { /* no reply, or not JSON */ }
+            done(request.responseCode, reply);
+        }
+
         // Asks POST /api/voice/session for a short-lived secret to talk with Abe (see Voice.cs).
         // Hands back null when voice can't be started. To try voice against a backend on your own
         // computer, put its address in Assets/Resources/voice-endpoint.txt (see README.md).
