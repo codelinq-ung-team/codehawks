@@ -39,6 +39,9 @@ namespace Advisor3D.EditorTools
             "com.unity.openxr.feature.input.metahandtrackingaim",
             "com.unity.openxr.feature.arfoundation-meta-session",
             "com.unity.openxr.feature.arfoundation-meta-camera",
+            // Passthrough is drawn as a composition layer behind the app. Without this the camera
+            // feature starts but the real room never shows.
+            "com.unity.openxr.feature.compositionlayers",
         };
 
         [MenuItem("Advisor3D/Set Up Project")]

@@ -134,8 +134,8 @@ What is different from the site:
   moves to the middle for the chat.
 - The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
   ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
-- There are no controller or hand models; you see the pointer rays. In passthrough you see
-  your real hands.
+- Your hands are drawn as a light skeleton in the app's colors (`Hands.cs`), with a small
+  marker in place of a hand that holds a controller. In passthrough you see your real hands.
 
 ## Tests
 
@@ -155,6 +155,8 @@ scripted chat and what the voice model is told (`VoiceScript.cs`).
   closing the microphone while he speaks is enough to stop him hearing himself.
 - The answer line in the chat: the headset keyboard opening, dictation, and the reply from the AI
   on the device (the same request works from a computer).
-- Passthrough ("Show My Real Room").
+- Passthrough ("Show My Real Room"). It showed no camera view on the headset; the OpenXR
+  composition layers feature it needs was off and is now on, but the fix has not been tried.
+- The drawn hands (`Hands.cs`).
 - Recentering (tap B or Y, or turn away from the panels) and starting over (hold B or Y, or
   leave the headset off for ten seconds). The thresholds are constants at the top of `App.cs`.

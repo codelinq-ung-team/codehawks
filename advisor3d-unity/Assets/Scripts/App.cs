@@ -31,6 +31,7 @@ namespace Advisor3D
         Vector3[] moteBase;
 
         readonly List<Pointer> pointers = new List<Pointer>();
+        Hands hands;
         readonly Pointer mousePointer = new Pointer();
         float desktopZ = 0.75f;
         int settle; // frames to wait before reading where the wearer is
@@ -257,6 +258,10 @@ namespace Advisor3D
             public void Dispose() { foreach (var a in All) { a?.Disable(); a?.Dispose(); } }
 
             // Where this hand is pointing right now, and whether it just selected.
+            // Where the controller itself is, or null when this hand isn't holding one.
+            public Pose? Grip() => tracked.controls.Count > 0 && tracked.ReadValue<float>() > 0.5f
+                ? new Pose(gripPosition.ReadValue<Vector3>(), gripRotation.ReadValue<Quaternion>()) : (Pose?)null;
+
             public bool Read(out bool pressed)
             {
                 pressed = false;
@@ -312,6 +317,7 @@ namespace Advisor3D
                 p.dot.gameObject.SetActive(false);
                 pointers.Add(p);
             }
+            hands = new Hands(transform);
         }
 
         // Nearest control under the ray, plus the distance to whatever surface the ray lands on.
@@ -501,6 +507,8 @@ namespace Advisor3D
                 if (Mouse.current.leftButton.wasPressedThisFrame) Select(mousePointer); else Pick(mousePointer);
                 if (mousePointer.hovered != null) mousePointer.hovered.hover = true;
             }
+            // The wearer's own hands, drawn in the VR room. In passthrough the real ones show.
+            if (hands != null) hands.Tick(xr && !Passthrough, xr ? pointers[0].Grip() : null, xr ? pointers[1].Grip() : null);
             Ui.AnimateElements(dt);
 
             if (environment.activeSelf)
