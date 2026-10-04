@@ -24,6 +24,7 @@ namespace Advisor3D.EditorTools
         const string SCENE = "Assets/Scenes/Main.unity";
         const string APK = "Builds/advisor3d.apk";
         const string APP_ID = "org.codehawks.advisor3d";
+        const string VOICE_ENDPOINT = "Assets/Resources/voice-endpoint.txt"; // optional and git-ignored; see README.md
 
         // What the app needs from OpenXR on a Quest: the Quest runtime, its controllers, tracked
         // hands with an aim ray and pinch, and passthrough.
@@ -44,7 +45,7 @@ namespace Advisor3D.EditorTools
         public static void Setup()
         {
             PlayerSettings.companyName = "Codehawks";
-            PlayerSettings.productName = "LinqLife Advisor3D";
+            PlayerSettings.productName = "LincLife Advisor3D";
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, APP_ID);
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
@@ -52,6 +53,10 @@ namespace Advisor3D.EditorTools
             PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)32;
             PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)34;
             PlayerSettings.Android.forceInternetPermission = true; // the site's AI backend
+            // Talking with Abe needs the microphone; Unity adds the permission because Voice.cs uses it.
+            // Plain http is allowed only while voice is pointed at a backend on your own computer.
+            var local = File.Exists(VOICE_ENDPOINT) && File.ReadAllText(VOICE_ENDPOINT).TrimStart().StartsWith("http://");
+            PlayerSettings.insecureHttpOption = local ? InsecureHttpOption.AlwaysAllowed : InsecureHttpOption.NotAllowed;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.Vulkan });
 

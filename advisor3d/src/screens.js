@@ -1,6 +1,6 @@
 // The five screens of the 2D frontend (Home → Basics → Chat with Pip → Review → Results),
 // laid out for a headset: one main card in front, Pip on the left, the number pad or
-// side actions on the right. Copy and flow follow codelinq_frontend; the logic is shared.
+// side actions on the right. Copy and flow follow codelinc_frontend; the logic is shared.
 import * as THREE from 'three';
 import { FIELD, FIELDS, GROUPS, HOUSEHOLD, calculate, formatField, formatMoney, missingRequired, summaryText } from './domain/calculator.ts';
 import { GUIDE_NAME } from './guide/guide.ts';
@@ -40,8 +40,8 @@ header.add(paint(190, 64, (ctx) => {
   ctx.fillStyle = T.tint;
   ctx.fill();
   icon(ctx, 'heart', 34, 32.5, 20, '#ffffff', 2.4);
-  drawText(ctx, 'Linq', 62, 0, { f: font(700, 22), lineH: 64 });
-  drawText(ctx, 'Life', 62 + measure('Linq', font(700, 22)), 0, { f: font(700, 22), color: T.highlightText, lineH: 64 });
+  drawText(ctx, 'Linc', 62, 0, { f: font(700, 22), lineH: 64 });
+  drawText(ctx, 'Life', 62 + measure('Linc', font(700, 22)), 0, { f: font(700, 22), color: T.highlightText, lineH: 64 });
 }), 0, 0);
 const stepper = header.add(el(380, 64, (ctx) => {
   const index = STEPS.findIndex(([id]) => id === readRoute());
@@ -88,7 +88,7 @@ footer.add(paint(MAIN_W, 52, (ctx) => {
   rr(ctx, 0, 0, MAIN_W, 52, 18);
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
   ctx.fill();
-  drawText(ctx, 'LinqLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security. Prototype: answers stay in this browser tab.',
+  drawText(ctx, 'LincLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security. Prototype: answers stay in this browser tab.',
     MAIN_W / 2, 8, { f: font(400, 13), color: T.label2, maxW: MAIN_W - 48, lineH: 18, align: 'center' });
 }), 0, 0, { layer: 0 });
 

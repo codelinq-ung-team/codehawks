@@ -30,7 +30,7 @@ def check_context(mode):
     role = {
         "deploy": CONFIG["deploy_role"],
         "teardown": CONFIG["teardown_role"],
-        "bootstrap": "codelinq-hackathon-github-bootstrap",
+        "bootstrap": CONFIG.get("bootstrap_role", CONFIG["prefix"] + "-github-bootstrap"),
     }[mode]
     assert identity["Arn"].startswith(f"arn:aws:sts::{CONFIG['account_id']}:assumed-role/{role}/"), "Unexpected AWS role"
     return identity
@@ -57,6 +57,9 @@ def hackathon_certificate():
         tags = aws("acm", "list-tags-for-certificate", "--certificate-arn", item["CertificateArn"]).get("Tags", [])
         values = {tag["Key"]: tag["Value"] for tag in tags}
         if values.get("Project") == CONFIG["prefix"] and values.get("Lifecycle") == "ephemeral":
+            details = aws("acm", "describe-certificate", "--certificate-arn", item["CertificateArn"])["Certificate"]
+            if set(details.get("SubjectAlternativeNames", [])) != {CONFIG["site_domain"], CONFIG["legacy_domain"]}:
+                raise RuntimeError("Hackathon certificate must cover exactly the canonical and legacy domains")
             matches.append(item["CertificateArn"])
     if len(matches) > 1:
         raise RuntimeError("Multiple hackathon ACM certificates exist for the site domain; resolve manually")
@@ -75,7 +78,8 @@ def ensure_site_certificate():
         ]
         result = aws(
             "acm", "request-certificate", "--domain-name", CONFIG["site_domain"],
-            "--validation-method", "DNS", "--idempotency-token", "codelinqhackathon",
+            "--subject-alternative-names", CONFIG["legacy_domain"],
+            "--validation-method", "DNS", "--idempotency-token", "codelinchackathon",
             "--tags", json.dumps(certificate_tags),
         )
         certificate = result["CertificateArn"]
@@ -120,6 +124,9 @@ def deploy():
         raise ValueError("Build the backend artifact before deploying.")
     certificate = ensure_site_certificate()
     revision = os.environ["GITHUB_SHA"]
+    # Abe's voice. Without the Actions secret the stack keeps the key it already has ("unset" at first).
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    voice = [f"OpenAiApiKey={key}"] if key else []
     with tempfile.TemporaryDirectory() as directory:
         packaged = Path(directory) / "packaged.json"
         aws("cloudformation", "package", "--template-file", str(ROOT / "infra/app.json"),
@@ -132,7 +139,7 @@ def deploy():
             "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides",
             f"RuntimePermissionsBoundaryArn={CONFIG['runtime_boundary']}",
             f"SiteCertificateArn={certificate}", f"CloudFrontOriginAccessControlId={oac}",
-            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}",
+            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}", *voice,
             "--tags", f"Project={CONFIG['prefix']}", "Owner=Israel Jauregui", "Lifecycle=ephemeral", "ManagedBy=CloudFormation",
             "--no-fail-on-empty-changeset", json_output=False)
     stack = describe_app()
@@ -150,14 +157,14 @@ def update_bootstrap():
     assert revision.isdecimal() and len(revision) <= 12, "Unexpected GitHub Actions run number"
     template = ROOT / "infra/bootstrap.json"
     assert template.stat().st_size <= 51200, "Bootstrap template exceeds CloudFormation's inline template limit"
-    change_set = f"codelinq-hackathon-bootstrap-{revision}"
+    change_set = f"codelinc-hackathon-bootstrap-{revision}"
     parameters = bootstrap_parameters(json.loads(template.read_text()), revision, model, arns)
     aws("cloudformation", "create-change-set", "--stack-name", CONFIG["bootstrap_stack"],
         "--change-set-name", change_set, "--change-set-type", "UPDATE",
         "--template-body", f"file://{template}", "--capabilities", "CAPABILITY_NAMED_IAM",
         "--parameters", json.dumps(parameters),
         "--role-arn", f"arn:aws:iam::{CONFIG['account_id']}:role/{CONFIG['bootstrap_cloudformation_role']}",
-        "--description", "Update isolated codelinq hackathon bootstrap")
+        "--description", "Update isolated codelinc hackathon bootstrap")
 
     deadline = time.monotonic() + 600
     while time.monotonic() < deadline:
@@ -204,7 +211,7 @@ def owned_resources(stack):
 
 
 def empty_bucket(bucket):
-    assert bucket == CONFIG["artifacts_bucket"] or bucket.startswith("codelinq-hackathon-app-"), "Refusing an unrelated bucket"
+    assert bucket == CONFIG["artifacts_bucket"] or bucket.startswith(CONFIG["prefix"] + "-app-"), "Refusing an unrelated bucket"
     tags = aws("s3api", "get-bucket-tagging", "--bucket", bucket)["TagSet"]
     assert {t["Key"]: t["Value"] for t in tags}.get("Project") == CONFIG["prefix"], "Bucket ownership tag mismatch"
     while True:
@@ -221,7 +228,7 @@ def empty_bucket(bucket):
 
 
 def empty_repository(repository):
-    assert repository.startswith("codelinq-hackathon-app-"), "Refusing an unrelated ECR repository"
+    assert repository.startswith(CONFIG["prefix"] + "-app-"), "Refusing an unrelated ECR repository"
     while True:
         page = aws("ecr", "list-images", "--repository-name", repository, "--max-results", "100", "--no-paginate")
         images = page.get("imageIds", [])
@@ -233,6 +240,14 @@ def empty_repository(repository):
 
 def teardown(confirmation):
     assert confirmation == f"DELETE {CONFIG['prefix']} {CONFIG['account_id']}", "Confirmation does not match this hackathon and account"
+    legacy = json.loads((ROOT / "infra/legacy-config.json").read_text())
+    try:
+        aws("cloudformation", "describe-stacks", "--stack-name", legacy["app_stack"])
+    except subprocess.CalledProcessError as error:
+        if "ValidationError" not in (error.stderr or "") or "does not exist" not in (error.stderr or ""):
+            raise
+    else:
+        raise RuntimeError("Retire the legacy app through the migration workflow before tearing down the new app; certificate validation is shared")
     stack = describe_app()
     resources = owned_resources(stack)
     assert not any(r["ResourceType"] == "AWS::CloudFormation::Stack" for r in resources), "Nested stack cleanup must be implemented first"
@@ -243,6 +258,11 @@ def teardown(confirmation):
         distribution_domain = outputs.get("SiteDistributionDomainName")
         if distribution_domain:
             delete_owned_cname(CONFIG["site_domain"], distribution_domain)
+            # The old hostname may still belong to the old deployment before cutover.
+            from cloudflare_dns import records, zone_id
+            legacy = records(zone_id(), CONFIG["legacy_domain"])
+            if legacy and all(r.get("type") == "CNAME" and r.get("content", "").rstrip(".") == distribution_domain for r in legacy):
+                delete_owned_cname(CONFIG["legacy_domain"], distribution_domain)
     if certificate:
         details = aws("acm", "describe-certificate", "--certificate-arn", certificate)["Certificate"]
         for option in details.get("DomainValidationOptions", []):
@@ -274,7 +294,7 @@ def teardown(confirmation):
     if certificate:
         aws("acm", "delete-certificate", "--certificate-arn", certificate, json_output=False)
     empty_bucket(CONFIG["artifacts_bucket"])
-    message = ("Workload, CloudFront distribution, certificate and DNS record deleted; artifacts emptied. Israel: delete codelinq-hackathon-bootstrap "
+    message = ("Workload, CloudFront distribution, certificate and DNS record deleted; artifacts emptied. Israel: delete codelinc-hackathon-bootstrap "
                "in the us-east-1 CloudFormation console to remove the artifact bucket and IAM access. "
                "The shared GitHub OIDC provider and Codehawks production resources remain outside this stack.")
     print(message)

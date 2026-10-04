@@ -1,5 +1,5 @@
-// The LinqLife site's AI backend. Asks POST /api/intake to read one spoken or typed answer,
-// exactly as the website does (codelinq_frontend/src/intake/ai.ts). Hands back null when the
+// The LincLife site's AI backend. Asks POST /api/intake to read one spoken or typed answer,
+// exactly as the website does (codelinc_frontend/src/intake/ai.ts). Hands back null when the
 // AI can't be reached, so the chat falls back to the script.
 using System;
 using System.Collections;
@@ -15,7 +15,7 @@ namespace Advisor3D
 {
     public static class Backend
     {
-        public static string Site = "https://codelinq.codehawks.org";
+        public static string Site = "https://codelinc.codehawks.org";
 
         static readonly string[] INTENTS = { "answer", "unsure", "skip", "why", "question", "unclear" };
 
@@ -37,18 +37,7 @@ namespace Advisor3D
                 ["answer"] = Clip(text, 1000),
                 ["known"] = JObject.FromObject(Script.Known(state)),
             }));
-            // CloudFront signs requests to the backend and needs the hash of the exact body bytes.
-            string hash;
-            using (var sha = SHA256.Create()) hash = string.Concat(sha.ComputeHash(body).Select(b => b.ToString("x2")));
-
-            using var request = new UnityWebRequest(Site + "/api/intake", "POST")
-            {
-                uploadHandler = new UploadHandlerRaw(body),
-                downloadHandler = new DownloadHandlerBuffer(),
-                timeout = 12,
-            };
-            request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("x-amz-content-sha256", hash);
+            using var request = Json(Site + "/api/intake", body);
             yield return request.SendWebRequest();
 
             Reading reading = null;
@@ -59,6 +48,44 @@ namespace Advisor3D
             }
             else Debug.LogWarning($"The AI backend did not answer ({request.responseCode}); reading with the script.");
             done(reading);
+        }
+
+        static UnityWebRequest Json(string url, byte[] body)
+        {
+            // CloudFront signs requests to the backend and needs the hash of the exact body bytes.
+            string hash;
+            using (var sha = SHA256.Create()) hash = string.Concat(sha.ComputeHash(body).Select(b => b.ToString("x2")));
+            var request = new UnityWebRequest(url, "POST")
+            {
+                uploadHandler = new UploadHandlerRaw(body),
+                downloadHandler = new DownloadHandlerBuffer(),
+                timeout = 12,
+            };
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("x-amz-content-sha256", hash);
+            return request;
+        }
+
+        // Asks POST /api/voice/session for a short-lived secret to talk with Abe (see Voice.cs).
+        // Hands back null when voice can't be started. To try voice against a backend on your own
+        // computer, put its address in Assets/Resources/voice-endpoint.txt (see README.md).
+        public static void VoiceSession(Action<JObject> done) => App.I.StartCoroutine(PostVoiceSession(done));
+
+        static IEnumerator PostVoiceSession(Action<JObject> done)
+        {
+            var local = Resources.Load<TextAsset>("voice-endpoint");
+            var url = local && local.text.Trim() != "" ? local.text.Trim() : Site + "/api/voice/session";
+            using var request = Json(url, Encoding.UTF8.GetBytes("{}"));
+            yield return request.SendWebRequest();
+
+            JObject session = null;
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                try { session = JObject.Parse(request.downloadHandler.text); }
+                catch (Exception) { /* not the reply we expect: no voice */ }
+            }
+            else Debug.LogWarning($"The backend did not start a voice session ({request.responseCode} from {url}).");
+            done(session);
         }
 
         static Reading Parse(JObject r)

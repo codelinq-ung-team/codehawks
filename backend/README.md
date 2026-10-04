@@ -71,7 +71,7 @@ Nova Lite inference calls. Keep deployment paused until this fix is reviewed and
 merged and Israel gives the go-ahead. No bootstrap permission changes are needed
 for this fix; the existing boundary already covers the limiter table operations.
 
-The deployment smoke check verifies that the LinqLife site is published, health,
+The deployment smoke check verifies that the LincLife site is published, health,
 JSON input errors, one buffered model reply, one intake reading, one streaming
 reply, and anonymous denial at the direct Function URL. It makes three small,
 billable Bedrock requests and prints no conversation content.
@@ -99,7 +99,7 @@ hex SHA-256 digest of the exact UTF-8 request body bytes.** CloudFront signs ori
 requests using its OAC, but Lambda requires a signed payload hash. This header is
 not an API key. Hash and send the same serialized bytes. The backend deployment
 client in `scripts/smoke_backend.py` demonstrates this, and the website does the
-same in `codelinq_frontend/src/intake/ai.ts`.
+same in `codelinc_frontend/src/intake/ai.ts`.
 [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html)
 
 Streaming is the default. The response is `application/x-ndjson`, with each event
@@ -121,7 +121,7 @@ conversation history. Explicit `stream:false` returns a single JSON `{ "reply":
 
 ### Guided intake for the website
 
-The LinqLife chat sends each typed answer to `POST /api/intake` (same headers as
+The LincLife chat sends each typed answer to `POST /api/intake` (same headers as
 above, not streamed):
 
 ```json
@@ -147,6 +147,45 @@ explanations and re-asks. A message ending in `?` is never returned as an answer
 and a reading without a usable value comes back as `unclear`. The site validates
 ranges and confirms every figure itself; the model never does the estimate's math.
 Nothing is stored or logged. Errors use the same statuses as `/api/chat`.
+
+### Voice session for the Quest app
+
+The Unity app (`advisor3d-unity`) talks with Abe through OpenAI's Realtime API. The
+headset connects to OpenAI directly; this server only issues the credential. Send
+`POST /api/voice/session` with the same headers as above and the body `{}`:
+
+```json
+{"clientSecret":"ek_...","url":"wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1",
+ "model":"gpt-realtime-2.1","voice":"ash"}
+```
+
+`clientSecret` expires 60 seconds after it is issued and is sent as the WebSocket's
+`Authorization: Bearer` header. The session it opens is fixed in `backend/voice.py`:
+the model, the `ash` voice, Abe's spoken instructions and the `record_answer` tool.
+Each session counts against the shared admission limit. The route needs
+an OpenAI key (below). Without one it returns 503 and the app keeps its tapped and
+typed chat.
+
+On AWS the key lives in the Secrets Manager secret `codelinc-hackathon-app-openai-api-key`,
+which the app stack creates. The function's environment holds only the secret's ARN
+(`OPENAI_API_KEY_SECRET`); it reads the value when a session is requested and keeps
+it for five minutes. To turn voice on, Israel adds the key as the `OPENAI_VOICE_TOKEN`
+secret of the GitHub `hackathon` environment and runs **Deploy hackathon** on `main`:
+
+```sh
+gh secret set OPENAI_VOICE_TOKEN --env hackathon --repo codelinq-ung-team/codehawks
+```
+
+The deploy passes it to the stack as a hidden (`NoEcho`) parameter. A deploy without
+the GitHub secret keeps whatever key the stack already has; before the first one the
+secret holds the placeholder `unset` and the route returns 503. To change the key,
+update the GitHub secret and deploy again. No bootstrap update is needed: the
+runtime boundary and the CloudFormation role already cover secrets in the app
+namespace. The deployment smoke check does not start a voice session.
+
+The route is unauthenticated like the others, so anyone who can reach it can start
+sessions on the key: set a spend limit on the OpenAI project. For local work, set
+`OPENAI_API_KEY` in the environment instead; `advisor3d-unity/README.md` has the steps.
 
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
@@ -186,7 +225,7 @@ site's dev server, which proxies `/api` to port 8000:
 
 ```sh
 MODEL_ID=amazon.nova-pro-v1:0 AWS_DEFAULT_REGION=us-east-1 python -m flask --app backend.app run --port 8000
-cd codelinq_frontend && npm ci && npm run dev
+cd codelinc_frontend && npm ci && npm run dev
 ```
 
 Without AWS credentials the API returns 503 and the chat falls back to its script.

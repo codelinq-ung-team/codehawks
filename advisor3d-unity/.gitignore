@@ -17,3 +17,7 @@
 .vs/
 .idea/
 .DS_Store
+
+# Points voice at a backend on your own computer; never committed (see advisor3d-unity/README.md).
+/Assets/Resources/voice-endpoint.txt
+/Assets/Resources/voice-endpoint.txt.meta

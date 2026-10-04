@@ -1,4 +1,4 @@
-// LinqLife Advisor3D: the guided life insurance assessment, in a headset.
+// LincLife Advisor3D: the guided life insurance assessment, in a headset.
 // Same flow, copy and math as the 2D frontend; see docs/advisor3d.md.
 import { enterXR } from './xr/world.js';
 import { start } from './screens.js';

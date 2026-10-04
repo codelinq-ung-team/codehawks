@@ -75,7 +75,8 @@ namespace Advisor3D
         // is probably someone new, so they start from Home.
         void OnApplicationPause(bool paused)
         {
-            if (paused) { pausedAt = DateTime.UtcNow; return; }
+            // The headset is off: hang up so the microphone and the voice session are not left open.
+            if (paused) { pausedAt = DateTime.UtcNow; if (Voice.On) Voice.Stop(); return; }
             if (pausedAt == default) return;
             if ((DateTime.UtcNow - pausedAt).TotalSeconds >= NEW_PERSON_SECONDS) StartOver();
             else settle = 20;
@@ -84,6 +85,7 @@ namespace Advisor3D
 
         void OnDestroy()
         {
+            Voice.Stop();
             if (recenterButtons != null) foreach (var a in recenterButtons) { a.Disable(); a.Dispose(); }
             foreach (var p in pointers) p.Dispose();
         }
@@ -510,6 +512,7 @@ namespace Advisor3D
                 }
             }
 
+            Voice.Tick(dt);
             Screens.Frame(t, dt);
         }
     }

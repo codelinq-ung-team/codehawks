@@ -16,6 +16,7 @@ NAMES = {
     "AWS::SSM::Parameter": "Name",
     "AWS::SecretsManager::Secret": "Name",
     "AWS::Logs::LogGroup": "LogGroupName",
+    "AWS::CloudFront::Function": "Name",
 }
 
 
@@ -24,7 +25,22 @@ def validate_app(template):
     assert template["Parameters"]["CloudFrontOriginAccessControlId"]["AllowedPattern"] == "^[A-Z0-9]+$"
     distributions = [r for r in template["Resources"].values() if r["Type"] == "AWS::CloudFront::Distribution"]
     assert len(distributions) == 1, "The site stack must own exactly one CloudFront distribution"
-    assert distributions[0]["Properties"]["DistributionConfig"]["Aliases"] == [CONFIG["site_domain"]]
+    assert distributions[0]["Properties"]["DistributionConfig"]["Aliases"] == [
+        CONFIG["site_domain"],
+        {"Fn::If": ["LegacyAliasEnabled", CONFIG["legacy_domain"], {"Ref": "AWS::NoValue"}]},
+    ]
+    assert template["Parameters"]["LegacyAliasEnabled"] == {
+        "Type": "String", "Default": "false", "AllowedValues": ["false", "true"],
+        "Description": "Enable only after the legacy distribution releases its alias.",
+    }
+    assert template["Conditions"]["LegacyAliasEnabled"] == {"Fn::Equals": [{"Ref": "LegacyAliasEnabled"}, "true"]}
+    redirect = template["Resources"]["LegacyRedirectFunction"]["Properties"]
+    assert redirect["FunctionCode"] == (ROOT / "infra/legacy-redirect.js").read_text().rstrip("\n")
+    assert redirect["AutoPublish"] is True
+    assert redirect["FunctionConfig"]["Runtime"] == "cloudfront-js-2.0"
+    assert distributions[0]["Properties"]["DistributionConfig"]["DefaultCacheBehavior"]["FunctionAssociations"] == [
+        {"EventType": "viewer-request", "FunctionARN": {"Fn::GetAtt": ["LegacyRedirectFunction", "FunctionARN"]}}
+    ]
     assert distributions[0]["Properties"]["DistributionConfig"]["ViewerCertificate"]["AcmCertificateArn"] == {"Ref": "SiteCertificateArn"}
     assert distributions[0]["Properties"]["Tags"]
     assert {tag["Key"]: tag["Value"] for tag in distributions[0]["Properties"]["Tags"]}.get("Project") == CONFIG["prefix"]
@@ -41,11 +57,11 @@ def validate_app(template):
             if isinstance(value, dict):
                 value = value.get("Fn::Sub", "")
             assert isinstance(value, str), f"{logical_id}: use a literal name or Fn::Sub"
-            prefix = "codelinq-hackathon-app-"
+            prefix = "codelinc-hackathon-app-"
             if resource["Type"] == "AWS::SSM::Parameter":
-                prefix = "/codelinq-hackathon/app/"
+                prefix = "/codelinc-hackathon/app/"
             if resource["Type"] == "AWS::Logs::LogGroup":
-                assert value.startswith(("/aws/lambda/codelinq-hackathon-app-", "/codelinq-hackathon/app/")), f"{logical_id}: log group is outside the hackathon"
+                assert value.startswith(("/aws/lambda/codelinc-hackathon-app-", "/codelinc-hackathon/app/")), f"{logical_id}: log group is outside the hackathon"
             else:
                 assert value.startswith(prefix), f"{logical_id}: {name_key} must start with {prefix}"
         if resource["Type"] == "AWS::IAM::Role":
@@ -95,7 +111,15 @@ def validate_chat(template):
     assert variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
     assert variables["AWS_LWA_INVOKE_MODE"] == "response_stream"
     assert variables["AWS_LWA_READINESS_CHECK_PATH"] == "/health"
-    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
+    # The voice key is a Secrets Manager secret the function reads when it needs it; only its ARN is in the environment.
+    assert variables["OPENAI_API_KEY_SECRET"] == {"Ref": "VoiceApiKeySecret"}
+    secret = resources["VoiceApiKeySecret"]
+    assert secret["Type"] == "AWS::SecretsManager::Secret"
+    assert secret["Properties"]["Name"] == "codelinc-hackathon-app-openai-api-key"
+    assert secret["Properties"]["SecretString"] == {"Ref": "OpenAiApiKey"}
+    key = template["Parameters"]["OpenAiApiKey"]
+    assert key["NoEcho"] is True and key["Default"] == "unset", "The key is hidden, and voice is off until it is supplied"
+    assert set(variables) == {"MODEL_ID", "CHAT_RATE_LIMIT_TABLE", "OPENAI_API_KEY_SECRET", "PORT", "AWS_LAMBDA_EXEC_WRAPPER", "AWS_LWA_PORT",
                               "AWS_LWA_READINESS_CHECK_PATH", "AWS_LWA_READINESS_CHECK_HEALTHY_STATUS",
                               "AWS_LWA_INVOKE_MODE", "AWS_LWA_ENABLE_COMPRESSION"}, "No API keys or AWS credentials in the runtime environment"
     url = resources["ChatFunctionUrl"]["Properties"]
@@ -112,25 +136,28 @@ def validate_chat(template):
     assert resources["ChatLogGroup"]["Properties"]["RetentionInDays"] == 7
     table = resources["ChatRateLimitTable"]
     assert table["Type"] == "AWS::DynamoDB::Table"
-    assert table["Properties"]["TableName"] == "codelinq-hackathon-app-chat-rate-limit"
+    assert table["Properties"]["TableName"] == "codelinc-hackathon-app-chat-rate-limit"
     assert table["Properties"]["BillingMode"] == "PAY_PER_REQUEST"
     assert table["Properties"]["SSESpecification"] == {"SSEEnabled": True}
     assert table["Properties"]["AttributeDefinitions"] == [{"AttributeName": "id", "AttributeType": "S"}]
     assert table["Properties"]["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
-    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable"):
+    for name in ("ChatFunction", "ChatRole", "ChatLogGroup", "ChatRateLimitTable", "VoiceApiKeySecret"):
         tags = {tag["Key"]: tag["Value"] for tag in resources[name]["Properties"]["Tags"]}
         assert tags == {"Project": CONFIG["prefix"], "Owner": "Israel Jauregui",
                         "Lifecycle": "ephemeral", "ManagedBy": "CloudFormation"}
     policies = resources["ChatRole"]["Properties"]["Policies"]
     statements = [s for policy in policies for s in policy["PolicyDocument"]["Statement"]]
     assert len(validate_bedrock_statements(statements)) == 1
-    assert len(statements) == 3, "Chat needs only scoped inference, admission control, and logging"
+    assert len(statements) == 4, "Chat needs only scoped inference, admission control, logging, and its one secret"
+    reading = [s for s in statements if s["Action"] == "secretsmanager:GetSecretValue"]
+    assert reading == [{"Effect": "Allow", "Action": "secretsmanager:GetSecretValue",
+                        "Resource": {"Ref": "VoiceApiKeySecret"}}], "Chat may read only the voice key"
     limiter = [s for s in statements if s["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem"]]
     assert limiter == [{"Effect": "Allow", "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
                         "Resource": {"Fn::GetAtt": ["ChatRateLimitTable", "Arn"]}}], "Admission control may access only its own table"
     logging = [s for s in statements if s["Action"] == ["logs:CreateLogStream", "logs:PutLogEvents"]]
     assert logging == [{"Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
-                        "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinq-hackathon-app-chat:log-stream:*"}}], "Chat may write only its own log streams"
+                        "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/codelinc-hackathon-app-chat:log-stream:*"}}], "Chat may write only its own log streams"
     assert not resources["ChatRole"]["Properties"].get("ManagedPolicyArns"), "Do not bypass the scoped inline runtime policy"
     for resource in resources.values():
         if resource["Type"] == "AWS::IAM::Role":
@@ -160,7 +187,7 @@ def validate_chat_bootstrap(template):
     assert oac["DeletionPolicy"] == oac["UpdateReplacePolicy"] == "Retain", "Israel removes the generated OAC after app teardown"
     assert oac["DependsOn"] == "BootstrapCloudFormationRole"
     config = oac["Properties"]["OriginAccessControlConfig"]
-    assert config["Name"] == "codelinq-hackathon-app-chat-oac"
+    assert config["Name"] == "codelinc-hackathon-app-chat-oac"
     assert config["OriginAccessControlOriginType"] == "lambda"
     assert config["SigningBehavior"] == "always" and config["SigningProtocol"] == "sigv4"
     assert template["Outputs"]["ChatOriginAccessControlId"]["Value"] == {"Fn::GetAtt": ["ChatOriginAccessControl", "Id"]}
@@ -174,9 +201,10 @@ def main():
     assert CONFIG["repository"] == "codelinq-ung-team/codehawks"
     assert CONFIG["repository_owner_id"] == "337436199"
     assert CONFIG["repository_id"] == "1403496059"
-    assert CONFIG["app_stack"] == "codelinq-hackathon-app"
-    assert CONFIG["bootstrap_stack"] == "codelinq-hackathon-bootstrap"
-    assert CONFIG["site_domain"] == "codelinq.codehawks.org"
+    assert CONFIG["app_stack"] == "codelinc-hackathon-app"
+    assert CONFIG["bootstrap_stack"] == "codelinc-hackathon-bootstrap"
+    assert CONFIG["site_domain"] == "codelinc.codehawks.org"
+    assert CONFIG["legacy_domain"] == "codelinq.codehawks.org"
     assert CONFIG["cloudflare_zone"] == "codehawks.org"
     app = json.loads((ROOT / "infra/app.json").read_text())
     validate_app(app)

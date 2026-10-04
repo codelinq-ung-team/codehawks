@@ -94,6 +94,21 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             validate_app(self.app)
 
+    def test_voice_key_stays_in_its_secret(self):
+        for change in ("env", "permission", "visible"):
+            with self.subTest(change=change):
+                template = copy.deepcopy(self.app)
+                resources = template["Resources"]
+                if change == "env":
+                    resources["ChatFunction"]["Properties"]["Environment"]["Variables"]["OPENAI_API_KEY"] = {"Ref": "OpenAiApiKey"}
+                elif change == "permission":
+                    statements = resources["ChatRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+                    next(s for s in statements if s["Action"] == "secretsmanager:GetSecretValue")["Resource"] = "*"
+                else:
+                    template["Parameters"]["OpenAiApiKey"]["NoEcho"] = False
+                with self.assertRaises(AssertionError):
+                    validate_app(template)
+
     def test_limiter_configuration_and_permissions_are_required(self):
         for change in ("table_env", "table_resource", "permissions", "encryption", "tags"):
             with self.subTest(change=change):

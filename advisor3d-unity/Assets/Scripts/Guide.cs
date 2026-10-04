@@ -1,5 +1,5 @@
 // Abe, the guide: the site's 32×32 pixel art of a chibi Abraham Lincoln
-// (codelinq_frontend/src/guide/Avatar.tsx), drawn flat for chat bubbles (Ui.GuideTexture) and
+// (codelinc_frontend/src/guide/Avatar.tsx), drawn flat for chat bubbles (Ui.GuideTexture) and
 // raised into a little relief sculpture for the room.
 using System.Collections.Generic;
 using UnityEngine;
@@ -82,7 +82,14 @@ namespace Advisor3D
         readonly Mesh mesh;
         readonly Color32[] colors;
         readonly List<(int start, int count, Color32 open)> eyes = new List<(int, int, Color32)>();
+        // The four pixels of chin under Abe's lips. They darken as his mouth opens: the middle two
+        // first, then all four.
+        readonly List<(int start, int count, bool middle)> jaw = new List<(int, int, bool)>();
+        const int JAW_ROW = 20, JAW_FROM = 14, JAW_TO = 17;
+        static readonly Color32 MOUTH = Ui.C("#4a1f24");
         bool shut;
+        int open; // 0 closed, 1 half open, 2 open
+        float sinceMouth;
         float pulse = 1;
 
         public Guide(float size, Transform parent)
@@ -100,6 +107,7 @@ namespace Advisor3D
                     // Each pixel is a box standing out toward the viewer (local −Z).
                     b.Box(new Vector3((x - N / 2f + 0.5f) * u, (N / 2f - y - 0.5f) * u, -depth / 2), new Vector3(u, u, depth), COLORS[ch], back: false);
                     if ("Ew".IndexOf(ch) >= 0) eyes.Add((start, b.Count - start, COLORS[ch]));
+                    if (y == JAW_ROW && x >= JAW_FROM && x <= JAW_TO) jaw.Add((start, b.Count - start, x > JAW_FROM && x < JAW_TO));
                 }
             }
             mesh = b.ToMesh("Guide");
@@ -128,18 +136,36 @@ namespace Advisor3D
             // Swell with the voice while speaking, ease back otherwise.
             pulse += (1 + (speaking ? level * 0.1f : 0) - pulse) * 0.35f;
             group.localScale = Vector3.one * pulse;
+            var changed = false;
             // A short blink every few seconds.
             var blink = t % 4.2f < 0.13f;
             if (blink != shut)
             {
                 shut = blink;
-                foreach (var (start, count, open) in eyes)
+                foreach (var (start, count, color) in eyes)
                 {
-                    var c = shut ? COLORS['s'] : open;
+                    var c = shut ? COLORS['s'] : color;
                     for (var i = 0; i < count; i++) colors[start + i] = c;
                 }
-                mesh.colors32 = colors;
+                changed = true;
             }
+            // His mouth opens and closes with his voice: wider when louder, and never held in one
+            // shape for long, so it keeps moving through a sentence.
+            sinceMouth += Time.deltaTime;
+            var want = !speaking || level < 0.06f ? 0 : level > 0.45f ? 2 : 1;
+            if (speaking && want == open && want > 0 && sinceMouth > 0.16f) want = open == 2 ? 1 : level > 0.25f ? 2 : 0;
+            if (want != open && (sinceMouth > 0.07f || want == 0))
+            {
+                open = want;
+                sinceMouth = 0;
+                foreach (var (start, count, middle) in jaw)
+                {
+                    var c = open == 2 || (open == 1 && middle) ? MOUTH : COLORS['S'];
+                    for (var i = 0; i < count; i++) colors[start + i] = c;
+                }
+                changed = true;
+            }
+            if (changed) mesh.colors32 = colors;
         }
     }
 }
