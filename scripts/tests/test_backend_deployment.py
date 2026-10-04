@@ -109,6 +109,23 @@ class DeploymentTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     validate_app(template)
 
+    def test_plaid_keys_stay_in_their_secret(self):
+        for change in ("env", "permission", "visible", "environment"):
+            with self.subTest(change=change):
+                template = copy.deepcopy(self.app)
+                resources = template["Resources"]
+                if change == "env":
+                    resources["ChatFunction"]["Properties"]["Environment"]["Variables"]["PLAID_SECRET"] = {"Ref": "PlaidSecret"}
+                elif change == "permission":
+                    statements = resources["ChatRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+                    next(s for s in statements if s["Action"] == "secretsmanager:GetSecretValue")["Resource"] = "*"
+                elif change == "visible":
+                    template["Parameters"]["PlaidSecret"]["NoEcho"] = False
+                else:
+                    resources["ChatFunction"]["Properties"]["Environment"]["Variables"]["PLAID_ENV"] = "production"
+                with self.assertRaises(AssertionError):
+                    validate_app(template)
+
     def test_limiter_configuration_and_permissions_are_required(self):
         for change in ("table_env", "table_resource", "permissions", "encryption", "tags"):
             with self.subTest(change=change):
@@ -221,6 +238,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertNotIn(b"\r", archive.read("run.sh"))
                 self.assertIn(b"python -m gunicorn", archive.read("run.sh"))
                 self.assertIn(b"backend.app:app", archive.read("run.sh"))
+                self.assertIn(b"--no-control-socket", archive.read("run.sh"))
 
     def test_smoke_client_hashes_exact_body_without_signing_credentials(self):
         body = b'{"messages":[]}'

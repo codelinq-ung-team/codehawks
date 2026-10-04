@@ -142,7 +142,7 @@ class ProductionProcessTests(unittest.TestCase):
         process = subprocess.Popen([
             sys.executable, "-m", "gunicorn", "--bind", f"127.0.0.1:{port}",
             "--workers", "1", "--threads", "2", "--worker-class", "gthread",
-            "--timeout", "110", "--access-logfile", "/dev/null", "backend.app:app",
+            "--timeout", "110", "--no-control-socket", "--access-logfile", "/dev/null", "backend.app:app",
         ], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             deadline = time.monotonic() + 10

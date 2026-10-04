@@ -44,6 +44,9 @@ def check_api():
         assert response.status == 200, "Intake Bedrock request failed"
         reading = json.load(response)
         assert reading.get("intent") == "answer" and reading.get("value") == 80000, "Intake did not read a plain amount"
+    with request("/api/plaid/link-token", b"{}") as response:
+        assert response.status == 200, "Plaid Sandbox did not issue a Link token; check the PLAID_* Actions secrets"
+        assert json.load(response).get("link_token"), "Plaid Link token was empty"
     started = time.monotonic()
     first_delta = None
     done, parts = False, []
@@ -63,7 +66,7 @@ def check_api():
             else:
                 raise AssertionError("Unknown stream event")
     assert done and "".join(parts).strip(), "Stream ended without a complete reply"
-    print(f"Backend checks passed: health, input errors, buffered reply, intake reading, NDJSON completion (first text {first_delta:.2f}s).")
+    print(f"Backend checks passed: health, input errors, buffered reply, intake reading, Plaid Link token, NDJSON completion (first text {first_delta:.2f}s).")
 
 
 def check_private_origin(url):
