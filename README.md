@@ -171,6 +171,14 @@ lists their names and how to load them. See the
 [backend guide](apps/backend/README.md) for configuration and HTTP contracts.
 Consult Israel before making live model calls in the shared AWS account.
 
+To run the built website and the API together without a network, install and build once,
+then start both. Only the first command downloads anything; neither writes outside the repository:
+
+```sh
+bash scripts/build-local.sh   # venv, pinned Python packages, npm ci, website build
+bash scripts/run-local.sh     # API on port 8000, website on http://localhost:4173
+```
+
 For WebXR, run `npm ci` and `npm run dev` in `apps/advisor3d-web/`.
 For native Quest builds and headset setup, follow the
 [Unity guide](apps/advisor3d-unity/README.md).

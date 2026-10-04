@@ -1,15 +1,15 @@
-"""Plaid Sandbox: a Link token for the browser, then a redacted financial snapshot.
+"""Plaid Sandbox: a Link token for the browser, then a redacted balance snapshot.
 
-The Basics form uses balances and Plaid Bank Income to fill in answers the person
-then checks. No account names, numbers, masks, income-source details, transactions,
-or institution ids leave this module, and the access token is never stored.
+The Basics form uses the snapshot to fill in answers the person then checks. No
+account names, numbers, masks, or institution ids leave this module, and the
+access token is never stored.
 """
 import json
 import os
 import re
 import time
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -101,26 +101,12 @@ def _post(path, payload):
 
 def create_link_token():
     client_id, secret = _credentials()
-    client_user_id = str(uuid.uuid4())
-    user = _post("/user/create", {
-        "client_id": client_id,
-        "secret": secret,
-        "client_user_id": client_user_id,
-    })
-    user_id = user.get("user_id")
-    if not isinstance(user_id, str) or not user_id or len(user_id) > 128:
-        raise PlaidError(502, "Plaid returned an invalid user ID.")
     result = _post("/link/token/create", {
         "client_id": client_id,
         "secret": secret,
         "client_name": os.environ.get("PLAID_CLIENT_NAME", "LincLife")[:30],
-        "user": {"client_user_id": client_user_id},
-        "user_id": user_id,
-        "products": ["transactions", "income_verification"],
-        "income_verification": {
-            "income_source_types": ["bank"],
-            "bank_income": {"days_requested": 120},
-        },
+        "user": {"client_user_id": str(uuid.uuid4())},
+        "products": ["transactions"],
         "country_codes": ["US"],
         "language": "en",
     })
@@ -128,14 +114,12 @@ def create_link_token():
     expiration = result.get("expiration")
     if not isinstance(token, str) or not token or not isinstance(expiration, str):
         raise PlaidError(502, "Plaid returned an invalid link token.")
-    return {"link_token": token, "expiration": expiration, "user_id": user_id}
+    return {"link_token": token, "expiration": expiration}
 
 
-def exchange_and_get_accounts(public_token, user_id):
+def exchange_and_get_accounts(public_token):
     if not isinstance(public_token, str) or not public_token.strip() or len(public_token) > 2048:
         raise PlaidError(400, "public_token must be nonempty text up to 2048 characters.")
-    if not isinstance(user_id, str) or not user_id.strip() or len(user_id) > 128:
-        raise PlaidError(400, "user_id must be nonempty text up to 128 characters.")
     client_id, secret = _credentials()
     exchanged = _post("/item/public_token/exchange", {
         "client_id": client_id, "secret": secret, "public_token": public_token.strip(),
@@ -146,10 +130,7 @@ def exchange_and_get_accounts(public_token, user_id):
     result = _post("/accounts/get", {
         "client_id": client_id, "secret": secret, "access_token": access_token,
     })
-    income = _post("/credit/bank_income/get", {
-        "client_id": client_id, "secret": secret, "user_id": user_id.strip(), "options": {"count": 1},
-    })
-    return normalize_accounts(result.get("accounts"), annual_income(income.get("bank_income")))
+    return normalize_accounts(result.get("accounts"))
 
 
 def _safe_enum(value, fallback="unknown"):
@@ -184,28 +165,7 @@ def _category(account_type):
     }.get(account_type, "other")
 
 
-def annual_income(reports):
-    """Annualize the latest report's USD income over its inclusive date range."""
-    if not isinstance(reports, list) or not reports or not isinstance(reports[0], dict):
-        return None
-    summary = reports[0].get("bank_income_summary")
-    if not isinstance(summary, dict) or not isinstance(summary.get("total_amounts"), list):
-        return None
-    amount = next((_amount(item.get("amount")) for item in summary["total_amounts"]
-                   if isinstance(item, dict) and item.get("iso_currency_code") == "USD"), None)
-    try:
-        start = date.fromisoformat(summary["start_date"])
-        end = date.fromisoformat(summary["end_date"])
-    except (KeyError, TypeError, ValueError):
-        return None
-    days = (end - start).days + 1
-    if amount is None or amount < 0 or days < 1:
-        return None
-    value = (amount * Decimal(365) / Decimal(days)).quantize(Decimal("1"))
-    return int(value) if value <= Decimal("100000000") else None
-
-
-def normalize_accounts(accounts, yearly_income=None):
+def normalize_accounts(accounts):
     if not isinstance(accounts, list) or len(accounts) > MAX_ACCOUNTS:
         raise PlaidError(502, "Plaid returned an invalid accounts response.")
     normalized = []
@@ -249,10 +209,9 @@ def normalize_accounts(accounts, yearly_income=None):
     }
     return {
         "version": 1,
-        "source": "plaid_accounts_get+credit_bank_income_get",
+        "source": "plaid_accounts_get",
         "environment": "sandbox",
         "asOf": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "annualIncome": yearly_income,
         "accounts": normalized,
         "totalsByCurrency": json_totals,
     }

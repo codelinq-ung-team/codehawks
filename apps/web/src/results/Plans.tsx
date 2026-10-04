@@ -6,16 +6,19 @@ import { Button, Icon, type IconName } from '../kit/Kit.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { formatMoney, type Profile } from '../domain/calculator.ts'
 import type { Ready } from './ask.ts'
-import type { PolicyOption, Recommendation } from './recommendations.ts'
+import { RECOMMENDATION_FAILURES, type PolicyOption, type Recommendation, type RecommendationFailure } from './recommendations.ts'
+import { ADULT_AGE_ERROR } from '../intake/adultAge.ts'
+import { go } from '../lib/store.ts'
 import { DEFAULT_POLICIES, defaultQualifications, type DefaultPolicy } from './defaultPolicies.ts'
 
 const COMPARE = 'What’s the difference between term and permanent life insurance, and what matters for my situation?'
 const ABOUT_TERM = 'Tell me more about term life insurance. How would it fit my situation?'
 const ABOUT_PERMANENT = 'Tell me more about permanent life insurance. How would it fit my situation?'
 
-export function Plans({ onAsk, recommendation, loading, failed, onRetry }: {
+export function Plans({ onAsk, recommendation, loading, failed, onRetry, needsAge = false, failure }: {
   p: Profile; r: Ready; onAsk: (question: string) => void; recommendation: Recommendation | null
   loading: boolean; failed: boolean; onRetry: () => void
+  needsAge?: boolean; failure?: RecommendationFailure | null
 }) {
   return (
     <section className="plans" aria-labelledby="plans-title">
@@ -24,7 +27,10 @@ export function Plans({ onAsk, recommendation, loading, failed, onRetry }: {
         <p className="callout muted">Two alternatives for your estimated coverage gap. The amounts aren’t added together.</p>
         <div className="plans__status" role="status" aria-live="polite">
           {loading && <p>Abe is comparing researched policies with your answers…</p>}
-          {failed && <><p>Abe couldn’t compare policies right now. These cards explain the coverage types.</p><Button variant="bordered" size="small" onClick={onRetry}>Try Again</Button></>}
+          {needsAge && <><p>{ADULT_AGE_ERROR} Your estimate is still available.</p><Button variant="bordered" size="small" onClick={() => go('review')}>Edit Age in Review</Button></>}
+          {failed && <><p>{RECOMMENDATION_FAILURES[failure ?? 'unavailable']} These cards show example policies.</p>
+            {failure === 'input' ? <Button variant="bordered" size="small" onClick={() => go('review')}>Review Answers</Button>
+              : <Button variant="bordered" size="small" onClick={onRetry}>Try Again</Button>}</>}
           {recommendation && !recommendation.recommendedType && <p>{recommendation.reason}</p>}
         </div>
       </div>

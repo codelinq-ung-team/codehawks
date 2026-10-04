@@ -102,7 +102,7 @@ class ProductionTests(unittest.TestCase):
 
     @patch("backend.app.create_link_token")
     def test_plaid_link_token_route(self, create):
-        create.return_value = {"link_token": "link-sandbox", "expiration": "soon", "user_id": "user-sandbox"}
+        create.return_value = {"link_token": "link-sandbox", "expiration": "soon"}
         response = self.http.post("/api/plaid/link-token", json={})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["link_token"], "link-sandbox")
@@ -110,12 +110,12 @@ class ProductionTests(unittest.TestCase):
 
     @patch("backend.app.exchange_and_get_accounts")
     def test_plaid_exchange_route(self, exchange):
-        snapshot = {"version": 1, "source": "plaid_accounts_get+credit_bank_income_get", "accounts": []}
+        snapshot = {"version": 1, "source": "plaid_accounts_get", "accounts": []}
         exchange.return_value = snapshot
-        response = self.http.post("/api/plaid/exchange", json={"public_token": "public-sandbox", "user_id": "user-sandbox"})
+        response = self.http.post("/api/plaid/exchange", json={"public_token": "public-sandbox"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, {"connected": True, "financialSnapshot": snapshot})
-        exchange.assert_called_once_with("public-sandbox", "user-sandbox")
+        exchange.assert_called_once_with("public-sandbox")
 
     def test_plaid_routes_reject_wrong_shapes(self):
         for path, body in (("/api/plaid/link-token", {"user": "pii"}),

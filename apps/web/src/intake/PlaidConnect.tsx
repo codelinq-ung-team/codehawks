@@ -1,5 +1,5 @@
 // The optional bank step after age: connect accounts through Plaid Sandbox and the
-// income and balances fill in the income/debt questions, and later mortgage, other debts and savings. Everything
+// balances fill in the debt question, and later the mortgage, other debts and savings. Everything
 // it fills stays editable and is checked on Review. If Plaid can't be reached, labeled sample
 // accounts keep the demo going.
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -28,15 +28,13 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [linkToken, setLinkToken] = useState<string | null>(null)
-  const userId = useRef<string | null>(null)
   const openWhenReady = useRef(false)
 
   const onSuccess = useCallback<PlaidLinkOnSuccess>(async (publicToken) => {
     setLinkToken(null)
     try {
       if (!publicToken) throw new PlaidApiError('Plaid didn’t return your accounts. Please try again.')
-      if (!userId.current) throw new PlaidApiError('Plaid lost the income session. Please try again.')
-      connect(await exchangePublicToken(publicToken, userId.current))
+      connect(await exchangePublicToken(publicToken))
       setMessage(null)
     } catch (e) {
       setMessage(errorText(e, 'Your accounts couldn’t be imported.'))
@@ -51,7 +49,6 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
     onExit: (e) => {
       if (e) setMessage('Plaid closed with an error. Please try again.')
       openWhenReady.current = false
-      userId.current = null
       setLinkToken(null)
       setBusy(false)
     },
@@ -69,9 +66,7 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
     setMessage(null)
     setBusy(true)
     try {
-      const session = await requestLinkToken()
-      userId.current = session.userId
-      setLinkToken(session.linkToken)
+      setLinkToken(await requestLinkToken())
       openWhenReady.current = true
     } catch (e) {
       setMessage(errorText(e, 'Plaid couldn’t be started.'))
@@ -93,12 +88,12 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
             <GuidePose name={plaid ? 'cheer' : 'wave'} className="qform__guide" />
           </div>
           <h1 id="plaid-heading" className="qform__prompt">
-            {plaid ? 'Your Plaid data is in.' : 'Want to fill some of this in from your bank?'}
+            {plaid ? 'Your balances are in.' : 'Want to fill some of this in from your bank?'}
           </h1>
           <p className="qform__helper">
             {plaid
-              ? `${GUIDE_NAME} filled in what your income report and balances can answer. You can change any of it as you go.`
-              : 'Connect accounts with Plaid and it can estimate yearly income and fill in debts and savings. You can change anything before the math.'}
+              ? `${GUIDE_NAME} filled in what the balances can answer. You can change any of it as you go.`
+              : 'Connect accounts with Plaid and your balances fill in your debts and savings. You can change anything before the math.'}
           </p>
 
           {plaid && fill ? (
@@ -108,13 +103,12 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
                 <span className={'plaid-badge' + (sample ? ' is-sample' : '')}>{sample ? 'Sample data' : 'Plaid Sandbox'}</span>
               </div>
               <ul className="plaid-fills">
-                <li><span>Estimated yearly income</span><strong>{fill.income == null ? 'Not available' : formatMoney(fill.income)}</strong></li>
                 <li><span>Total debt</span><strong>{fill.debt == null ? 'No debt accounts' : formatMoney(fill.debt)}</strong></li>
                 {fill.debt != null && <li className="is-sub"><span>Mortgage</span><strong>{formatMoney(fill.mortgage)}</strong></li>}
                 {fill.debt != null && <li className="is-sub"><span>Other debts</span><strong>{formatMoney(fill.otherDebts)}</strong></li>}
                 <li><span>Savings your family could use</span><strong>{fill.savings == null ? 'No bank accounts' : formatMoney(fill.savings)}</strong></li>
               </ul>
-              <p className="plaid-note"><Icon name="info" size={16} />Yearly income is estimated from the income deposits you approved. Check it against your gross income; family and insurance are still questions.</p>
+              <p className="plaid-note"><Icon name="info" size={16} />Balances can’t tell us your income, family or insurance, so those are still questions.</p>
             </div>
           ) : (
             <div className="plaid-card">

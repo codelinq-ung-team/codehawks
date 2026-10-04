@@ -57,7 +57,7 @@ is null.
 UNCONFIRMED = "A licensed professional can confirm how this fits your situation."
 
 TOOL = {"toolSpec": {"name": "recommend", "description": "Record the two policy options and preferred coverage type.",
-    "inputSchema": {"json": {"type": "object", "additionalProperties": False, "properties": {
+    "inputSchema": {"json": {"type": "object", "properties": {
         "termId": {"type": ["string", "null"]}, "permanentId": {"type": ["string", "null"]},
         "termYears": {"type": ["integer", "null"]},
         "termFit": {"type": "string"}, "permanentFit": {"type": "string"},
@@ -92,8 +92,8 @@ def validate(payload):
     if any(name not in facts for name in REQUIRED):
         raise ChatError(400, "Confirm the required calculator fields first.")
     age = payload["age"]
-    if age is not None and (isinstance(age, bool) or not isinstance(age, int) or not 0 <= age <= 120):
-        raise ChatError(400, "age must be whole years from 0 to 120, or null.")
+    if isinstance(age, bool) or not isinstance(age, int) or not 18 <= age <= 120:
+        raise ChatError(400, "Enter your age in whole years from 18 to 120. This assessment is for adults; include children as household dependents.")
     preferences = payload["preferences"]
     names = {"state", *PREFERENCES}
     if not isinstance(preferences, dict) or not names - set(UNDERWRITING) <= set(preferences) <= names:
