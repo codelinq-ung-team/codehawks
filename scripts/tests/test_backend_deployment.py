@@ -128,6 +128,27 @@ class DeploymentTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     validate_app(template)
 
+    def test_pairing_table_and_permissions_are_required(self):
+        for change in ("table_env", "table_resource", "permissions", "expiry", "encryption", "tags"):
+            with self.subTest(change=change):
+                template = copy.deepcopy(self.app)
+                resources = template["Resources"]
+                if change == "table_env":
+                    resources["ChatFunction"]["Properties"]["Environment"]["Variables"]["PAIRING_TABLE"] = "other-table"
+                elif change == "table_resource":
+                    resources["PairingTable"]["Properties"]["TableName"] = "other-table"
+                elif change == "permissions":
+                    statements = resources["ChatRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+                    next(s for s in statements if "dynamodb:DeleteItem" in s["Action"])["Resource"] = "*"
+                elif change == "expiry":
+                    del resources["PairingTable"]["Properties"]["TimeToLiveSpecification"]
+                elif change == "encryption":
+                    resources["PairingTable"]["Properties"]["SSESpecification"]["SSEEnabled"] = False
+                else:
+                    resources["PairingTable"]["Properties"]["Tags"] = []
+                with self.assertRaises((AssertionError, KeyError)):
+                    validate_app(template)
+
     def test_boundary_mismatch_stops_deployment_before_writes(self):
         stack = {"Stacks": [{"Parameters": [
             {"ParameterKey": "BedrockModelId", "ParameterValue": MODEL},
@@ -186,6 +207,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertIn("backend/app.py", names)
                 self.assertIn("backend/rate_limit.py", names)
                 self.assertIn("backend/intake.py", names)
+                self.assertIn("backend/pairing.py", names)
                 self.assertNotIn("backend/server.py", names)
                 self.assertNotIn("backend/config.py", names)
                 self.assertIn("boto3.py", names)

@@ -11,7 +11,7 @@ fallback when the AI is unavailable.
 | Path | Purpose |
 | --- | --- |
 | [`apps/web/`](apps/web/README.md) | React and TypeScript website |
-| [`apps/backend/`](apps/backend/README.md) | Flask API for intake, streaming chat, and voice sessions |
+| [`apps/backend/`](apps/backend/README.md) | Flask API for intake, streaming chat, voice sessions, and pairing a browser with a headset |
 | [`apps/advisor3d-web/`](docs/advisor3d.md) | WebXR prototype served at `/advisor3d/index.html` |
 | [`apps/advisor3d-unity/`](apps/advisor3d-unity/README.md) | Native Unity Quest application |
 | [`infra/`](infra/) | CloudFormation templates and namespace configuration |

@@ -6,6 +6,7 @@ from werkzeug.exceptions import HTTPException
 
 from .intake import read_answer
 from .llm import ChatError, chat, iter_chat_events
+from . import pairing
 from .voice import create_session
 
 app = Flask(__name__, static_folder=None)
@@ -55,6 +56,38 @@ def voice_session_route():
     try:
         json_payload()  # the body is unused, but CloudFront needs one to sign
         return jsonify(create_session())
+    except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/pair")
+def pair_create_route():
+    try:
+        return jsonify(pairing.create(json_payload())), 201
+    except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/pair/join")
+def pair_join_route():
+    try:
+        return jsonify(pairing.join(json_payload()))
+    except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.get("/api/pair/<session_id>")
+def pair_read_route(session_id):
+    try:
+        return jsonify(pairing.read(session_id))
+    except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/pair/<session_id>")
+def pair_update_route(session_id):
+    try:
+        return jsonify(pairing.update(session_id, json_payload()))
     except ChatError as error:
         return jsonify(error=error.message), error.status
 
