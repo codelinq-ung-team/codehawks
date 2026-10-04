@@ -29,7 +29,10 @@ def stack(config, kind):
     result = actions.aws("cloudformation", "describe-stacks", "--stack-name", config[kind + "_stack"])["Stacks"][0]
     tags = {t["Key"]: t["Value"] for t in result.get("Tags", [])}
     if tags.get("Project") != config["prefix"]:
-        raise RuntimeError("Migration stack ownership mismatch")
+        # Public stack identity only; keep the guard intact while making failed
+        # inventories actionable without exposing parameters or credentials.
+        observed = {key: result.get(key) for key in ("StackId", "StackName", "StackStatus", "RoleARN", "Tags")}
+        raise RuntimeError("Migration stack ownership mismatch: " + json.dumps(observed, sort_keys=True))
     if result["StackStatus"] not in ("CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"):
         raise RuntimeError("Finish or recover the existing stack operation before migrating")
     return result
