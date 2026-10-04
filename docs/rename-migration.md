@@ -32,6 +32,11 @@ The migration and normal workflows share the `hackathon-aws` concurrency group.
    deployed template. The cutover inventory adds app resource IDs and the deployed
    app template after migration read permissions exist. Keep this handoff outside
    the repo; it contains no credentials.
+   The initial legacy bootstrap has no stack tags. Only that exact stack can
+   pass inventory without them: its account, region, name, service role, and
+   deployed bootstrap role names and Project tags must all match the legacy
+   configuration. Prepare adds the missing stack ownership tags. Conflicting
+   tags or untagged app/new stacks are rejected.
 2. **Migrate hackathon namespace → prepare.** Update the deployed legacy bootstrap
    template without changing existing names, trust, or model settings. Add the
    temporary migration service role, exact-stack migration permissions, and

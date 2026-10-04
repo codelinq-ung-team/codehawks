@@ -72,6 +72,30 @@ class MigrationTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 migration.verify_bootstrap_handoff()
 
+    def test_initial_bootstrap_requires_exact_identity_and_owned_role_template(self):
+        legacy = migration.LEGACY
+        live = {"StackName": legacy["bootstrap_stack"], "StackStatus": "UPDATE_COMPLETE", "Tags": [],
+                "StackId": f"arn:aws:cloudformation:{CONFIG['region']}:{CONFIG['account_id']}:stack/{legacy['bootstrap_stack']}/id",
+                "RoleARN": migration.role_arn(legacy["bootstrap_cloudformation_role"])}
+        with patch.object(migration, "template", return_value=self.old), \
+             patch.object(aws_actions, "aws", return_value={"Stacks": [live]}):
+            self.assertEqual(migration.stack(legacy, "bootstrap"), live)
+            for key, value in (("StackName", "unrelated"), ("StackId", "wrong-account"),
+                               ("RoleARN", "wrong-role"), ("Tags", [{"Key": "Project", "Value": "other"}])):
+                changed = {**live, key: value}
+                self.assertFalse(migration.verified_initial_bootstrap(legacy, "bootstrap", changed))
+            self.assertFalse(migration.verified_initial_bootstrap(legacy, "app", live))
+            self.assertFalse(migration.verified_initial_bootstrap(CONFIG, "bootstrap", live))
+            self.old["Resources"]["BootstrapRole"]["Properties"]["Tags"] = []
+            self.assertFalse(migration.verified_initial_bootstrap(legacy, "bootstrap", live))
+
+    def test_legacy_bootstrap_update_adds_ownership_stack_tags(self):
+        with patch.dict(os.environ, {"GITHUB_RUN_ID": "1"}), patch.object(aws_actions, "aws", return_value={}) as calls:
+            migration.apply_template(migration.LEGACY, "bootstrap", self.old, migration.LEGACY["bootstrap_cloudformation_role"])
+            args = calls.call_args_list[0].args
+            tags = json.loads(args[args.index("--tags") + 1])
+            self.assertIn({"Key": "Project", "Value": migration.LEGACY["prefix"]}, tags)
+
     def test_cutover_and_rollback_order_and_dns_preflight(self):
         def live(config, kind):
             domain = "new.cloudfront.net" if config is CONFIG else "old.cloudfront.net"

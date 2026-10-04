@@ -28,7 +28,7 @@ def role_arn(name):
 def stack(config, kind):
     result = actions.aws("cloudformation", "describe-stacks", "--stack-name", config[kind + "_stack"])["Stacks"][0]
     tags = {t["Key"]: t["Value"] for t in result.get("Tags", [])}
-    if tags.get("Project") != config["prefix"]:
+    if tags.get("Project") != config["prefix"] and not verified_initial_bootstrap(config, kind, result):
         # Public stack identity only; keep the guard intact while making failed
         # inventories actionable without exposing parameters or credentials.
         observed = {key: result.get(key) for key in ("StackId", "StackName", "StackStatus", "RoleARN", "Tags")}
@@ -36,6 +36,27 @@ def stack(config, kind):
     if result["StackStatus"] not in ("CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"):
         raise RuntimeError("Finish or recover the existing stack operation before migrating")
     return result
+
+
+def verified_initial_bootstrap(config, kind, result):
+    """The initial legacy bootstrap lacked stack tags; prove exact ownership."""
+    if config != LEGACY or kind != "bootstrap" or result.get("Tags"):
+        return False
+    name = LEGACY["bootstrap_stack"]
+    expected = f"arn:aws:cloudformation:{CONFIG['region']}:{CONFIG['account_id']}:stack/{name}/"
+    if (result.get("StackName") != name or not result.get("StackId", "").startswith(expected)
+            or result.get("RoleARN") != role_arn(LEGACY["bootstrap_cloudformation_role"])):
+        return False
+    resources = template(LEGACY, "bootstrap").get("Resources", {})
+    for logical, name in (("BootstrapRole", LEGACY["prefix"] + "-github-bootstrap"),
+                          ("BootstrapCloudFormationRole", LEGACY["bootstrap_cloudformation_role"])):
+        role = resources.get(logical, {})
+        properties = role.get("Properties", {})
+        tags = {tag["Key"]: tag["Value"] for tag in properties.get("Tags", [])}
+        if (role.get("Type") != "AWS::IAM::Role" or properties.get("RoleName") != name
+                or tags.get("Project") != LEGACY["prefix"]):
+            return False
+    return True
 
 
 def outputs(value):
@@ -112,7 +133,7 @@ def apply_template(config, kind, value, service_role, overrides=None, create=Fal
                 "--change-set-name", change, "--change-set-type", "CREATE" if create else "UPDATE",
                 "--template-body", "file://" + str(path), "--capabilities", "CAPABILITY_NAMED_IAM",
                 "--role-arn", role_arn(service_role), "--parameters", json.dumps(parameters)]
-        if create:
+        if create or (config == LEGACY and kind == "bootstrap"):
             args += ["--tags", json.dumps([{"Key": "Project", "Value": config["prefix"]},
                                            {"Key": "Lifecycle", "Value": "ephemeral"},
                                            {"Key": "Owner", "Value": "Israel Jauregui"},
