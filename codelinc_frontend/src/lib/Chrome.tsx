@@ -17,7 +17,7 @@ function jump(id: string) {
 export function Brand() {
   return (
     <a className="brand headline" href="#/">
-      <img className="brand__mark" src="/favicon.svg" width={32} height={32} alt="" aria-hidden="true" />
+      <span className="brand__mark" aria-hidden="true"><Icon name="heart" size={18} weight={2.4} /></span>
       <span>Linc<span className="brand__accent">Life</span></span>
     </a>
   )
