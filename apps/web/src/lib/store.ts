@@ -7,11 +7,10 @@ import { emptyPreferences, type CoveragePreferences, type RecommendationCache } 
 export type Marital = 'single' | 'married'
 export type Form = { age: number | null; income: number | null; marital: Marital | null; dependents: number | null; debt: number | null; coverage: boolean | null }
 export type Message = { role: 'bot' | 'user'; text: string; replies?: string[]; why?: boolean; done?: boolean }
-// Redacted balances and an annualized income estimate from Plaid (apps/backend/plaid.py), or
-// the labeled sample set. No names, account numbers, income sources or transactions.
+// Redacted balances from Plaid (apps/backend/plaid.py), or the labeled sample set when Plaid
+// isn't configured. Only account types and balances: no names, numbers or institutions.
 export type FinancialSnapshot = {
   environment: 'sandbox' | 'sample'
-  annualIncome: number | null
   accounts: Array<{
     category: 'liquid_asset' | 'investment_asset' | 'debt' | 'other'
     type: string

@@ -75,9 +75,9 @@ def plaid_link_token_route():
 def plaid_exchange_route():
     try:
         payload = json_payload()
-        if not isinstance(payload, dict) or set(payload) != {"public_token", "user_id"}:
-            raise PlaidError(400, "Request body must contain only public_token and user_id.")
-        return jsonify(connected=True, financialSnapshot=exchange_and_get_accounts(payload["public_token"], payload["user_id"]))
+        if not isinstance(payload, dict) or set(payload) != {"public_token"}:
+            raise PlaidError(400, "Request body must contain only public_token.")
+        return jsonify(connected=True, financialSnapshot=exchange_and_get_accounts(payload["public_token"]))
     except (ChatError, PlaidError) as error:
         return jsonify(error=error.message), error.status
 

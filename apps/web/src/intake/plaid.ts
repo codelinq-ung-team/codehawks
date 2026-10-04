@@ -26,30 +26,21 @@ async function post(path: string, value: unknown): Promise<unknown> {
   return result
 }
 
-export type PlaidLinkSession = { linkToken: string; userId: string }
-
-export async function requestLinkToken(): Promise<PlaidLinkSession> {
-  const r = await post('/api/plaid/link-token', {}) as { link_token?: unknown; user_id?: unknown } | null
-  if (typeof r?.link_token !== 'string' || !r.link_token || typeof r.user_id !== 'string' || !r.user_id) {
-    throw new PlaidApiError('Plaid returned an invalid Link session.')
-  }
-  return { linkToken: r.link_token, userId: r.user_id }
+export async function requestLinkToken(): Promise<string> {
+  const r = await post('/api/plaid/link-token', {}) as { link_token?: unknown } | null
+  if (typeof r?.link_token !== 'string' || !r.link_token) throw new PlaidApiError('Plaid returned an invalid Link token.')
+  return r.link_token
 }
 
-export async function exchangePublicToken(publicToken: string, userId: string): Promise<FinancialSnapshot> {
-  const r = await post('/api/plaid/exchange', { public_token: publicToken, user_id: userId }) as { financialSnapshot?: FinancialSnapshot } | null
-  const income = r?.financialSnapshot?.annualIncome
-  if (!r?.financialSnapshot || !Array.isArray(r.financialSnapshot.accounts)
-    || !(income === null || (typeof income === 'number' && Number.isFinite(income) && income >= 0))) {
-    throw new PlaidApiError('Plaid returned an invalid snapshot.')
-  }
+export async function exchangePublicToken(publicToken: string): Promise<FinancialSnapshot> {
+  const r = await post('/api/plaid/exchange', { public_token: publicToken }) as { financialSnapshot?: FinancialSnapshot } | null
+  if (!r?.financialSnapshot || !Array.isArray(r.financialSnapshot.accounts)) throw new PlaidApiError('Plaid returned an invalid snapshot.')
   return r.financialSnapshot
 }
 
 // Made-up accounts for demos when Plaid can't be reached or has no keys. Always labeled "Sample" on screen.
 export const SAMPLE: FinancialSnapshot = {
   environment: 'sample',
-  annualIncome: 85000,
   accounts: [
     { category: 'liquid_asset', type: 'depository', subtype: 'checking', currentBalance: 4200, currency: 'USD' },
     { category: 'liquid_asset', type: 'depository', subtype: 'savings', currentBalance: 18500, currency: 'USD' },

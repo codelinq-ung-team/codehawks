@@ -1,5 +1,5 @@
 // The optional bank step after age: connect accounts through Plaid Sandbox and the
-// income and balances fill in the income/debt questions, and later mortgage, other debts and savings. Everything
+// balances fill in the debt question, and later the mortgage, other debts and savings. Everything
 // it fills stays editable and is checked on Review. If Plaid can't be reached, labeled sample
 // accounts keep the demo going.
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -28,15 +28,13 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [linkToken, setLinkToken] = useState<string | null>(null)
-  const userId = useRef<string | null>(null)
   const openWhenReady = useRef(false)
 
   const onSuccess = useCallback<PlaidLinkOnSuccess>(async (publicToken) => {
     setLinkToken(null)
     try {
       if (!publicToken) throw new PlaidApiError('Plaid didn’t return your accounts. Please try again.')
-      if (!userId.current) throw new PlaidApiError('Plaid lost the income session. Please try again.')
-      connect(await exchangePublicToken(publicToken, userId.current))
+      connect(await exchangePublicToken(publicToken))
       setMessage(null)
     } catch (e) {
       setMessage(errorText(e, 'Your accounts couldn’t be imported.'))
@@ -51,7 +49,6 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
     onExit: (e) => {
       if (e) setMessage('Plaid closed with an error. Please try again.')
       openWhenReady.current = false
-      userId.current = null
       setLinkToken(null)
       setBusy(false)
     },
@@ -69,9 +66,7 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
     setMessage(null)
     setBusy(true)
     try {
-      const session = await requestLinkToken()
-      userId.current = session.userId
-      setLinkToken(session.linkToken)
+      setLinkToken(await requestLinkToken())
       openWhenReady.current = true
     } catch (e) {
       setMessage(errorText(e, 'Plaid couldn’t be started.'))
@@ -84,8 +79,8 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
   const failed = message ?? (linkError ? 'Plaid Link couldn’t load. Check your connection and try again.' : null)
 
   return (
-    <Page className="qform-screen plaid-screen">
-      <section className="qform plaid-connect" aria-labelledby="plaid-heading">
+    <Page className="qform-screen">
+      <section className="qform" aria-labelledby="plaid-heading">
         <div className="qform__meta"><span>Basics · Optional bank connection</span></div>
         <div className="qform__body" data-side="left">
           <div className="qform__head">
@@ -93,12 +88,12 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
             <GuidePose name={plaid ? 'cheer' : 'wave'} className="qform__guide" />
           </div>
           <h1 id="plaid-heading" className="qform__prompt">
-            {plaid ? 'Your bank details are ready.' : 'Fill a few answers from your bank'}
+            {plaid ? 'Your balances are in.' : 'Want to fill some of this in from your bank?'}
           </h1>
           <p className="qform__helper">
             {plaid
-              ? `${GUIDE_NAME} filled what your income report and balances can answer. You can change every answer.`
-              : 'Use Plaid Sandbox to estimate yearly income and fill debts and savings. It is optional, and every answer stays editable.'}
+              ? `${GUIDE_NAME} filled in what the balances can answer. You can change any of it as you go.`
+              : 'Connect accounts with Plaid and your balances fill in your debts and savings. You can change anything before the math.'}
           </p>
 
           {plaid && fill ? (
@@ -108,25 +103,19 @@ export function PlaidConnect({ onDone }: { onDone: () => void }) {
                 <span className={'plaid-badge' + (sample ? ' is-sample' : '')}>{sample ? 'Sample data' : 'Plaid Sandbox'}</span>
               </div>
               <ul className="plaid-fills">
-                <li><span>Estimated yearly income</span><strong>{fill.income == null ? 'Not available' : formatMoney(fill.income)}</strong></li>
                 <li><span>Total debt</span><strong>{fill.debt == null ? 'No debt accounts' : formatMoney(fill.debt)}</strong></li>
                 {fill.debt != null && <li className="is-sub"><span>Mortgage</span><strong>{formatMoney(fill.mortgage)}</strong></li>}
                 {fill.debt != null && <li className="is-sub"><span>Other debts</span><strong>{formatMoney(fill.otherDebts)}</strong></li>}
                 <li><span>Savings your family could use</span><strong>{fill.savings == null ? 'No bank accounts' : formatMoney(fill.savings)}</strong></li>
               </ul>
-              <p className="plaid-note"><Icon name="info" size={16} />Income is estimated from approved deposits. Check it against your gross yearly income.</p>
+              <p className="plaid-note"><Icon name="info" size={16} />Balances can’t tell us your income, family or insurance, so those are still questions.</p>
             </div>
           ) : (
             <div className="plaid-card">
-              <div className="plaid-card__top">
-                <strong>Sandbox login</strong>
-                <span className="plaid-badge is-sample">Test data</span>
-              </div>
-              <dl className="plaid-login">
-                <div><dt>Username</dt><dd><code>user_bank_income</code></dd></div>
-                <div><dt>Password</dt><dd><code>{'{}'}</code></dd></div>
-              </dl>
-              <p className="plaid-note"><Icon name="shield" size={16} />Pick any test bank and use these credentials to load Plaid’s Bank Income sample. Never enter a real bank login.</p>
+              <p className="plaid-note">
+                <Icon name="info" size={16} />
+                <span><strong>Sandbox only.</strong> Pick any test bank and sign in with <strong>user_good</strong> / <strong>pass_good</strong>. Never enter a real bank login.</span>
+              </p>
               {failed && (
                 <div className="plaid-error" role="alert">
                   <p><Icon name="exclamation" size={16} />{failed}</p>
