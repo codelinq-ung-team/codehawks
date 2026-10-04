@@ -9,7 +9,8 @@ import { GuidePose, type PoseName } from '../guide/Poses.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { FIELDS, calculate, formatMoney, summaryText, type FieldId, type Profile } from '../domain/calculator.ts'
 import { CoverageChart, NeedsChart, SummaryChart, TimeChart, YearsChart, type Slice } from './charts.tsx'
-import { AskAbe } from './AskAbe.tsx'
+import { AskAbe, type AskHandle } from './AskAbe.tsx'
+import { Plans } from './Plans.tsx'
 import { listJoin, yearsText, type Ready } from './ask.ts'
 import './results.css'
 
@@ -250,9 +251,11 @@ function WhatIf({ p }: { p: Profile }) {
   )
 }
 
-// After the story: the full math as a list, questions for Abe beside it, and the summary to copy.
+// After the story: term vs. permanent, then the full math as a list, questions for Abe beside it,
+// and the summary to copy.
 function Wrap({ p, r }: { p: Profile; r: Ready }) {
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
+  const askRef = useRef<AskHandle>(null)
   async function copy() {
     try {
       await navigator.clipboard.writeText(summaryText(p, r))
@@ -271,6 +274,8 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
         </div>
       </div>
 
+      <Plans p={p} r={r} onAsk={(q) => askRef.current?.ask(q)} />
+
       <div className="wrap__grid">
         <ListSection
           header="The full math" className="wrap__math"
@@ -282,7 +287,7 @@ function Wrap({ p, r }: { p: Profile; r: Ready }) {
           <ListRow title={<strong>Estimated additional coverage</strong>} value={<strong className="tint-text">{formatMoney(r.additional)}</strong>} />
         </ListSection>
 
-        <AskAbe p={p} r={r} />
+        <AskAbe p={p} r={r} ref={askRef} />
 
         <div className="wrap__actions stack">
           <Button size="large" fullWidth icon="share" onClick={() => void copy()}>Copy Summary</Button>

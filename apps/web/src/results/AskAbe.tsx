@@ -1,7 +1,7 @@
 // "Ask Abe": questions after the results, beside the full math so people can look at a line
 // and ask about it. Questions go to the AI; when it can't be reached, Abe falls back on his
 // written answers (see ask.ts). The chat lasts as long as the page.
-import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useImperativeHandle, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { Icon } from '../kit/Kit.tsx'
 import { Avatar } from '../guide/Avatar.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
@@ -12,13 +12,17 @@ const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)
 
 type Line = Said & { cut?: boolean }
 
-export function AskAbe({ p, r }: { p: Profile; r: Ready }) {
+// Lets other parts of the page (the term vs. permanent cards) ask Abe a question.
+export type AskHandle = { ask: (question: string) => void }
+
+export function AskAbe({ p, r, ref }: { p: Profile; r: Ready; ref?: Ref<AskHandle> }) {
   const [log, setLog] = useState<Line[]>([])
   // Abe's reply as it streams in; null when he isn't mid-reply.
   const [partial, setPartial] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [offline, setOffline] = useState(false)
   const [draft, setDraft] = useState('')
+  const sectionRef = useRef<HTMLElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const pending = useRef<AbortController | null>(null)
@@ -58,6 +62,14 @@ export function AskAbe({ p, r }: { p: Profile; r: Ready }) {
     setBusy(false)
   }
 
+  // Bring the chat into view, then ask. The input isn't focused, so phones don't pop the keyboard.
+  useImperativeHandle(ref, () => ({
+    ask(question) {
+      sectionRef.current?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' })
+      void ask(question)
+    },
+  }))
+
   function submit(e: FormEvent) {
     e.preventDefault()
     const text = draft
@@ -67,7 +79,7 @@ export function AskAbe({ p, r }: { p: Profile; r: Ready }) {
   }
 
   return (
-    <section className="ask" aria-labelledby="ask-title">
+    <section className="ask" aria-labelledby="ask-title" ref={sectionRef}>
       {/* Styled like the list headers, so this card lines up with the full math beside it. */}
       <h3 className="ck-list__header" id="ask-title">Questions? Ask {GUIDE_NAME}</h3>
       <div className="ask__card">
