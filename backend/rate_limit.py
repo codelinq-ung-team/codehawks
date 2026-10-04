@@ -9,7 +9,9 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-LIMIT = 2
+# Sized for the website: each typed chat answer is one call, so a visitor makes a few
+# per minute. Reads and writes stay one small item.
+LIMIT = 30
 WINDOW_SECONDS = 60
 MAX_CONFLICT_RETRIES = 3
 KEY = {"id": {"S": "global"}}
@@ -55,7 +57,7 @@ def admit():
                     if stamp > now - WINDOW_SECONDS:
                         timestamps.append(stamp)
             if len(timestamps) >= LIMIT:
-                raise AdmissionError(429, "Chat is limited to two requests per 60 seconds. Try again later.")
+                raise AdmissionError(429, "Chat is busy right now. Try again in a minute.")
             arguments = {
                 "TableName": table,
                 "Item": {**KEY, "revision": {"S": uuid4().hex},

@@ -40,6 +40,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: test -n "$CLOUDFLARE_API_TOKEN"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: inputs.verify_only != true
+        with:
+          node-version: '24'
       - name: Build app when a build adapter has been added
         if: inputs.verify_only != true
         run: |
@@ -95,6 +99,6 @@ jobs:
           if [ -f scripts/publish-app.sh ]; then
             bash scripts/publish-app.sh
           fi
-      - name: Verify deployed backend (two small Bedrock requests)
+      - name: Verify deployed site and backend (three small Bedrock requests)
         if: inputs.verify_only != true
         run: python scripts/smoke_backend.py

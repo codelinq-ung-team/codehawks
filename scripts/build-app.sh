@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# When the 2D frontend (codelinq_frontend) is wired in, build it and copy its output into
-# app/public/ ABOVE the Advisor3D line below, and do not delete app/public/advisor3d/.
-
+# The LinqLife website goes in the root of app/public/. Keep it ABOVE the Advisor3D line,
+# and never clear app/public/advisor3d/ after that line runs.
+bash scripts/build-frontend.sh
 bash scripts/build-advisor3d.sh

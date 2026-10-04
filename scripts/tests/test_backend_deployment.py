@@ -146,6 +146,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertIn("backend/references/lincoln_calculator.md", names)
                 self.assertIn("backend/app.py", names)
                 self.assertIn("backend/rate_limit.py", names)
+                self.assertIn("backend/intake.py", names)
                 self.assertNotIn("backend/server.py", names)
                 self.assertNotIn("backend/config.py", names)
                 self.assertIn("boto3.py", names)

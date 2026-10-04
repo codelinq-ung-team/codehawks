@@ -58,6 +58,8 @@ class AdmissionTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, {"CHAT_RATE_LIMIT_TABLE": "test-table"}).start()
         patch("backend.rate_limit.get_client", return_value=self.table).start()
+        # The window logic is checked with a small allowance; production uses rate_limit.LIMIT.
+        patch("backend.rate_limit.LIMIT", 2).start()
         self.clock = patch("backend.rate_limit.time.time", return_value=100).start()
 
     def assert_error(self, status):
@@ -194,6 +196,7 @@ class LimitedApiTests(unittest.TestCase):
         patch.dict(os.environ, {"MODEL_ID": "test-model", "CHAT_RATE_LIMIT_TABLE": "test-table",
                                "AWS_LAMBDA_FUNCTION_NAME": "chat"}).start()
         patch("backend.rate_limit.get_client", return_value=self.table).start()
+        patch("backend.rate_limit.LIMIT", 2).start()
         patch("backend.rate_limit.time.time", return_value=100).start()
         patch("backend.llm.get_client", return_value=self.aws).start()
         self.http = app.test_client()
