@@ -9,6 +9,7 @@ import os
 import re
 from itertools import combinations
 
+from .grounding import allowed, figures, keep_grounded
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .prompts import INTAKE_PROMPT
 
@@ -24,6 +25,8 @@ INTENTS = ("answer", "unsure", "skip", "why", "question", "unclear")
 MAX_ANSWER = 1000
 MAX_QUESTION = 600
 MAX_SAY = 600
+# The starting points the prompt lets Abe offer for funeral and final expenses.
+TYPICAL = {10_000, 15_000}
 
 TOOL = {"toolSpec": {
     "name": "record",
@@ -53,14 +56,6 @@ def number(value, name):
         return None
     low, high = LIMITS[name]
     return round(value) if low <= value <= high else None
-
-
-def figures(text):
-    """Amounts written with digits, such as 250k, $12,000 or 1.2 million."""
-    scale = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mil": 1e6, "million": 1e6}
-    text = re.sub(r"\b(401\s?\(?k\)?|403\s?\(?b\)?|529)\b", " ", text.lower())  # account names, not amounts
-    found = re.findall(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|m|mil|million)?\b", text)
-    return {round(float(digits.replace(",", "")) * scale.get(unit, 1)) for digits, unit in found}
 
 
 # How a message starts when it asks something, as opposed to a guess ending in "?".
@@ -183,4 +178,7 @@ def read_answer(payload):
             # Some replies arrive as JSON text instead of a tool call.
             text = "".join(block.get("text", "") for block in blocks)
             reading = json.loads(text[text.index("{"):text.rindex("}") + 1])
-        return clean(reading, step, answer)
+        result = clean(reading, step, answer)
+    # Abe may repeat the user's own figures and the stated starting points, nothing else.
+    result["say"] = keep_grounded(result["say"], allowed(answer, question, TYPICAL, facts))[0].strip()
+    return result

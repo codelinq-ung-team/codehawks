@@ -4,6 +4,7 @@ import math
 import os
 from pathlib import Path
 
+from .grounding import allowed, keep_grounded
 from .intake import HOUSEHOLD, LIMITS, PLANS
 from .llm import ChatError, get_client, provider_errors, reserve_inference
 from .policy_catalog import VERSION, STATES, eligible
@@ -44,6 +45,8 @@ be confirmed. Plans are not facts yet: do not treat a planned child or home as a
 current need, or expected income as affordability. Say nothing of this when outlook
 is null.
 """
+# Shown when every sentence of an explanation quoted an amount the server could not account for.
+UNCONFIRMED = "A licensed professional can confirm how this fits your situation."
 
 TOOL = {"toolSpec": {"name": "recommend", "description": "Record the two policy options and preferred coverage type.",
     "inputSchema": {"json": {"type": "object", "additionalProperties": False, "properties": {
@@ -126,6 +129,9 @@ def clean(reading, candidates, facts, gap):
     for name in ("termFit", "permanentFit", "reason"):
         if not isinstance(reading[name], str) or not reading[name].strip() or len(reading[name]) > 700:
             raise ValueError("Invalid explanation")
+    # The model explains; it does not get to introduce an amount. See grounding.py.
+    within = allowed(facts, gap, outlook(facts, gap), candidates)
+    said = {name: keep_grounded(reading[name], within)[0].strip() or UNCONFIRMED for name in ("termFit", "permanentFit", "reason")}
     options = {}
     for category in ("term", "permanent"):
         pool = [p for p in candidates if p["category"] == category]
@@ -145,14 +151,14 @@ def clean(reading, candidates, facts, gap):
                 qualifications.append(f"This {duration}-year term is shorter than your {facts['years']}-year support horizon.")
         options[category] = dict(policyId=selected["id"], name=selected["name"], category=category,
                                  amount=gap, minimum=selected["minimum"], termYears=duration,
-                                 fit=reading[category + "Fit"].strip(), points=selected["points"],
+                                 fit=said[category + "Fit"], points=selected["points"],
                                  caveat=selected["caveat"], source=selected["source"], qualifications=qualifications)
     preferred = reading["recommendedType"]
     if preferred not in ("term", "permanent", None) or (preferred is not None and options[preferred] is None):
         raise ValueError("Invalid preferred category")
     if any(options.values()) and preferred is None:
         raise ValueError("Missing preferred category")
-    return dict(catalogVersion=VERSION, amount=gap, **options, recommendedType=preferred, reason=reading["reason"].strip())
+    return dict(catalogVersion=VERSION, amount=gap, **options, recommendedType=preferred, reason=said["reason"])
 
 
 def recommend(payload):

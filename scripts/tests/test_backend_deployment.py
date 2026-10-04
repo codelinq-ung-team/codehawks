@@ -224,6 +224,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertIn("backend/references/lincoln_policies.md", names)
                 self.assertIn("backend/recommendations.py", names)
                 self.assertIn("backend/policy_catalog.py", names)
+                self.assertIn("backend/grounding.py", names)
                 self.assertIn("backend/app.py", names)
                 self.assertIn("backend/rate_limit.py", names)
                 self.assertIn("backend/intake.py", names)
