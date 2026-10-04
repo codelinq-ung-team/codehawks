@@ -23,13 +23,16 @@ flowchart LR
     results --> ask[Ask Abe<br/>follow-up questions]
 ```
 
-1. **Basics.** Six quick questions on a form. Connecting accounts through Plaid Sandbox can
-   fill some of them in.
+1. **Basics.** Six quick questions on a form, starting with your age (18 or older).
+   Connecting accounts through Plaid Sandbox can fill in your debts and suggest savings.
+   Income, family and insurance are always asked.
 2. **Chat.** Abe asks one question at a time. You answer in your own words ("about 85k give
    or take") or tap a suggestion.
 3. **Review.** Every answer is shown back to you. Nothing is calculated until you confirm.
 4. **Results.** A short slide deck: what your family would need, what you already have, the
    gap, a ten-year look-ahead, what-if scenarios, and term compared with permanent coverage.
+   Under it is the full math, shown two ways: how the additional coverage is worked out, and
+   what would be left for ongoing support after one-time costs are set aside.
 5. **Ask Abe.** Follow-up questions about your own results.
 
 Choosing VR shows a QR code. The Quest app scans it, runs the same conversation out loud,
@@ -74,7 +77,7 @@ The API has a small set of jobs:
 | `POST /api/recommendations` | Picks term and permanent policies from a fixed shortlist |
 | `POST /api/chat` | Answers follow-up questions about the results |
 | `/api/pair` | Pairs a browser with a headset and passes answers between them |
-| `/api/plaid` | Fills in the Basics form from Plaid Sandbox balances |
+| `/api/plaid` | Reads Plaid Sandbox balances to fill in debts and suggest savings |
 | `POST /api/voice/session` | Gives the Quest app a short-lived key for voice |
 
 ## The rules we build by
