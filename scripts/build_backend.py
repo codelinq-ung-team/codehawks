@@ -9,7 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "apps/backend"
 RUNTIME_FILES = (
-    "__init__.py", "app.py", "intake.py", "llm.py", "pairing.py", "prompts.py", "rate_limit.py", "voice.py",
+    "__init__.py", "app.py", "intake.py", "llm.py", "pairing.py", "plaid.py", "prompts.py", "rate_limit.py", "voice.py",
     "references/lincoln_calculator.md",
 )
 

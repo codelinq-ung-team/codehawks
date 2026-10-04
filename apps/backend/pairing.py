@@ -26,7 +26,7 @@ ID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32: fits a QR 
 ID_LENGTH = 26             # 130 random bits
 STATUSES = ("waiting", "joined", "done")
 FIELD_STATUSES = ("empty", "unknown", "skipped", "proposed", "confirmed")
-FORM_LIMITS = {"income": 1_000_000_000, "dependents": 20, "debt": 1_000_000_000}
+FORM_LIMITS = {"age": 120, "income": 1_000_000_000, "dependents": 20, "debt": 1_000_000_000}
 MAX_CODE_TRIES = 5
 UNAVAILABLE = "Pairing with a headset is unavailable right now."
 NOT_FOUND = "That pairing was not found, or it has expired."
@@ -86,8 +86,8 @@ def clean_profile(profile):
         elif status not in FIELD_STATUSES:
             status = "empty"
         cleaned[name] = {"status": status, "value": value}
-        if field.get("source") == "form":
-            cleaned[name]["source"] = "form"
+        if field.get("source") in ("form", "plaid"):
+            cleaned[name]["source"] = field["source"]
     return cleaned
 
 

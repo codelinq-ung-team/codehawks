@@ -7,6 +7,7 @@ from werkzeug.exceptions import HTTPException
 from .intake import read_answer
 from .llm import ChatError, chat, iter_chat_events
 from . import pairing
+from .plaid import PlaidError, create_link_token, exchange_and_get_accounts
 from .voice import create_session
 
 app = Flask(__name__, static_folder=None)
@@ -48,6 +49,27 @@ def intake_route():
     try:
         return jsonify(read_answer(json_payload()))
     except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/plaid/link-token")
+def plaid_link_token_route():
+    try:
+        if json_payload() != {}:
+            raise PlaidError(400, "Request body must be an empty JSON object.")
+        return jsonify(create_link_token())
+    except (ChatError, PlaidError) as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/plaid/exchange")
+def plaid_exchange_route():
+    try:
+        payload = json_payload()
+        if not isinstance(payload, dict) or set(payload) != {"public_token"}:
+            raise PlaidError(400, "Request body must contain only public_token.")
+        return jsonify(connected=True, financialSnapshot=exchange_and_get_accounts(payload["public_token"]))
+    except (ChatError, PlaidError) as error:
         return jsonify(error=error.message), error.status
 
 

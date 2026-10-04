@@ -219,6 +219,21 @@ typed code has a million possibilities and no attempt limit beyond its ten minut
 use. These routes call no model and do not count against the admission limit. Without the
 table a deployed function returns 503; on a developer's computer pairings are kept in memory.
 
+### Plaid Sandbox on the Basics form
+
+The Basics form asks for age first, then offers an optional step: connect accounts through Plaid Link and the
+balances fill in the debt answer, then propose the mortgage, other debts and savings for the
+person to check (`apps/backend/plaid.py`, `apps/web/src/intake/plaidFill.ts`). Send
+`POST /api/plaid/link-token` with `{}` for a Link token, then `POST /api/plaid/exchange` with
+`{"public_token":"..."}`. The reply is `{"connected":true,"financialSnapshot":{...}}`: account
+category, type, subtype, balances and currency only. Names, masks, account and institution ids
+never leave the backend, and the access token is not stored.
+
+Set `PLAID_CLIENT_ID` and `PLAID_SECRET` (Sandbox keys from the Plaid dashboard) in the
+environment; `PLAID_ENV` must be `sandbox`. Without them the routes return 503, and the site
+offers clearly labeled sample accounts instead. In Link, sign in with `user_good` / `pass_good`.
+The deployed stack does not set these variables yet.
+
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
 failures return 502; provider timeouts return 504. Error details are sanitized.

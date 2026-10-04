@@ -8,7 +8,7 @@ import { WHY, applyForm, interpret, known, nextStep, question, respond, type Rea
 function state(form: Partial<Form> = {}): AppState {
   const s: AppState = {
     profile: emptyProfile(),
-    form: { income: null, marital: null, dependents: null, debt: null, coverage: null, ...form },
+    form: { age: null, income: null, marital: null, dependents: null, debt: null, coverage: null, ...form },
     messages: [], pending: null, started: true, typing: false,
   }
   return { ...s, ...applyForm(s) }
