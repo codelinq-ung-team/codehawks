@@ -618,6 +618,8 @@ namespace Advisor3D
             var s = State;
             text = text.Trim();
             if (text.Length == 0 || s.typing) return;
+            // While voice is on, Abe hears a tapped or typed answer as if it were spoken.
+            if (Voice.On) { Voice.Say(text); return; }
             var last = s.messages.Count > 0 ? s.messages[s.messages.Count - 1] : null;
             var step = Script.NextStep(s);
             Push(User(text));
@@ -718,6 +720,7 @@ namespace Advisor3D
                 if (fact.form) FormSet(s.form, fact.id, null); else s.profile[fact.id] = Field.Empty();
                 s.pending = null;
             });
+            if (Voice.On) { Voice.Changed(); return; }
             var next = Script.NextStep(State);
             var q = next != null ? Script.Ask(next, State) : null;
             Run(BotSay(new[] { "Okay, I’ve taken that off my list.", q != null ? q.text : Script.CLOSING }, m => { if (q != null) m.replies = q.replies; else m.done = true; }));
@@ -808,7 +811,9 @@ namespace Advisor3D
             draftEl?.Redraw();
         }
 
-        static string ChatNote() => State.offline
+        static string ChatNote() => Voice.Error != "" ? Voice.Error
+            : Voice.On ? $"{GUIDE_NAME} is listening. Just talk; you can still tap an answer. The math is done by a calculator, not the AI."
+            : State.offline
             ? $"{GUIDE_NAME} can’t reach the AI right now, so he’s reading answers with his built-in script. Your answers are safe."
             : $"{GUIDE_NAME} uses AI to read what you say or type. The math is done by a calculator, not the AI.";
 
@@ -821,6 +826,8 @@ namespace Advisor3D
             string chipsKey = null, knowsKey = null;
             var padKey = "?";
             var phase = 0;
+            var voiceKey = "?";
+            var voiceVersion = Voice.Version;
 
             var log = main.Add(new El(MAIN_W, MAIN_H, ctx =>
             {
@@ -856,9 +863,25 @@ namespace Advisor3D
                 ctx.Face(28, 16, 52);
                 ctx.Text(GUIDE_NAME, 94, 18, Fn(600, 20), lineH: 26);
                 ctx.Circle(98, 56, 4, T.success);
-                ctx.Text("Your guide · Here to help", 108, 46, Fn(400, 15), T.label2, lineH: 20);
+                var doing = Voice.On ? (Voice.Speaking ? "Speaking…" : "Listening…") : Voice.Status == "connecting" ? "Connecting…" : "Here to help";
+                ctx.Text("Your guide · " + doing, 108, 46, Fn(400, 15), T.label2, lineH: 20);
                 ctx.Text(ChatNote(), MAIN_W / 2, MAIN_H - 30, Fn(400, 12.5f), T.label2, lineH: 18, align: Align.Center);
             }), 0, 0);
+
+            // Talk to Abe: start or stop the voice conversation (Voice.cs). Everything else on the
+            // screen keeps working while it is on.
+            void VoiceButton()
+            {
+                var busy = State.typing && !Voice.On;
+                var key = Voice.Status + (busy ? "…" : "");
+                if (key == voiceKey) return;
+                voiceKey = key;
+                main.Clear("voice");
+                var o = Voice.On ? new BtnO { label = "Stop Talking", variant = "bordered", size = 17, onSelect = Voice.Stop }
+                    : Voice.Status == "connecting" ? new BtnO { label = "Connecting…", variant = "bordered", size = 17, disabled = true }
+                    : new BtnO { label = "Talk to " + GUIDE_NAME, icon = "mic", iconLeft = true, size = 17, onSelect = Voice.Start, disabled = busy };
+                main.Add(Ui.Button(196, 46, o), MAIN_W - 28 - 196, 19, "voice");
+            }
 
             void Update()
             {
@@ -866,6 +889,7 @@ namespace Advisor3D
                 var last = s.messages.Count > 0 ? s.messages[s.messages.Count - 1] : null;
                 var replies = last != null && last.role == "bot" && !s.typing ? last.replies : null;
                 var finished = last != null && last.done && !s.typing;
+                VoiceButton();
 
                 var nextKey = finished ? "done" : replies == null ? "none" : string.Join("\u0001", replies);
                 if (nextKey != chipsKey)
@@ -968,6 +992,7 @@ namespace Advisor3D
                 update = Update,
                 dispose = () =>
                 {
+                    Voice.Stop();
                     draftEl = null;
                     typingHere = false;
                     if (keyboard != null) { keyboard.active = false; keyboard = null; }
@@ -975,6 +1000,7 @@ namespace Advisor3D
                 tick = (t, dt) =>
                 {
                     if (begin) { begin = false; BeginChat(); }
+                    if (Voice.Version != voiceVersion) { voiceVersion = Voice.Version; VoiceButton(); log.Redraw(); }
                     var p = Mathf.FloorToInt(t * 4) % 3;
                     if (p != phase && State.typing) { phase = p; log.Redraw(); }
                     if (keyboard == null) return;
@@ -982,7 +1008,7 @@ namespace Advisor3D
                     if (keyboard.status == TouchScreenKeyboard.Status.Done) { keyboard = null; SendDraft(); }
                     else if (keyboard.status != TouchScreenKeyboard.Status.Visible) { keyboard = null; draftEl?.Redraw(); }
                 },
-                mood = () => State.typing ? "typing" : "idle",
+                mood = () => Voice.On ? (Voice.Speaking ? "speaking" : "listening") : State.typing || Voice.Status == "connecting" ? "typing" : "idle",
             };
         }
 
@@ -1506,7 +1532,7 @@ namespace Advisor3D
                 Fade(1 - Mathf.Pow(1 - appear, 3));
             }
             current.tick?.Invoke(t, dt);
-            guide.Tick(t, current.mood?.Invoke() ?? "idle", 0);
+            guide.Tick(t, current.mood?.Invoke() ?? "idle", Voice.Level);
         }
     }
 }

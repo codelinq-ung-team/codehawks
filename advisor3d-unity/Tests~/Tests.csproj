@@ -13,5 +13,6 @@
     <Compile Include="../Assets/Scripts/Calculator.cs" />
     <Compile Include="../Assets/Scripts/Store.cs" />
     <Compile Include="../Assets/Scripts/Script.cs" />
+    <Compile Include="../Assets/Scripts/VoiceScript.cs" />
   </ItemGroup>
 </Project>

@@ -85,6 +85,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
           BEDROCK_MODEL_ARNS: ${{ vars.BEDROCK_MODEL_ARNS }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_VOICE_TOKEN }} # optional; turns on Abe's voice in the Quest app
         run: |
           if [ "$VERIFY_ONLY" = true ]; then
             python scripts/aws_actions.py verify-deploy

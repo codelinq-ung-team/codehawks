@@ -120,6 +120,9 @@ def deploy():
         raise ValueError("Build the backend artifact before deploying.")
     certificate = ensure_site_certificate()
     revision = os.environ["GITHUB_SHA"]
+    # Abe's voice. Without the Actions secret the stack keeps the key it already has ("unset" at first).
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    voice = [f"OpenAiApiKey={key}"] if key else []
     with tempfile.TemporaryDirectory() as directory:
         packaged = Path(directory) / "packaged.json"
         aws("cloudformation", "package", "--template-file", str(ROOT / "infra/app.json"),
@@ -132,7 +135,7 @@ def deploy():
             "--capabilities", "CAPABILITY_NAMED_IAM", "--parameter-overrides",
             f"RuntimePermissionsBoundaryArn={CONFIG['runtime_boundary']}",
             f"SiteCertificateArn={certificate}", f"CloudFrontOriginAccessControlId={oac}",
-            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}",
+            f"ChatOriginAccessControlId={chat_oac}", f"BedrockModelId={model}", f"BedrockModelArns={','.join(arns)}", *voice,
             "--tags", f"Project={CONFIG['prefix']}", "Owner=Israel Jauregui", "Lifecycle=ephemeral", "ManagedBy=CloudFormation",
             "--no-fail-on-empty-changeset", json_output=False)
     stack = describe_app()

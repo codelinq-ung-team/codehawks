@@ -48,8 +48,56 @@ answer line opens the headset's keyboard, where you can type or press its microp
 speak. That answer goes to the site's AI (`POST /api/intake`, see `Assets/Scripts/Backend.cs`),
 which reads it into a field; the app checks the reading and does all the math itself. Tapped
 suggestions and number-pad answers are read by the built-in script, and so is everything when
-the AI can't be reached. **What Abe knows**, under Abe on the left, lists the answers so far;
+the AI can't be reached. Or press **Talk to Abe** and have the whole chat out loud (see
+[Talking with Abe](#talking-with-abe)). **What Abe knows**, under Abe on the left, lists the answers so far;
 the x beside each one takes it back.
+
+## Talking with Abe
+
+**Talk to Abe**, at the top of the chat, starts a spoken conversation: you talk, Abe answers
+out loud, and each answer fills the same profile the tapped and typed ones fill. It uses
+OpenAI's Realtime API (`gpt-realtime-2.1`, voice `ash`). **Not yet tried with a real API key,
+in the editor or on a headset.** The code compiles and the logic is tested, nothing more.
+
+- `Voice.cs` sends the microphone to OpenAI over a WebSocket and plays what comes back. What
+  either side said appears in the chat log. Abe's sculpture swells with his voice.
+- The app stays in charge. The model reports each answer by calling `record_answer`;
+  `VoiceScript.cs` puts it through the chat script's own checks (`Script.Interpret`: the limits,
+  the monthly check, the debt split), saves it, and tells the model what to ask next.
+- The API key never ships in the APK. The app asks the backend, `POST /api/voice/session`
+  (`backend/voice.py`), for a secret that lasts a minute. The model, the voice, Abe's
+  instructions and the tool are set there, so changing how Abe talks is a backend change.
+- The headset has no echo cancellation, so the microphone is closed while Abe speaks. You
+  can't talk over him; tap an answer if you want to cut in.
+- Voice hangs up after the closing words, when you leave the chat or take the headset off,
+  and after ten minutes. Tapping, the number pad and typing all keep working while it is on,
+  and are all that is left if voice can't start.
+
+The app asks the deployed site for its session, so voice works once the site has an OpenAI
+key: `backend/README.md` says how Israel supplies it (a GitHub secret, then a deploy). Nothing
+changes in the app or the APK.
+
+To try voice without deploying, run the backend on your computer instead:
+
+```sh
+# from the repository root, with your own key
+OPENAI_API_KEY=sk-... python -m flask --app backend.app run --port 8000
+echo "http://localhost:8000/api/voice/session" > advisor3d-unity/Assets/Resources/voice-endpoint.txt
+```
+
+That file is git-ignored and only moves the voice request; delete it to use the site again.
+Then, in the editor, run **Advisor3D → Set Up Project** once (it allows plain http while the
+file is there), press Play, open the chat and press **Talk to Abe**. Wear headphones, or the
+computer's speakers feed its microphone. For the headset, keep it on USB:
+
+```sh
+~/Library/Android/sdk/platform-tools/adb reverse tcp:8000 tcp:8000
+./build.sh
+```
+
+Usage is billed by audio tokens, not by the minute, so set a spend limit on the OpenAI project
+before a demo. `OPENAI_REALTIME_MODEL=gpt-realtime-2.1-mini` picks the cheaper model on a local
+backend; the deployed one always uses `DEFAULT_MODEL` in `backend/voice.py`.
 
 ## How it maps to the site
 
@@ -63,6 +111,7 @@ The logic files are ports of the site's, and keep its order, so the two can be r
 | `Store.cs` | `lib/store.ts` |
 | `Guide.cs` | `guide/Avatar.tsx` |
 | `Screens.cs` | `Home.tsx`, `intake/Prepare.tsx`, `intake/Chat.tsx`, `intake/Knows.tsx`, `intake/Review.tsx`, `results/Results.tsx` |
+| `Voice.cs`, `VoiceScript.cs` | nothing: the site has no voice |
 | `Ui.cs`, `App.cs`, `MeshGen.cs`, `Resources/Shaders/` | the headset UI kit and room (from `advisor3d/src/xr/`) |
 
 When the site changes the calculator or the script, change these copies too.
@@ -77,8 +126,8 @@ What is different from the site:
 - Answers live in memory and are cleared when the app closes.
 - Amounts can be entered on a number pad, since a headset has no keyboard to hand.
 - Abe's poses on the Basics form are not here; he stands on the left as a small sculpture.
-- The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through the headset
-  keyboard's dictation and the site's AI instead.
+- The ElevenLabs voice agent from the WebXR branch is gone. Speaking goes through OpenAI
+  ([Talking with Abe](#talking-with-abe)), or the headset keyboard's dictation and the site's AI.
 - There are no controller or hand models; you see the pointer rays. In passthrough you see
   your real hands.
 
@@ -91,10 +140,13 @@ dotnet run --project Tests~
 ```
 
 These are the site's tests (`codelinq_frontend/tests/`) ported to C#, plus a run through the whole
-scripted chat.
+scripted chat and what the voice model is told (`VoiceScript.cs`).
 
 ## Not checked yet
 
+- Talking with Abe, end to end: it has never run against OpenAI. First things to check are the
+  microphone permission prompt in the headset, whether Abe's audio is smooth, and whether
+  closing the microphone while he speaks is enough to stop him hearing himself.
 - The answer line in the chat: the headset keyboard opening, dictation, and the reply from the AI
   on the device (the same request works from a computer).
 - Passthrough ("Show My Real Room").

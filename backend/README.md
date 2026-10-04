@@ -148,6 +148,45 @@ and a reading without a usable value comes back as `unclear`. The site validates
 ranges and confirms every figure itself; the model never does the estimate's math.
 Nothing is stored or logged. Errors use the same statuses as `/api/chat`.
 
+### Voice session for the Quest app
+
+The Unity app (`advisor3d-unity`) talks with Abe through OpenAI's Realtime API. The
+headset connects to OpenAI directly; this server only issues the credential. Send
+`POST /api/voice/session` with the same headers as above and the body `{}`:
+
+```json
+{"clientSecret":"ek_...","url":"wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1",
+ "model":"gpt-realtime-2.1","voice":"ash"}
+```
+
+`clientSecret` expires 60 seconds after it is issued and is sent as the WebSocket's
+`Authorization: Bearer` header. The session it opens is fixed in `backend/voice.py`:
+the model, the `ash` voice, Abe's spoken instructions and the `record_answer` tool.
+Each session counts against the shared admission limit. The route needs
+an OpenAI key (below). Without one it returns 503 and the app keeps its tapped and
+typed chat.
+
+On AWS the key lives in the Secrets Manager secret `codelinq-hackathon-app-openai-api-key`,
+which the app stack creates. The function's environment holds only the secret's ARN
+(`OPENAI_API_KEY_SECRET`); it reads the value when a session is requested and keeps
+it for five minutes. To turn voice on, Israel adds the key as the `OPENAI_VOICE_TOKEN`
+secret of the GitHub `hackathon` environment and runs **Deploy hackathon** on `main`:
+
+```sh
+gh secret set OPENAI_VOICE_TOKEN --env hackathon --repo codelinq-ung-team/codehawks
+```
+
+The deploy passes it to the stack as a hidden (`NoEcho`) parameter. A deploy without
+the GitHub secret keeps whatever key the stack already has; before the first one the
+secret holds the placeholder `unset` and the route returns 503. To change the key,
+update the GitHub secret and deploy again. No bootstrap update is needed: the
+runtime boundary and the CloudFormation role already cover secrets in the app
+namespace. The deployment smoke check does not start a voice session.
+
+The route is unauthenticated like the others, so anyone who can reach it can start
+sessions on the key: set a spend limit on the OpenAI project. For local work, set
+`OPENAI_API_KEY` in the environment instead; `advisor3d-unity/README.md` has the steps.
+
 Invalid input returns 400/413/415; missing
 configuration or credentials returns 503; throttling returns 429; provider
 failures return 502; provider timeouts return 504. Error details are sanitized.
