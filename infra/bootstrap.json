@@ -562,7 +562,10 @@
                     "cloudfront:GetFunction",
                     "cloudfront:UpdateFunction",
                     "cloudfront:PublishFunction",
-                    "cloudfront:DeleteFunction"
+                    "cloudfront:DeleteFunction",
+                    "cloudfront:ListTagsForResource",
+                    "cloudfront:TagResource",
+                    "cloudfront:UntagResource"
                   ],
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/codelinc-hackathon-app-legacy-redirect"
