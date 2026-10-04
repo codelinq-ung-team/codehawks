@@ -178,22 +178,6 @@ export type Estimate =
   | { ready: true; needs: Term[]; resources: Term[]; totalNeeds: number; totalResources: number; additional: number; leftOut: string[] }
 export type Ready = Extract<Estimate, { ready: true }>
 
-// An illustration of spending the available funds after filling the coverage gap.
-// Future costs are reserved, rather than assumed to be paid in year one.
-export function fundsAfterCosts(result: Ready) {
-  const costs = result.needs.filter((t) => t.included && t.id !== 'support')
-  const costsSetAside = costs.reduce((total, t) => total + t.value, 0)
-  const fundsAvailable = result.totalResources + result.additional
-  return { costs, costsSetAside, fundsAvailable, remainingSupport: fundsAvailable - costsSetAside }
-}
-
-export function formatMathMoney(value: number, sign: '+' | '−') {
-  return value === 0 ? formatMoney(0) : `${sign} ${formatMoney(value)}`
-}
-
-export const COVERAGE_MATH_EXPLANATION = 'Costs increase the funds your family would need. Existing insurance and savings reduce the additional coverage needed.'
-export const FUNDS_MATH_EXPLANATION = 'This illustration assumes the estimated coverage gap is filled. It combines insurance and savings, then deducts debts and money set aside for final and future costs. Your family chooses how to use the funds.'
-
 // What-if scenarios for the results story. They change the math only, never the saved answers.
 //   newChild: a child arriving in about `inYears` years, supported to 18, with an education fund.
 //   inflation: everyday costs rise by this much each year (0.03 = 3%).
@@ -348,21 +332,10 @@ export function summaryText(profile: Profile, result: Estimate) {
     lines.push(`Estimate not ready. Still needed: ${result.missing.map((id) => FIELD[id].label).join(', ')}.`)
     return lines.join('\n')
   }
-  lines.push('The full math', 'How much additional coverage?', COVERAGE_MATH_EXPLANATION)
-  result.needs.filter((t) => t.included).forEach((t) => lines.push(`${t.label}${t.detail ? ` (${t.detail})` : ''}: ${formatMathMoney(t.value, '+')}`))
-  lines.push(`= What your family would need: ${formatMoney(result.totalNeeds)}`)
-  result.resources.filter((t) => t.included).forEach((t) => lines.push(`${t.label}: ${formatMathMoney(t.value, '−')}`))
+  lines.push('The math')
+  result.needs.filter((t) => t.included).forEach((t) => lines.push(`+ ${t.label}${t.detail ? ` (${t.detail})` : ''}: ${formatMoney(t.value)}`))
+  result.resources.filter((t) => t.included).forEach((t) => lines.push(`- ${t.label}: ${formatMoney(t.value)}`))
   lines.push(`= Estimated additional coverage: ${formatMoney(result.additional)}`)
-  const funds = fundsAfterCosts(result)
-  lines.push('', 'After setting aside costs', FUNDS_MATH_EXPLANATION)
-  result.resources.filter((t) => t.included).forEach((t) => lines.push(`${t.label}: ${formatMathMoney(t.value, '+')}`))
-  lines.push(`Estimated additional coverage, if added: ${formatMathMoney(result.additional, '+')}`)
-  lines.push(`= Funds available if the gap is filled: ${formatMoney(funds.fundsAvailable)}`)
-  funds.costs.forEach((t) => lines.push(`${t.label}${t.id === 'education' || t.id === 'newChild' ? ' (set aside for future costs)' : ''}: ${formatMathMoney(t.value, '−')}`))
-  lines.push(`= Costs paid or set aside: ${formatMoney(funds.costsSetAside)}`)
-  lines.push(`= Remaining for ongoing support: ${formatMoney(funds.remainingSupport)}`)
-  const support = result.needs.find((t) => t.id === 'support')!
-  lines.push(`Planned ongoing support (${support.detail}): ${formatMoney(support.value)}`)
   if (result.leftOut.length) lines.push(`Left out: ${result.leftOut.join(', ')}.`)
   const ahead = outlook(profile, result)
   if (ahead.ready) {
