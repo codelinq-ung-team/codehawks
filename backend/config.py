@@ -8,7 +8,10 @@ def load_local_env():
     path = Path(__file__).resolve().parent / ".env"
     if not path.exists():
         return
-    allowed = {"MODEL_ID", "AWS_DEFAULT_REGION", "AWS_PROFILE", "PORT"}
+    allowed = {
+        "MODEL_ID", "AWS_DEFAULT_REGION", "AWS_PROFILE", "PORT",
+        "PLAID_CLIENT_ID", "PLAID_SECRET", "PLAID_ENV", "PLAID_CLIENT_NAME",
+    }
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
             continue

@@ -1,26 +1,56 @@
-// "What Abe knows": the panel beside the chat listing every answer Abe has so far,
-// and a way to take it back. Basics answers come first, then what Abe learned in the chat.
+// "What Abe knows": the panel beside the chat listing imported Plaid context and
+// every answer Abe has so far, with a way to disconnect or take information back.
 // New cards fly up and fade in as Abe learns them.
 import { useEffect, useRef } from 'react'
 import { FIELDS, formatField, formatMoney, type FieldId, type Profile } from '../domain/calculator.ts'
 import { ThinkingAbe } from '../guide/Poses.tsx'
 import { GUIDE_NAME } from '../guide/guide.ts'
 import { Icon } from '../kit/Kit.tsx'
-import type { Form } from '../lib/store.ts'
+import type { FinancialSnapshot, Form } from '../lib/store.ts'
 
-export type Fact = {
-  kind: 'field' | 'form'
-  id: FieldId | keyof Form
+type FactBase = {
   label: string
   value: string
   unsure: boolean
 }
 
+export type Fact =
+  | (FactBase & { kind: 'field'; id: FieldId })
+  | (FactBase & { kind: 'form'; id: keyof Form })
+  | (FactBase & { kind: 'plaid'; id: string })
+
 // Basics answers are listed in the order the form asks them.
 const BASICS_ORDER = ['income', 'marital', 'dependents', 'household', 'debt', 'mortgage', 'otherDebts', 'coverage', 'existing']
 const YEARLY: FieldId[] = ['income', 'support']
 
-function facts(profile: Profile, form: Form): Fact[] {
+function currency(value: number, code: string) {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: code, maximumFractionDigits: 0,
+    }).format(value)
+  } catch {
+    return `${Math.round(value).toLocaleString('en-US')} ${code}`
+  }
+}
+
+function plaidFacts(snapshot: FinancialSnapshot | null): Fact[] {
+  if (!snapshot) return []
+  const imported: Fact[] = [{
+    kind: 'plaid', id: 'plaid-accounts', label: 'Plaid connected accounts',
+    value: `${snapshot.accounts.length} Sandbox ${snapshot.accounts.length === 1 ? 'account' : 'accounts'}`,
+    unsure: true,
+  }]
+  for (const [code, totals] of Object.entries(snapshot.totalsByCurrency).sort(([a], [b]) => a.localeCompare(b))) {
+    imported.push(
+      { kind: 'plaid', id: `plaid-${code}-liquid`, label: `Plaid liquid assets (${code})`, value: currency(totals.liquidAssets, code), unsure: true },
+      { kind: 'plaid', id: `plaid-${code}-investments`, label: `Plaid investments (${code})`, value: currency(totals.investmentAssets, code), unsure: true },
+      { kind: 'plaid', id: `plaid-${code}-debt`, label: `Plaid listed debt (${code})`, value: currency(totals.debtBalances, code), unsure: true },
+    )
+  }
+  return imported
+}
+
+function facts(profile: Profile, form: Form, snapshot: FinancialSnapshot | null): Fact[] {
   const has = (id: FieldId) => profile[id].status !== 'empty'
   const basics: Fact[] = []
   const chat: Fact[] = []
@@ -43,13 +73,13 @@ function facts(profile: Profile, form: Form): Fact[] {
     ;(field.source === 'form' ? basics : chat).push(fact)
   }
   basics.sort((a, b) => BASICS_ORDER.indexOf(a.id) - BASICS_ORDER.indexOf(b.id))
-  return [...basics, ...chat]
+  return [...plaidFacts(snapshot), ...basics, ...chat]
 }
 
-export function Knows({ profile, form, busy, onForget }: {
-  profile: Profile; form: Form; busy: boolean; onForget: (fact: Fact) => void
+export function Knows({ profile, form, snapshot, busy, onForget }: {
+  profile: Profile; form: Form; snapshot: FinancialSnapshot | null; busy: boolean; onForget: (fact: Fact) => void
 }) {
-  const list = facts(profile, form)
+  const list = facts(profile, form, snapshot)
   const listRef = useRef<HTMLUListElement>(null)
   const count = useRef(list.length)
   // When Abe learns something new, scroll the newest card into view.
@@ -72,7 +102,11 @@ export function Knows({ profile, form, busy, onForget }: {
               <span className="knows__label">{f.label}</span>
               <strong className="knows__value">{f.value}</strong>
             </span>
-            <button type="button" className="knows__forget" disabled={busy} onClick={() => onForget(f)} aria-label={`Remove ${f.label}`}>
+            <button
+              type="button" className="knows__forget" disabled={busy} onClick={() => onForget(f)}
+              aria-label={f.kind === 'plaid' ? 'Disconnect Plaid data' : `Remove ${f.label}`}
+              title={f.kind === 'plaid' ? 'Disconnect Plaid data' : undefined}
+            >
               <Icon name="xmark" size={18} weight={2.2} />
             </button>
           </li>

@@ -13,7 +13,7 @@ from botocore.exceptions import ClientError, EventStreamError, NoCredentialsErro
 from botocore.stub import Stubber
 
 from backend.llm import ChatError, chat, generate_reply
-from backend.prompts import SYSTEM_PROMPT
+from backend.prompts import PLAID_CONTEXT_PROMPT, SYSTEM_PROMPT
 from backend.server import Handler
 
 MESSAGES = [{"role": "user", "content": "Hi"}]
@@ -76,6 +76,30 @@ class BedrockTests(unittest.TestCase):
             stubber.add_response("converse", reply(), expected)
             self.assertEqual(generate_reply({"messages": messages}), {"reply": "Hello from the model"})
             stubber.assert_no_pending_responses()
+
+    @patch("backend.llm.load_financial_context")
+    def test_verified_plaid_context_is_added_to_system_prompt(self, load_context):
+        snapshot = {
+            "source": "plaid_accounts_get", "environment": "sandbox",
+            "accounts": [{"category": "debt", "currentBalance": 450.0}],
+        }
+        load_context.return_value = snapshot
+        generate_reply({"messages": MESSAGES, "plaid_context_token": "signed-token"})
+        request = self.client.converse.call_args.kwargs
+        system = request["system"][0]["text"]
+        self.assertIn(PLAID_CONTEXT_PROMPT, system)
+        self.assertIn('"currentBalance":450.0', system)
+        self.assertIn("not as a complete financial workup", system)
+        load_context.assert_called_once_with("signed-token")
+
+    @patch("backend.llm.load_financial_context")
+    def test_invalid_plaid_context_does_not_call_bedrock(self, load_context):
+        from backend.plaid import PlaidError
+        load_context.side_effect = PlaidError(400, "Reconnect your account.")
+        with self.assertRaises(ChatError) as caught:
+            generate_reply({"messages": MESSAGES, "plaid_context_token": "bad"})
+        self.assertEqual(caught.exception.status, 400)
+        self.client.converse.assert_not_called()
 
     def test_stream_translates_only_text_and_closes(self):
         self.stream.events.insert(1, {"contentBlockDelta": {"delta": {"reasoningContent": {"text": "private reasoning"}}}})

@@ -1,4 +1,5 @@
 """Amazon Bedrock inference using the runtime IAM role."""
+import json
 import os
 from contextlib import contextmanager
 from functools import lru_cache
@@ -10,7 +11,8 @@ from botocore.exceptions import (
     PartialCredentialsError, ReadTimeoutError,
 )
 
-from .prompts import SYSTEM_PROMPT
+from .plaid import PlaidError, load_financial_context
+from .prompts import PLAID_CONTEXT_PROMPT, SYSTEM_PROMPT
 from .rate_limit import AdmissionError, admit
 
 MAX_REPLY_BYTES = 1024 * 1024
@@ -116,8 +118,18 @@ def model_request(payload):
     model = os.environ.get("MODEL_ID", "").strip()
     if not model:
         raise ChatError(503, "Configure MODEL_ID on the server.")
+    system_text = SYSTEM_PROMPT
+    context_token = payload.get("plaid_context_token") if isinstance(payload, dict) else None
+    if context_token is not None:
+        try:
+            snapshot = load_financial_context(context_token)
+        except PlaidError as error:
+            raise ChatError(error.status, error.message) from None
+        system_text += "\n\n" + PLAID_CONTEXT_PROMPT + "\n" + json.dumps(
+            snapshot, separators=(",", ":"), sort_keys=True,
+        )
     return {
-        "modelId": model, "system": [{"text": SYSTEM_PROMPT}], "messages": messages,
+        "modelId": model, "system": [{"text": system_text}], "messages": messages,
         "inferenceConfig": {"maxTokens": 4096},
     }
 

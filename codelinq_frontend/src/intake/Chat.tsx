@@ -80,6 +80,14 @@ async function send(text: string) {
 // question on screen always matches the answer the chat expects.
 async function forget(fact: Fact) {
   if (getState().typing) return
+  if (fact.kind === 'plaid') {
+    setState({ financialSnapshot: null, financialContextToken: null, pending: null })
+    const after = getState()
+    const next = nextStep(after)
+    const q = next ? question(next, after) : null
+    await botSay(['Okay, I disconnected the Plaid snapshot.', q ? q.text : CLOSING], q ? { replies: q.replies } : { done: true })
+    return
+  }
   setState((s) => fact.kind === 'field'
     ? { profile: { ...s.profile, [fact.id]: { status: 'empty', value: null } }, pending: null }
     : { form: { ...s.form, [fact.id]: null }, pending: null })
@@ -182,7 +190,10 @@ export function Chat() {
             </p>
           </div>
         </section>
-        <Knows profile={state.profile} form={state.form} busy={state.typing} onForget={(f) => void forget(f)} />
+        <Knows
+          profile={state.profile} form={state.form} snapshot={state.financialSnapshot}
+          busy={state.typing} onForget={(f) => void forget(f)}
+        />
       </div>
     </Page>
   )

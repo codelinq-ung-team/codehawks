@@ -83,6 +83,71 @@ run only through the main-branch deployment workflow. See
 
 ## HTTP contract
 
+### Plaid Sandbox financial context
+
+Set `PLAID_CLIENT_ID`, `PLAID_SECRET`, and `PLAID_ENV=sandbox` in the backend
+environment. The secret must remain server-side. The current integration is intentionally
+Sandbox-only and does not persist Plaid Items or access tokens.
+
+First send an empty JSON object to `POST /api/plaid/link-token`. Use the returned
+`link_token` to open Plaid Link in the browser:
+
+```json
+{"link_token":"link-sandbox-...","expiration":"2026-10-04T00:00:00Z"}
+```
+
+After Link succeeds, send its short-lived public token to `POST /api/plaid/exchange`:
+
+```json
+{"public_token":"public-sandbox-..."}
+```
+
+The server exchanges it, immediately calls Plaid `/accounts/get`, discards the access
+token, removes account identifiers, names, and masks, and responds with a normalized
+snapshot and a signed context token:
+
+```json
+{
+  "connected": true,
+  "financialSnapshot": {
+    "version": 1,
+    "source": "plaid_accounts_get",
+    "environment": "sandbox",
+    "asOf": "2026-10-03T22:00:00Z",
+    "accounts": [
+      {"category":"liquid_asset","type":"depository","subtype":"checking",
+       "currentBalance":1250.25,"availableBalance":1200.0,"limit":null,"currency":"USD"}
+    ],
+    "totalsByCurrency": {
+      "USD":{"liquidAssets":1250.25,"investmentAssets":0.0,"debtBalances":0.0}
+    },
+    "limitations": ["..."]
+  },
+  "financialContextToken": "signed-short-lived-token"
+}
+```
+
+Pass `financialContextToken` back on later `/api/chat` or `/api/intake` requests as
+`plaid_context_token`. It expires after 30 minutes and is signed, not encrypted; it
+contains only the same redacted snapshot already returned to the browser. The React
+assessment includes it automatically with typed `/api/intake` answers.
+
+```json
+{
+  "messages":[{"role":"user","content":"Help me estimate what my family needs."}],
+  "plaid_context_token":"signed-short-lived-token",
+  "stream":true
+}
+```
+
+`/accounts/get` supplies account categories and balances, which can be cached. It does
+not supply a complete financial workup: transaction history, verified income, detailed
+liabilities, dependents, future expenses, and existing insurance still need to be
+collected and confirmed. The model is explicitly instructed not to infer income from
+balances or automatically count every asset or debt in the insurance calculation.
+Because this demo does not retain the Plaid access token, reconnect through Link when
+the signed context expires.
+
 Send `POST /api/chat` with `Content-Type: application/json`:
 
 ```json
@@ -191,8 +256,10 @@ cd codelinq_frontend && npm ci && npm run dev
 Without AWS credentials the API returns 503 and the chat falls back to its script.
 
 The optional local harness remains `python -m backend.server` on localhost.
-Copy `.env.example` to `backend/.env` for nonsecret `MODEL_ID`,
-`AWS_DEFAULT_REGION`, optional `AWS_PROFILE`, and `PORT`; shell variables win.
+Copy `.env.example` to `backend/.env` for `MODEL_ID`, `AWS_DEFAULT_REGION`, optional
+`AWS_PROFILE`, `PORT`, and Plaid Sandbox settings; shell variables win. The Plaid
+Sandbox secret belongs only in the ignored `.env` file or a deployment secret store,
+never in `.env.example` or source control.
 Production ignores `.env`. Local mode can serve the existing demo assets, but no
 frontend files are packaged or modified. Consult Israel before making live model
 calls in the shared account; otherwise use the offline tests. Local AWS use

@@ -1,5 +1,20 @@
 # React + TypeScript + Vite
 
+## Plaid Sandbox connection
+
+On this branch, `#/prepare` uses Plaid's official React Link SDK. **Continue with
+Plaid** requests a Link token from `POST /api/plaid/link-token`, opens Plaid Link,
+then sends the resulting public token to `POST /api/plaid/exchange`. The Vite
+development proxy forwards these requests to Flask on port 8000.
+
+Use `user_good` and `pass_good` inside Plaid Sandbox; never enter real bank
+credentials. The backend immediately calls `/accounts/get`, discards the access
+token, and returns a redacted account/balance snapshot plus a signed context token.
+Both remain in session storage until Start Over, disconnect, or the browser tab is
+closed. Assessment requests include the context token so the backend can provide
+the verified snapshot to Bedrock while continuing to ask the user to confirm what
+should count in the insurance estimate.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

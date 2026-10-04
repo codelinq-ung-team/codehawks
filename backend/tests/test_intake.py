@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 
 from backend.app import app
 from backend.intake import TOOL
-from backend.prompts import INTAKE_PROMPT
+from backend.prompts import INTAKE_PROMPT, PLAID_CONTEXT_PROMPT
 
 ASK = {"step": "income", "question": "About how much do you earn in a year?", "answer": "eighty grand"}
 
@@ -55,6 +55,27 @@ class IntakeTests(unittest.TestCase):
         self.aws.converse.return_value = {"output": {"message": {"content": [
             {"text": 'Here: {"intent": "unsure", "say": "No problem."}'}]}}, "stopReason": "end_turn"}
         self.assertEqual(self.post().json["intent"], "unsure")
+
+    @patch("backend.intake.load_financial_context")
+    def test_verified_plaid_context_is_sent_to_intake_model(self, load_context):
+        load_context.return_value = {
+            "source": "plaid_accounts_get", "environment": "sandbox",
+            "accounts": [{"category": "debt", "currentBalance": 450.0}],
+        }
+        response = self.post(plaid_context_token="signed-context")
+        self.assertEqual(response.status_code, 200)
+        system = self.aws.converse.call_args.kwargs["system"][0]["text"]
+        self.assertIn(PLAID_CONTEXT_PROMPT, system)
+        self.assertIn('"currentBalance":450.0', system)
+        load_context.assert_called_once_with("signed-context")
+
+    @patch("backend.intake.load_financial_context")
+    def test_invalid_plaid_context_does_not_call_bedrock(self, load_context):
+        from backend.plaid import PlaidError
+        load_context.side_effect = PlaidError(400, "Reconnect your account.")
+        response = self.post(plaid_context_token="invalid")
+        self.assertEqual(response.status_code, 400)
+        self.aws.converse.assert_not_called()
 
     def test_doubtful_readings_become_a_reask(self):
         for reading in ({"intent": "answer", "say": "ok"}, {"intent": "answer", "value": "80000", "say": "ok"},

@@ -16,6 +16,7 @@ export async function readAnswer(stepId: FieldId, asked: string, text: string, s
   try {
     const body = new TextEncoder().encode(JSON.stringify({
       step: stepId, question: asked.slice(0, 600), answer: text.slice(0, 1000), known: known(state),
+      ...(state.financialContextToken ? { plaid_context_token: state.financialContextToken } : {}),
     }))
     const response = await fetch('/api/intake', {
       method: 'POST',

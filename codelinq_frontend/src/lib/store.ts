@@ -6,6 +6,23 @@ import { emptyProfile, type FieldId, type Field, type Profile } from '../domain/
 export type Marital = 'single' | 'married'
 export type Form = { income: number | null; marital: Marital | null; dependents: number | null; debt: number | null; coverage: boolean | null }
 export type Message = { role: 'bot' | 'user'; text: string; replies?: string[]; why?: boolean; done?: boolean }
+export type FinancialSnapshot = {
+  version: number
+  source: 'plaid_accounts_get'
+  environment: 'sandbox'
+  asOf: string
+  accounts: Array<{
+    category: 'liquid_asset' | 'investment_asset' | 'debt' | 'other'
+    type: string
+    subtype: string
+    currentBalance: number | null
+    availableBalance: number | null
+    limit: number | null
+    currency: string
+  }>
+  totalsByCurrency: Record<string, { liquidAssets: number; investmentAssets: number; debtBalances: number }>
+  limitations: string[]
+}
 export type AppState = {
   profile: Profile
   form: Form
@@ -13,6 +30,8 @@ export type AppState = {
   pending: { value: number } | null
   started: boolean
   typing: boolean
+  financialSnapshot: FinancialSnapshot | null
+  financialContextToken: string | null
   // True after a typed answer couldn't reach the AI and the script read it instead.
   offline?: boolean
 }
@@ -28,6 +47,8 @@ function initial(): AppState {
     pending: null,
     started: false,
     typing: false,
+    financialSnapshot: null,
+    financialContextToken: null,
   }
 }
 

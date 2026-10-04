@@ -4,9 +4,14 @@ import json
 from flask import Flask, Response, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from .config import load_local_env
 from .intake import read_answer
 from .llm import ChatError, chat, iter_chat_events
+from .plaid import (
+    PlaidError, create_link_token, exchange_and_get_accounts, sign_financial_context,
+)
 
+load_local_env()
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 65536
 
@@ -46,6 +51,33 @@ def intake_route():
     try:
         return jsonify(read_answer(json_payload()))
     except ChatError as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/plaid/link-token")
+def plaid_link_token_route():
+    try:
+        payload = json_payload()
+        if payload != {}:
+            raise PlaidError(400, "Request body must be an empty JSON object.")
+        return jsonify(create_link_token())
+    except (ChatError, PlaidError) as error:
+        return jsonify(error=error.message), error.status
+
+
+@app.post("/api/plaid/exchange")
+def plaid_exchange_route():
+    try:
+        payload = json_payload()
+        if not isinstance(payload, dict) or set(payload) != {"public_token"}:
+            raise PlaidError(400, "Request body must contain only public_token.")
+        snapshot = exchange_and_get_accounts(payload["public_token"])
+        return jsonify(
+            connected=True,
+            financialSnapshot=snapshot,
+            financialContextToken=sign_financial_context(snapshot),
+        )
+    except (ChatError, PlaidError) as error:
         return jsonify(error=error.message), error.status
 
 

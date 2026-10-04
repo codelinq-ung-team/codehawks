@@ -1,145 +1,161 @@
-// Before the chat: five short form questions, one at a time (same layout as the team's
-// assessment form). Answers fill in the profile so Abe only asks the follow-ups.
-// Abe stands beside each question in a pose: on the left for the first three, then on the right.
-import { useState, type FormEvent } from 'react'
+// Real Plaid Sandbox Link flow. Credentials stay inside Plaid Link; only temporary
+// tokens and the backend's redacted financial snapshot enter this application.
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePlaidLink, type PlaidLinkOnSuccess } from 'react-plaid-link'
 import { Button, Icon } from '../kit/Kit.tsx'
 import { Page } from '../lib/Chrome.tsx'
-import { go, setState, useStore, type Form } from '../lib/store.ts'
-import { GUIDE_NAME } from '../guide/guide.ts'
-import { GuidePose, type PoseName } from '../guide/Poses.tsx'
-import { applyForm } from './script.ts'
+import { go, setState, useStore } from '../lib/store.ts'
+import { GuidePose } from '../guide/Poses.tsx'
+import { exchangePublicToken, PlaidApiError, requestLinkToken } from './plaid.ts'
+import './PlaidConnect.css'
 
-type Option = { label: string; value: Form[keyof Form] }
-type Question = { id: keyof Form; prompt: string; helper: string; pose: PoseName; side: 'left' | 'right' } & (
-  | { type: 'options'; options: Option[] }
-  | { type: 'number'; money?: boolean; max: number; placeholder: string }
-)
-
-const QUESTIONS: Question[] = [
-  {
-    id: 'income', type: 'number', money: true, max: 100_000_000, placeholder: '75,000', pose: 'wave', side: 'left',
-    prompt: 'What is your yearly income?',
-    helper: 'Before taxes. A rough number is fine.',
-  },
-  {
-    id: 'marital', type: 'options', pose: 'point', side: 'left',
-    prompt: 'What is your marital status?',
-    helper: 'Choose Married if you share a household with a partner.',
-    options: [{ label: 'Single', value: 'single' }, { label: 'Married', value: 'married' }],
-  },
-  {
-    id: 'dependents', type: 'number', max: 20, placeholder: '0', pose: 'think', side: 'left',
-    prompt: 'How many dependents do you have?',
-    helper: 'Children, or anyone else who relies on your income. Enter 0 if no one does.',
-  },
-  {
-    id: 'debt', type: 'number', money: true, max: 100_000_000, placeholder: '180,000', pose: 'clipboard', side: 'right',
-    prompt: 'What is your current total debt?',
-    helper: `Include your mortgage, car loans, student loans and credit cards. ${GUIDE_NAME} will ask how much of it is the mortgage.`,
-  },
-  {
-    id: 'coverage', type: 'options', pose: 'thumbs', side: 'right',
-    prompt: 'Do you currently have life insurance?',
-    helper: 'Include any coverage through work.',
-    options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
-  },
-]
-
-const digits = (text: string) => text.replace(/\D/g, '').slice(0, 9)
+type Stage = 'ready' | 'opening' | 'connected'
 
 export function Prepare() {
-  const { form } = useStore()
-  const [index, setIndex] = useState(0)
-  const q = QUESTIONS[index]
-  const answer = form[q.id]
-  const last = index === QUESTIONS.length - 1
-  // Counts the question on screen, so Basics opens at 20% before any answer and is full on the last question.
-  const progress = Math.round(((index + 1) / QUESTIONS.length) * 100)
-  const tooBig = q.type === 'number' && typeof answer === 'number' && answer > q.max
-  // Abe cheers once the last question is answered.
-  const pose: PoseName = last && answer != null ? 'cheer' : q.pose
+  const app = useStore()
+  const [stage, setStage] = useState<Stage>(() => app.financialSnapshot ? 'connected' : 'ready')
+  const [linkToken, setLinkToken] = useState<string | null>(null)
+  const shouldOpen = useRef(false)
+  const [message, setMessage] = useState<string | null>(null)
 
-  const save = (value: Form[keyof Form]) => setState((s) => ({ form: { ...s.form, [q.id]: value } }))
+  const onSuccess = useCallback<PlaidLinkOnSuccess>(async (publicToken) => {
+    if (!publicToken) {
+      setMessage('Plaid did not return a public token. Please try again.')
+      setStage('ready')
+      return
+    }
+    setStage('opening')
+    setMessage(null)
+    try {
+      const result = await exchangePublicToken(publicToken)
+      setState({
+        financialSnapshot: result.financialSnapshot,
+        financialContextToken: result.financialContextToken,
+      })
+      setStage('connected')
+      setLinkToken(null)
+    } catch (error) {
+      setMessage(error instanceof PlaidApiError ? error.message : 'The account could not be imported.')
+      setStage('ready')
+      setLinkToken(null)
+    }
+  }, [])
 
-  function next() {
-    if (last) {
-      setState((s) => ({ ...applyForm(s), started: true }))
-      go('chat')
-    } else {
-      setIndex(index + 1)
+  const { open, ready, error: linkError } = usePlaidLink({
+    token: linkToken,
+    onSuccess,
+    onExit: (error) => {
+      if (error) setMessage('Plaid Link closed with an error. Please try again.')
+      shouldOpen.current = false
+      setStage((current) => current === 'connected' ? current : 'ready')
+      setLinkToken(null)
+    },
+  })
+
+  useEffect(() => {
+    if (shouldOpen.current && ready) {
+      shouldOpen.current = false
+      open()
+    }
+  }, [linkToken, open, ready])
+
+  async function startConnection() {
+    setMessage(null)
+    setStage('opening')
+    try {
+      const token = await requestLinkToken()
+      setLinkToken(token)
+      shouldOpen.current = true
+    } catch (error) {
+      setMessage(error instanceof PlaidApiError ? error.message : 'Plaid could not be started.')
+      setStage('ready')
     }
   }
 
-  function submit(e: FormEvent) {
-    e.preventDefault()
-    if (answer != null && !tooBig) next()
+  function resetConnection() {
+    setState({ financialSnapshot: null, financialContextToken: null })
+    setLinkToken(null)
+    shouldOpen.current = false
+    setMessage(null)
+    setStage('ready')
   }
 
-  // "Not sure" leaves the answer empty (never zero); Abe asks again in the chat.
-  function skip() {
-    save(null)
-    next()
+  function continueToChat() {
+    setState({ started: true })
+    go('chat')
   }
+
+  function continueWithoutPlaid() {
+    setState({ financialSnapshot: null, financialContextToken: null, started: true })
+    setLinkToken(null)
+    shouldOpen.current = false
+    setMessage(null)
+    go('chat')
+  }
+
+  const snapshot = app.financialSnapshot
+  const usd = snapshot?.totalsByCurrency.USD
 
   return (
-    <Page className="qform-screen">
-      <form className="qform" onSubmit={submit} aria-labelledby="q-heading" noValidate>
-        <div className="qform__meta"><span>Basics · Question {index + 1} of {QUESTIONS.length}</span></div>
-        <div
-          className="qform__bar" role="progressbar" aria-label="Basics progress"
-          aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`Question ${index + 1} of ${QUESTIONS.length}`}
-        ><span style={{ width: `${progress}%` }} /></div>
-
-        <div className="qform__body" key={q.id} data-side={q.side}>
-          <div className="qform__head">
-            <span className="qform__num" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-            <GuidePose key={pose} name={pose} className="qform__guide" />
+    <Page className="plaid-screen">
+      <div className="plaid-layout">
+        <section className="plaid-intro" aria-labelledby="connect-title">
+          <span className="plaid-eyebrow">A simpler starting point</span>
+          <h1 id="connect-title">Your next chapter.<br /><span>A clearer picture.</span></h1>
+          <p className="plaid-lede">Connect a Sandbox account for a helpful starting point, or continue without Plaid and tell Abe what matters.</p>
+          <ol className="plaid-steps">
+            <li><span>01</span><div><strong>Connect with Plaid — optional</strong><p>Use Plaid’s secure Sandbox Link experience, or skip it.</p></div></li>
+            <li><span>02</span><div><strong>Review the context</strong><p>We import redacted account types and balances.</p></div></li>
+            <li><span>03</span><div><strong>Complete your assessment</strong><p>Confirm what should count toward your insurance needs.</p></div></li>
+          </ol>
+          <div className="plaid-guide">
+            <GuidePose name="wave" className="plaid-guide__pose" />
+            <p>“I’ll use this as a starting point, and confirm the details that matter.”<span>ABE · YOUR GUIDE</span></p>
           </div>
-          <h1 id="q-heading" className="qform__prompt">{q.prompt}</h1>
-          <p className="qform__helper" id="q-helper">{q.helper}</p>
+        </section>
 
-          {q.type === 'options' && (
-            <div className="qform__options" role="radiogroup" aria-labelledby="q-heading" aria-describedby="q-helper">
-              {q.options.map((o) => {
-                const on = answer === o.value
-                return (
-                  <button
-                    key={o.label} type="button" role="radio" aria-checked={on}
-                    className={'qform__option' + (on ? ' is-on' : '')} onClick={() => save(o.value)}
-                  >
-                    <span>{o.label}</span>
-                    <i aria-hidden="true">{on && <Icon name="check" size={14} weight={3} />}</i>
-                  </button>
-                )
-              })}
+        <section className="plaid-card" aria-label="Plaid sandbox connection">
+          <div className="plaid-card__top">
+            <span className="plaid-wordmark">Plaid</span>
+            <span className="plaid-badge"><span aria-hidden="true" />Sandbox</span>
+          </div>
+
+          {stage === 'connected' && snapshot ? (
+            <div className="plaid-card__content">
+              <span className="plaid-emblem plaid-emblem--success"><Icon name="check" size={32} /></span>
+              <h2 tabIndex={-1}>Sandbox accounts connected.</h2>
+              <p className="plaid-card__description">We imported a redacted balance snapshot from {snapshot.accounts.length} {snapshot.accounts.length === 1 ? 'account' : 'accounts'}.</p>
+              <div className="plaid-account">
+                <span className="plaid-account__icon"><Icon name="house" size={22} /></span>
+                <div>
+                  <strong>{usd ? `$${Math.round(usd.liquidAssets + usd.investmentAssets).toLocaleString('en-US')} in listed assets` : 'Account balances imported'}</strong>
+                  <span>{usd ? `$${Math.round(usd.debtBalances).toLocaleString('en-US')} in listed debt · USD` : 'Review details with Abe'}</span>
+                </div>
+                <span className="plaid-account__tag">Imported</span>
+              </div>
+              <div className="plaid-notice"><Icon name="info" size={18} /><p>Balances may be cached. Abe will confirm what is income, usable savings, mortgage debt, and other obligations before the estimate.</p></div>
+              <Button fullWidth size="large" onClick={continueToChat}>Continue to Abe<Icon name="chevron-right" size={18} /></Button>
+              <Button variant="plain" fullWidth onClick={resetConnection}>Disconnect Sandbox data</Button>
+            </div>
+          ) : (
+            <div className="plaid-card__content">
+              <span className="plaid-emblem"><Icon name="shield" size={32} /></span>
+              <h2>Let’s connect<br />your bank.</h2>
+              <p className="plaid-card__description">Open the real Plaid Sandbox flow and select a test institution, or continue without connecting.</p>
+              <div className="plaid-notice"><Icon name="info" size={18} /><p><strong>Sandbox only.</strong> Use Plaid’s test credentials <strong>user_good</strong> and <strong>pass_good</strong>. Never enter a real bank login.</p></div>
+              {(message || linkError) && <p className="plaid-error" role="alert"><Icon name="exclamation" size={16} />{message ?? 'Plaid Link could not load. Check your connection and try again.'}</p>}
+              <Button fullWidth size="large" disabled={stage === 'opening' && !linkError} onClick={() => void startConnection()}>
+                {stage === 'opening' && !linkError ? 'Opening Plaid…' : 'Continue with Plaid'}<Icon name="chevron-right" size={18} />
+              </Button>
+              <div className="plaid-choice" aria-hidden="true"><span>or</span></div>
+              <Button variant="bordered" fullWidth size="large" onClick={continueWithoutPlaid}>Continue without Plaid</Button>
+              <p className="plaid-fineprint">The Plaid secret stays on the backend. This app receives only temporary tokens and redacted Sandbox balances.</p>
             </div>
           )}
-
-          {q.type === 'number' && (
-            <>
-              <div className={'qform__input' + (tooBig ? ' is-error' : '')}>
-                {q.money && <span className="qform__prefix" aria-hidden="true">$</span>}
-                <input
-                  type="text" inputMode="numeric" autoComplete="off" autoFocus
-                  aria-labelledby="q-heading" aria-describedby="q-helper" aria-invalid={tooBig || undefined}
-                  placeholder={q.placeholder}
-                  value={typeof answer === 'number' ? (q.money ? answer.toLocaleString('en-US') : String(answer)) : ''}
-                  onChange={(e) => { const d = digits(e.target.value); save(d === '' ? null : Number(d)) }}
-                />
-              </div>
-              {tooBig && <p className="qform__error" role="alert"><Icon name="exclamation" size={15} />Please enter a number up to {q.max.toLocaleString('en-US')}.</p>}
-              <button type="button" className="link-button subhead qform__skip" onClick={skip}>Not sure? Skip, and {GUIDE_NAME} will ask later</button>
-            </>
-          )}
-        </div>
-
-        <div className="qform__actions">
-          <Button variant="bordered" className={index === 0 ? 'is-hidden' : ''} onClick={() => setIndex(index - 1)}>Back</Button>
-          <Button type="submit" disabled={answer == null || tooBig}>
-            {last ? `Start Chat with ${GUIDE_NAME}` : 'Continue'}<Icon name="chevron-right" size={18} weight={2.6} />
-          </Button>
-        </div>
-      </form>
+          <div className="plaid-card__bottom"><Icon name="shield" size={15} /><span>{snapshot ? 'Connected through Plaid Sandbox' : 'Plaid Sandbox is optional'}</span></div>
+        </section>
+      </div>
+      <button type="button" className="plaid-exit link-button" onClick={() => go('home')}><Icon name="chevron-left" size={16} />Back to home</button>
     </Page>
   )
 }

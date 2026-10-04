@@ -9,7 +9,8 @@ import os
 import re
 
 from .llm import ChatError, get_client, provider_errors, reserve_inference
-from .prompts import INTAKE_PROMPT
+from .plaid import PlaidError, load_financial_context
+from .prompts import INTAKE_PROMPT, PLAID_CONTEXT_PROMPT
 
 # Mirrors FIELDS in codelinq_frontend/src/domain/calculator.ts.
 MONEY = ("income", "support", "mortgage", "otherDebts", "finalExpenses", "education", "existing", "savings")
@@ -80,7 +81,10 @@ def validate_request(payload):
             facts[name] = number(value, name)
         else:
             raise ChatError(400, "known holds an unrecognized field or value.")
-    return step, question.strip(), answer.strip(), facts
+    context_token = payload.get("plaid_context_token")
+    if context_token is not None and (not isinstance(context_token, str) or not context_token or len(context_token) > 32768):
+        raise ChatError(400, "plaid_context_token must be nonempty text up to 32768 characters.")
+    return step, question.strip(), answer.strip(), facts, context_token
 
 
 def clean(reading, step, answer):
@@ -123,17 +127,26 @@ def clean(reading, step, answer):
 
 
 def read_answer(payload):
-    step, question, answer, facts = validate_request(payload)
+    step, question, answer, facts, context_token = validate_request(payload)
     model = os.environ.get("MODEL_ID", "").strip()
     if not model:
         raise ChatError(503, "Configure MODEL_ID on the server.")
     known = "\n".join(f"- {name}: {value}" for name, value in facts.items()) or "- nothing yet"
     prompt = (f"Current field: {step}\nQuestion Abe asked: {question}\n"
               f"Already known:\n{known}\n\nThe user's message:\n<message>\n{answer}\n</message>")
+    system_text = INTAKE_PROMPT
+    if context_token is not None:
+        try:
+            snapshot = load_financial_context(context_token)
+        except PlaidError as error:
+            raise ChatError(error.status, error.message) from None
+        system_text += "\n\n" + PLAID_CONTEXT_PROMPT + "\n" + json.dumps(
+            snapshot, separators=(",", ":"), sort_keys=True,
+        )
     reserve_inference()
     with provider_errors():
         response = get_client().converse(
-            modelId=model, system=[{"text": INTAKE_PROMPT}],
+            modelId=model, system=[{"text": system_text}],
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             inferenceConfig={"maxTokens": 500, "temperature": 0},
             toolConfig={"tools": [TOOL], "toolChoice": {"tool": {"name": "record"}}},
