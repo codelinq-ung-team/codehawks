@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Banner, Button, ListRow, ListSection, Sheet, TextField } from '../kit/Kit.tsx'
 import { Page, Title } from '../lib/Chrome.tsx'
 import { go, setField, setState, useStore } from '../lib/store.ts'
+import { CoveragePreferences } from './CoveragePreferences.tsx'
 import {
   FIELD, FIELDS, GROUPS, HOUSEHOLD, PLANS, formatField, missingRequired, parseAmount, parseCount,
   type Field, type FieldId, type Household,
@@ -67,6 +68,7 @@ export function Review() {
               })}
             </ListSection>
           ))}
+          <CoveragePreferences />
         </div>
 
         <aside className="review__side">

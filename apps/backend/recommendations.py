@@ -11,7 +11,9 @@ from .policy_catalog import VERSION, STATES, eligible
 REFERENCE = (Path(__file__).parent / "references/lincoln_policies.md").read_text(encoding="utf-8")
 REQUIRED = ("support", "years", "mortgage", "otherDebts", "existing")
 PREFERENCES = {"goal": ("temporary", "lifelong", "both"), "premium": ("low", "higher"),
-               "cashValue": ("yes", "no"), "tobacco": ("yes", "no")}
+               "cashValue": ("yes", "no"), "tobacco": ("yes", "no"), "health": ("excellent", "good", "fair")}
+# Added after launch: a tab still running the older site leaves them out, which reads as unknown.
+UNDERWRITING = ("health",)
 PROMPT = """You are Abe, the life insurance guide. Select one researched term policy and
 one researched single-life permanent policy, and recommend the coverage TYPE that best
 fits the supplied facts. These are alternatives for the same gap, not amounts to add.
@@ -33,6 +35,12 @@ duration covering years of support; if none is long enough use the longest and e
 the shorter protection. Do not recommend an unavailable option. If both are unavailable,
 recommendedType is null. Explain the reasons using only the supplied facts and identify
 important uncertainty. A licensed professional must confirm eligibility and quotes.
+Preferences also hold underwriting answers: tobacco and health (excellent, good or fair).
+They weigh on the underwriting class, the premium and how much medical review is needed,
+never on the gap. When tobacco is yes or health is fair, say in the reason, in one short
+sentence, that it may raise premiums or need fuller review. A fair health answer makes
+streamlined or no-lab underwriting less likely. Never guess a rate class, premium or
+approval. Null answers are unknown.
 The request may include outlook: the site's projection of the gap in about ten years,
 built from what the user expects by then (outlook.plans: kids, home, partner; and
 facts.futureIncome, the yearly income they expect). The recommendation is still sized
@@ -84,8 +92,10 @@ def validate(payload):
     if age is not None and (isinstance(age, bool) or not isinstance(age, int) or not 0 <= age <= 120):
         raise ChatError(400, "age must be whole years from 0 to 120, or null.")
     preferences = payload["preferences"]
-    if not isinstance(preferences, dict) or set(preferences) != {"state", *PREFERENCES}:
+    names = {"state", *PREFERENCES}
+    if not isinstance(preferences, dict) or not names - set(UNDERWRITING) <= set(preferences) <= names:
         raise ChatError(400, "Invalid coverage preferences.")
+    preferences = {name: preferences.get(name) for name in ("state", *PREFERENCES)}
     if preferences["state"] is not None and (not isinstance(preferences["state"], str) or preferences["state"] not in STATES):
         raise ChatError(400, "Use a US state abbreviation or null.")
     if any(preferences[name] is not None and (not isinstance(preferences[name], str) or preferences[name] not in allowed) for name, allowed in PREFERENCES.items()):

@@ -130,12 +130,18 @@ values or explicit `unknown`/`skipped`/`empty` status and null value), `age`
 (0–120 whole years, or null), and `preferences`:
 
 ```json
-{"state":"TX","tobacco":"no","goal":"temporary","premium":"low","cashValue":"no"}
+{"state":"TX","tobacco":"no","goal":"temporary","premium":"low","cashValue":"no","health":"excellent"}
 ```
 
 Every preference can be null. State uses a US abbreviation (including DC);
 tobacco/cashValue are `yes`/`no`, goal is `temporary`/`lifelong`/`both`, and premium
-is `low`/`higher`. Required confirmed fields are support, years, mortgage, otherDebts
+is `low`/`higher`. Health is `excellent`/`good`/`fair`; it may be left out, which reads
+as null, so a tab still running the older site keeps working. Health never changes the
+gap or which policies are eligible. Tobacco `yes` or health `fair` adds a card
+qualification that underwriting may mean higher premiums or more medical review, and
+health `fair` notes that TermAccel's and WealthAccelerate's streamlined applications
+may not apply. The website no longer asks goal, premium or cashValue, so it sends them
+as null. Required confirmed fields are support, years, mortgage, otherDebts
 and existing. Unknown optional amounts remain omitted from the calculation.
 
 The server calculates the gap, filters PR #39's versioned policy shortlist and
