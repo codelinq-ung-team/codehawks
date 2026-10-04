@@ -103,7 +103,7 @@ function Plan({ icon, name, tagline, big, unit, cost, costLabel, ask, points, ca
         <li className="plan__catch"><span className="plan__dash" aria-hidden="true" /><span className="sr-only">Keep in mind: </span>{option?.caveat ?? catchText}</li>
       </ul>
       <div className="plan__fit">
-        <p className="plan__fit-title">{option ? 'Why it fits' : 'In your estimate'}</p>
+        <p className="plan__fit-title">{recommended && option ? 'Why it fits' : 'In your estimate'}</p>
         <p>{option?.fit ?? fit}</p>
         {recommended && reason && <p className="plan__reason">{reason}</p>}
         {unavailable && <p>No additional coverage needed or no supported policy match in this shortlist.</p>}
