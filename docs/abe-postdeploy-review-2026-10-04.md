@@ -28,6 +28,25 @@ logging. The legacy project's Lambda log group (see `infra/legacy-config.json`)
 had zero events in the same window. No unrelated application's log contents or
 pre-deployment events were read. Raw logs remain outside the repository.
 
+### Connected headset follow-up
+
+At the user's request, USB/ADB also identified a connected Quest 3S running the
+Advisor3D app. Its package was last updated at 02:02:17 EDT. A read-only logcat
+query for that app process, starting at the same 02:04:48 EDT cutoff, returned
+only 10 Unity lifecycle entries (pause/focus/window/memory events at 02:29:01).
+The currently retained buffer contained no user/assistant text. The app's external
+files contained IL2CPP runtime assets, not saved transcripts; its production
+package is not debuggable, so `run-as` cannot read private app storage.
+
+`Voice.cs` sends voice directly to OpenAI Realtime and adds transcribed user and
+assistant messages to `Store.State.messages`. `Store.cs` keeps those messages
+in memory only; they are not persisted across launches. Thus Bedrock logs would
+not contain the VR voice conversation even if invocation logging were enabled.
+A still-running session may show its transcript in the headset UI, but no transcript
+was recovered over USB. Logcat retention is finite; this does not prove that no
+conversation took place. No restart, reinstall, log clearing, or app-data change
+was performed.
+
 **There are no transcripts to review in the available sources.** Do not attribute
 the conversation fixes below to observed user complaints, or claim a measured
 model-quality improvement. Bedrock invocation logging is disabled by default and
