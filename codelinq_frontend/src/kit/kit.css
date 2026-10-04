@@ -166,10 +166,10 @@
 .ck-overlay--center { align-items: center; justify-content: center; }
 .ck-scrim { position: absolute; inset: 0; background: var(--scrim); }
 .ck-sheet {
-  position: relative; width: 100%; max-height: 92%; overflow: auto; margin: 0 6px 6px; padding: 0 var(--space-5) var(--space-6);
+  position: relative; box-sizing: border-box; width: calc(100% - 12px); max-width: 560px; max-height: 92%; overflow: auto; margin: 0 auto 6px; padding: 0 var(--space-5) var(--space-6);
   border-radius: var(--radius-xl); background: var(--bg-secondary); color: var(--label-primary); box-shadow: var(--shadow-sheet);
 }
-.ck-sheet--large { min-height: 88%; margin: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.ck-sheet--large { width: 100%; min-height: 88%; margin: 0 auto; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .ck-sheet__grabber { display: block; width: 36px; height: 5px; margin: 6px auto 0; border-radius: var(--radius-full); background: var(--gray-3); }
 .ck-sheet__head { display: grid; grid-template-columns: var(--tap-target) 1fr var(--tap-target); align-items: center; gap: var(--space-2); padding: var(--space-2) 0 var(--space-4); }
 .ck-sheet__title { margin: 0; text-align: center; font: 600 17px/22px var(--font-sans); }
