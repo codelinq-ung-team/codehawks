@@ -48,6 +48,9 @@ rejects model settings that differ from the deployed bootstrap, packages pinned
 dependencies, and sets Lambda's `MODEL_ID` through CloudFormation. Lambda uses its
 own role to call Bedrock. Do not add a Bedrock key or long-lived AWS credentials.
 
+The Lambda launcher disables the unused Gunicorn control socket, whose default
+location is under the read-only home directory.
+
 The function has 512 MB memory, a 120-second timeout, and seven-day logs. A shared
 DynamoDB admission limit allows **30 Bedrock calls in any rolling 60 seconds**
 across all users, Lambda instances, and buffered/streaming requests. Additional

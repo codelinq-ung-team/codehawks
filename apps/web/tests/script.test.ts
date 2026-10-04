@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { emptyProfile } from '../src/domain/calculator.ts'
 import type { AppState, Form } from '../src/lib/store.ts'
 import { WHY, applyForm, interpret, known, nextStep, question, respond, type Reading } from '../src/intake/script.ts'
+import { intakePayload } from '../src/intake/ai.ts'
 
 function state(form: Partial<Form> = {}): AppState {
   const s: AppState = {
@@ -71,6 +72,19 @@ test('re-running the form updates its own answers but not confirmed ones', () =>
 
 // The AI's reading of a typed answer goes through the same checks as the script.
 const reading = (r: Partial<Reading>): Reading => ({ intent: 'answer', value: null, household: null, period: null, extra: {}, say: '', ...r })
+
+test('a follow-up sends the open question instead of the previous explanation', () => {
+  const s = state()
+  s.messages = [
+    { role: 'bot', text: question('income', s).text },
+    { role: 'user', text: 'What is gross income?' },
+    { role: 'bot', text: 'That means your income before taxes.' },
+  ]
+  const p = intakePayload('income', 'Does that include my bonus?', s)
+  assert.equal(p.question, question('income', s).text)
+  assert.equal(p.answer, 'Does that include my bonus?')
+  assert.equal(s.messages.length, 3)
+})
 
 test('an AI reading becomes a proposed answer with the script’s own confirmation', () => {
   const r = interpret('income', reading({ value: 80000, say: 'Got it, $90,000!' }), state())

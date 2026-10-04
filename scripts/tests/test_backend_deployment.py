@@ -218,6 +218,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertNotIn(b"\r", archive.read("run.sh"))
                 self.assertIn(b"python -m gunicorn", archive.read("run.sh"))
                 self.assertIn(b"backend.app:app", archive.read("run.sh"))
+                self.assertIn(b"--no-control-socket", archive.read("run.sh"))
 
     def test_smoke_client_hashes_exact_body_without_signing_credentials(self):
         body = b'{"messages":[]}'
