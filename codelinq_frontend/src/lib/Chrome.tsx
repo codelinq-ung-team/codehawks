@@ -1,7 +1,8 @@
-// Shared page chrome: the top bar (section links on Home, step progress elsewhere).
+// Shared page chrome: the top bar (a brand bar with a chat link on Home, step progress elsewhere).
 import { useState, type ReactNode } from 'react'
-import { Alert, Button, Icon, PartnerBadge } from '../kit/Kit.tsx'
-import { go, resetState, type Route } from './store.ts'
+import { Alert, Button, Icon } from '../kit/Kit.tsx'
+import { getState, go, resetState, type Route } from './store.ts'
+import { GUIDE_NAME } from '../guide/guide.ts'
 
 const STEPS: { id: Route; label: string }[] = [
   { id: 'prepare', label: 'Basics' },
@@ -10,10 +11,6 @@ const STEPS: { id: Route; label: string }[] = [
   { id: 'results', label: 'Results' },
 ]
 
-function jump(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
 export function Brand() {
   return (
     <a className="brand headline" href="#/">
@@ -21,6 +18,12 @@ export function Brand() {
       <span>Linq<span className="brand__accent">Life</span></span>
     </a>
   )
+}
+
+// Same destination as the hero's start button: back into the chat if it's under way.
+function startChat() {
+  const s = getState()
+  go(s.started && s.messages.length ? 'chat' : 'prepare')
 }
 
 export function Header({ route }: { route: Route }) {
@@ -33,11 +36,9 @@ export function Header({ route }: { route: Route }) {
         {index >= 0
           ? <Button variant="plain" size="small" onClick={() => setConfirming(true)}>Start Over</Button>
           : (
-            <nav className="top__nav" aria-label="Page sections">
-              <button type="button" className="top__link" onClick={() => jump('how')}>How it works</button>
-              <button type="button" className="top__link" onClick={() => jump('get')}>What you get</button>
-              <Button size="small" onClick={() => go('prepare')}>Start Assessment</Button>
-            </nav>
+            <button type="button" className="top__cta" onClick={startChat}>
+              Chat with {GUIDE_NAME}<Icon name="chevron-right" size={14} weight={2.8} />
+            </button>
           )}
       </header>
       {index >= 0 && <Stepper index={index} />}
@@ -89,14 +90,5 @@ export function Title({ children, sub }: { children: ReactNode; sub?: ReactNode 
       <h1 className="large-title">{children}</h1>
       {sub && <p className="body muted">{sub}</p>}
     </div>
-  )
-}
-
-export function Footer() {
-  return (
-    <footer className="lp-footer">
-      <p className="footnote muted">LinqLife gives an educational estimate, not a quote, a recommendation, or financial, legal, or tax advice. It doesn’t account for inflation, investment returns, taxes, or Social Security.</p>
-      <PartnerBadge prefix="Built at" name="codeLinc 11" />
-    </footer>
   )
 }
