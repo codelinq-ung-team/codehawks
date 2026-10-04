@@ -180,6 +180,39 @@
 .viz-key--have { background: var(--viz-have); }
 .viz-key--gap { background: var(--viz-gap); }
 
+/* What if: today vs. with the changes. Solid orange is today's gap; the hatch is what the changes add,
+   so the two read apart by pattern as well as shade. */
+.viz-seg--today { background: var(--viz-gap); }
+.viz-seg--added, .viz-key--added { background: repeating-linear-gradient(135deg, var(--viz-gap) 0 4px, #f6b597 4px 8px); }
+.viz-scenario .viz-seg:not(.is-end) { border-radius: 0; }
+.viz-scenario__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+.viz-scenario__list li { display: flex; align-items: center; gap: var(--space-2); }
+.viz-scenario__list strong { margin-left: auto; color: var(--label-primary); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.viz-scenario__empty { font: 400 15px/20px var(--font-sans); color: var(--label-secondary); }
+
+.scenario-toggle { cursor: pointer; }
+.scenario-switch {
+  appearance: none; position: relative; flex: none; width: 51px; height: 31px; margin: 0; border-radius: 999px;
+  background: var(--fill-primary); cursor: pointer; transition: background .2s;
+}
+.scenario-switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: transform .2s var(--viz-ease);
+}
+.scenario-switch:checked { background: var(--tint); }
+.scenario-switch:checked::after { transform: translateX(20px); }
+.scenario-switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.scenario-rate { flex-wrap: wrap; row-gap: var(--space-2); }
+.scenario-rate .ck-row__text { flex: 1 1 100%; }
+.scenario-rate__options { display: flex; flex: none; padding: 2px; border-radius: var(--radius-sm); background: var(--fill-tertiary); }
+.scenario-rate__option {
+  min-width: 48px; min-height: 36px; padding: 0 var(--space-2); border: 0; border-radius: calc(var(--radius-sm) - 2px);
+  background: none; color: var(--label-primary); font: 600 15px/20px var(--font-sans); cursor: pointer;
+}
+.scenario-rate__option[aria-pressed="true"] { background: var(--bg-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.scenario-rate__option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.stepper-row__hint { color: var(--label-tertiary); }
+
 /* Time: everyday costs still ahead */
 .viz-time { display: flex; flex-direction: column; gap: var(--space-2); height: 100%; }
 .viz-time__labels { display: flex; justify-content: space-between; gap: var(--space-3); font: 400 13px/18px var(--font-sans); color: var(--label-secondary); }
@@ -342,6 +375,6 @@
   .stage__chart, .deck-nav__dot::before, .viz-grow-x, .viz-grow-y, .viz-seg--gap, .viz-legend__gap,
   .viz-years__cap, .viz-time__svg .viz-time__reveal, .viz-time__dot { transition: none; }
   .deck__talk, .board-abe { animation: none; }
-  .plans__ask-mark { transition: none; }
+  .plans__ask-mark, .scenario-switch, .scenario-switch::after { transition: none; }
   .plans__ask:hover .plans__ask-mark, .plans__ask:active .plans__ask-mark { transform: none; }
 }

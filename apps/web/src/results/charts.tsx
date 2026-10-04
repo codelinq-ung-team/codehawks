@@ -2,7 +2,7 @@
 // (all from calculate()); none of them do any math beyond scaling to the space.
 // Bars are HTML so widths animate smoothly when the what-if controls change them.
 import type { CSSProperties } from 'react'
-import { formatMoney } from '../domain/calculator.ts'
+import { formatMoney, formatPercent } from '../domain/calculator.ts'
 
 export type Slice = { id: string; label: string; value: number }
 
@@ -11,17 +11,17 @@ const delay = (i: number, step = 70): CSSProperties => ({ ['--delay' as string]:
 
 /* The short version: the estimate as one number, plus how much is already in place. */
 export function SummaryChart({ additional, totalNeeds, totalResources }: { additional: number; totalNeeds: number; totalResources: number }) {
-  const covered = Math.round(pct(totalResources, totalNeeds))
+  const covered = formatPercent(totalResources, totalNeeds)
   return (
     <div className="viz-summary">
       <p className="viz-summary__label">{additional > 0 ? 'Additional coverage to consider' : 'Additional coverage needed'}</p>
       <p className="viz-summary__value">{formatMoney(additional)}</p>
-      <div className="viz-meter" role="img" aria-label={`${covered}% of what your family would need is already in place`}>
+      <div className="viz-meter" role="img" aria-label={`${covered} of what your family would need is already in place`}>
         <div className="viz-meter__head">
           <span>Already in place</span>
-          <strong>{covered}%</strong>
+          <strong>{covered}</strong>
         </div>
-        <div className="viz-meter__track"><span className="viz-meter__fill viz-grow-x" style={{ width: `${covered}%` }} /></div>
+        <div className="viz-meter__track"><span className="viz-meter__fill viz-grow-x" style={{ width: totalResources > 0 ? `max(4px, ${pct(totalResources, totalNeeds)}%)` : '0%' }} /></div>
         <p className="viz-meter__foot">{formatMoney(totalResources)} of {formatMoney(totalNeeds)}</p>
       </div>
     </div>
@@ -115,6 +115,40 @@ export function CoverageChart({ totalNeeds, resources, additional, showGap }: {
         {resources.length === 0 && <li><span className="viz-key viz-key--have" />Already in place <strong>{formatMoney(0)}</strong></li>}
         <li className={'viz-legend__gap' + (gapShown ? ' is-shown' : '')}><span className="viz-key viz-key--gap" />Gap to consider <strong>{formatMoney(additional)}</strong></li>
       </ul>
+    </div>
+  )
+}
+
+/* What if: today's estimate above the scenario's. The hatched piece is what the changes add. */
+export function ScenarioChart({ base, next, changes }: { base: number; next: number; changes: Slice[] }) {
+  const max = Math.max(base, next, 1)
+  const extra = Math.max(0, next - base)
+  const kept = Math.min(base, next)
+  return (
+    <div className="viz-coverage viz-scenario" role="img" aria-label={
+      `Your estimate today is ${formatMoney(base)}. With these changes it would be ${formatMoney(next)}.` +
+      changes.map((c) => ` ${c.label} adds ${formatMoney(c.value)}.`).join('')
+    }>
+      <div className="viz-coverage__row">
+        <div className="viz-coverage__head"><span>Your estimate today</span><strong>{formatMoney(base)}</strong></div>
+        <div className="viz-coverage__track">
+          <span className="viz-seg viz-seg--today is-end viz-grow-x" style={{ width: `${pct(base, max)}%` }} />
+        </div>
+      </div>
+      <div className="viz-coverage__row">
+        <div className="viz-coverage__head"><span>With these changes</span><strong>{formatMoney(next)}</strong></div>
+        <div className="viz-coverage__track">
+          <span className={'viz-seg viz-seg--today viz-grow-x' + (extra ? '' : ' is-end')} style={{ width: `${pct(kept, max)}%` }} />
+          <span className="viz-seg viz-seg--added is-end viz-grow-x" style={{ width: extra ? `calc(${pct(extra, max)}% - 2px)` : '0%' }} />
+        </div>
+      </div>
+      {changes.length
+        ? (
+          <ul className="viz-scenario__list">
+            {changes.map((c) => <li key={c.id}><span className="viz-key viz-key--added" />{c.label}<strong>+ {formatMoney(c.value)}</strong></li>)}
+          </ul>
+        )
+        : <p className="viz-scenario__empty">Turn on a change to compare.</p>}
     </div>
   )
 }
